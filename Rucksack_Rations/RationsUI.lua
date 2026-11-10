@@ -17,14 +17,10 @@ do
   local E = function() return ns.eat end
   local controls = {}
   ToolHeader(p, "|cff66dd66Rations|r",
-    function() return E().enabled ~= false end,
-    function(v) E().enabled = v ns.Eat.Update(false) end,
-    "On: the button and its key eat and drink. Off: they do nothing and the button goes away.")
+    function() return E().showIcon ~= false end, function(v) ns.Eat.SetShown(v) end,
+    "Shows or hides the eat button on your screen. Hidden, the EatDrink, Eat and Drink macros still work. (Turn Rations off completely in Settings > Modules.)")
   local next = Text(p, 0, -30, "GameFontHighlightSmall", 440)
   local y = -52
-  controls[#controls + 1] = p:Add(Check(p, 0, y, "Show the eat button on screen", "Food on the left, drink on the right, with how many you have; grey = in combat (you can't eat or drink then). Shift-drag: move it.",
-    function() return E().showIcon ~= false end, function(v) ns.Eat.SetShown(v) end))
-  y = y - 24
   controls[#controls + 1] = p:Add(Check(p, 0, y, "Keep the macros up to date  |cffaaaaaa(EatDrink, Eat, Drink)|r",
     "Three macros for your action bars, shared by all your characters (/macro, General tab):\n|cffffd100EatDrink|r: same as the eat button (eats and drinks, or what the Eat button choice says).\n|cffffd100Eat|r: food only.\n|cffffd100Drink|r: water only.\nRucksack keeps them up to date with the food and water of the character you're playing. A character's own older EatDrink macro is kept up to date too.",
     function() return E().macro ~= false end, function(v) E().macro = v ns.Eat.Update(v) end))

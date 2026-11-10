@@ -30,8 +30,9 @@ do
   local p = Page()
   pages.faire = p
   GuideButton(p, "faire")
-  ToolHeader(p, "|cffb48cffDarkmoon Faire|r", function() return RS.Faire.On() end, function(v) RS.Faire.SetOn(v) end,
-    "On: ticket turn-in help at the Faire, item tooltips, the on-screen ticket button and quick turn-ins. Off: all of that stops (Clean-up still keeps turn-in items if that box is ticked).")
+  ToolHeader(p, "|cffb48cffDarkmoon Faire|r", function() return RS.Faire.db and RS.Faire.db.screenButton == true end,
+    function(v) RS.Faire.db.screenButton = v and true or nil if RS.Faire.UpdateScreenButton then RS.Faire.UpdateScreenButton() end end,
+    "Shows or hides the ticket button on your screen (with your tracked prize). The Pocket's Tickets line, tooltips and quick turn-ins work either way. (Turn the Faire off completely in Settings > Modules.)")
   p.updates[#p.updates + 1] = function() if RS.Faire.Refresh then RS.Faire.Refresh() end end
   RS.FairePage = p
 end
@@ -606,21 +607,16 @@ end, "Clean-up never deletes or sells the items the Faire NPCs want (Small Furry
 c3:SetPoint("TOPLEFT", 0, -256)
 local c4 = check(F, "Note in chat at login during the Faire", function() return ns.db.loginNote ~= false end, function(v) ns.db.loginNote = v end)
 c4:SetPoint("TOPLEFT", 0, -282)
-local c5 = check(F, "Button on screen", function() return ns.db.screenButton == true end, function(v)
-  ns.db.screenButton = v
-  if ns.UpdateScreenButton then ns.UpdateScreenButton() end
-end, "Off by default: the Pocket's Tickets line shows the same. On: a small ticket button you can drag anywhere (a card with your tracked prize). Left-click opens the Faire page, right-click the prizes. /faire button turns it on or off.")
-c5:SetPoint("TOPLEFT", 0, -308)
-local c6 = check(F, "Only while the Faire is open", function() return ns.db.screenButtonFaireOnly end, function(v)
+local c6 = check(F, "Ticket button only while the Faire is open", function() return ns.db.screenButtonFaireOnly end, function(v)
   ns.db.screenButtonFaireOnly = v or nil
   if ns.UpdateScreenButton then ns.UpdateScreenButton() end
 end, "Hide the on-screen button in the weeks there's no Faire.")
-c6:SetPoint("TOPLEFT", 20, -334)
+c6:SetPoint("TOPLEFT", 0, -308)
 local c7 = check(F, "Prize tracker on screen", function() return ns.db.tracker ~= false end, function(v)
   ns.db.tracker = v
   if ns.PaintScreenButton then ns.PaintScreenButton() end
 end, "When you track a prize (Prizes tab), the on-screen button shows its icon, your tickets out of what it costs, and a bar. /faire track turns it on or off.")
-c7:SetPoint("TOPLEFT", 20, -360)
+c7:SetPoint("TOPLEFT", 0, -334)
 
 local function drawFaire()
   whenText:SetText(ns.FaireLine())

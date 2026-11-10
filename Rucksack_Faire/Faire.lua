@@ -380,7 +380,7 @@ on("ADDON_LOADED", function(name)
     for k, v in pairs(FaireForeverCharDB) do if c[k] == nil then c[k] = v end end
     c.migrated = true
   end
-  if db.enabled == nil then db.enabled = true end
+  db.enabled = true -- (1.7.3: off is Settings > Modules now; the page box only hides the ticket button)
   -- (1.7.1) the on-screen ticket button / prize card is off unless you turn it on: the Pocket's
   -- Tickets line shows the same. (Hidden once for everyone who had it from before.)
   if not db.screenButtonOffOnce then db.screenButtonOffOnce = true db.screenButton = nil end

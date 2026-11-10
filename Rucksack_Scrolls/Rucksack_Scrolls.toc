@@ -2,7 +2,7 @@
 ## Title: |cffc8a165Ruck|r|cffffd100sack|r: |cff69ccf0Scrolls|r
 ## Notes: Part of Rucksack: mages decipher their next scroll with one click (Comprehend Scroll), only the ones your skill allows. Turn it on or off in Rucksack's Settings > Modules.
 ## Author: Marijan
-## Version: 1.7.2
+## Version: 1.7.3
 ## Dependencies: Rucksack
 ## LoadOnDemand: 1
 ## SavedVariables: RucksackScrollsDB

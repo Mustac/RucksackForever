@@ -16,8 +16,8 @@ do
   GuideButton(p, "del")
   local D = function() return ns.del end
   local function set(key) return function(v) D()[key] = v ns.Del.Refresh() end end
-  ToolHeader(p, "|cffff5555Clean-up|r", function() return D().enabled end, set("enabled"),
-    "On: the Always / Yes / No box, and remembered items get deleted. Off: the game's normal delete box, nothing is deleted.")
+  ToolHeader(p, "|cffff5555Clean-up|r", function() return not D().hideIcon end, function(v) D().hideIcon = not v or nil ns.Del.Refresh() end,
+    "Shows or hides the trash button on your screen. Hidden, Clean-up still deletes and sells (and the RuckDelete macro works). To pause Clean-up, use its switch on the Pocket; to turn it off completely, Settings > Modules.")
   local info = Text(p, 0, -28, "GameFontHighlightSmall", 440)
   local y = -48
   p:Add(Check(p, 0, y, "Delete on any key press", "When a remembered item may go, it's deleted on your next key press (outside combat). Off: only with the trash button or its key.",

@@ -3,7 +3,7 @@
 ## Notes: Rations (eat and drink with one click), Clean-up (delete or sell what you don't need) and the Darkmoon Faire (tickets, turn-ins, prizes). Pick which parts load in Settings > Modules. /ruck
 ## IconTexture: Interface\AddOns\Rucksack\Icon
 ## Author: Marijan
-## Version: 1.7.2
+## Version: 1.7.3
 ## X-Curse-Project-ID: 1796228
 ## OptionalDeps: FaireForever
 ## SavedVariables: RucksackDB

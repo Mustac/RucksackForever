@@ -580,6 +580,7 @@ Refresh = function()
     pend.waiting = nil
     pend:Hide()
   end
+  if DB.hideIcon then pend:Hide() end -- (1.7.3: "Show button" unticked)
   if not InCombatLockdown() then
     EnsurePropagate()
     keyCatcher:EnableKeyboard((DB.enabled and DB.onKey and it and propagateOK) and true or false)

@@ -433,10 +433,11 @@ local function GuideButton(p, section)
   tip(b, "Guide", "What everything on this page does.")
   return b
 end
--- a tool page's top line: its name, and its Enable box on the right
+-- a tool page's top line: its name, and its "Show button" box on the right (1.7.3: turning a tool
+-- truly on or off is Settings > Modules; this only shows or hides its button on your screen)
 local function ToolHeader(p, name, get, set, tipText)
   Text(p, 0, -2, "GameFontNormalLarge"):SetText(name)
-  local cb = Check(p, 300, 0, "Enable", tipText, get, set, "GameFontNormal")
+  local cb = Check(p, 300, 0, "Show button", tipText, get, set, "GameFontNormal")
   p:Add(cb)
   return cb
 end
@@ -533,21 +534,43 @@ do
   y = y - 34
   p:Add(KeyButton(p, 0, y, "Open Rucksack", "AUTODELETE_TOGGLE", "A key that opens and closes this window."))
   y = y - 44
-  -- (1.7) modules: tick the parts you want. Unticked = not loaded at all.
+  -- (1.7.3) modules: tick the parts you want, then Apply (bottom right) does it all at once.
+  -- Unticked = not loaded at all (after a reload).
+  local pend = {}        -- key -> wanted, not applied yet
+  local pendOwn          -- "Just for this character", not applied yet (true / false / nil = unchanged)
+  local function ownNow() if pendOwn ~= nil then return pendOwn end return ns.char.ownModules and true or false end
+  local function wantedNow(key)
+    if pend[key] ~= nil then return pend[key] end
+    if pendOwn ~= nil and pendOwn ~= (ns.char.ownModules and true or false) then
+      -- (switching between account and character choices: show what those would be)
+      local list = pendOwn and ns.char.modules or ns.db.modules
+      if list and list[key] ~= nil then return list[key] end
+      if pendOwn and ns.db.modules and ns.db.modules[key] ~= nil then return ns.db.modules[key] end
+      return true
+    end
+    return ns.ModuleWanted(key)
+  end
+  local function anyPending()
+    if pendOwn ~= nil and pendOwn ~= (ns.char.ownModules and true or false) then return true end
+    for k, v in pairs(pend) do if v ~= ns.ModuleWanted(k) then return true end end
+    return false
+  end
   local mh = Text(p, 0, y, "GameFontNormal")
   mh:SetText("Modules")
-  HoverLabel(p, mh, "Modules", "Rucksack comes with all its parts, but only loads the ones ticked here. An unticked part isn't loaded at all: no memory, no work.\n\nTicking one loads it right away. Unticking one needs a reload.")
-  Text(p, 100, y - 1, "GameFontDisableSmall", 500):SetText("only ticked parts are loaded  ·  ticking loads it now, unticking needs a reload")
+  HoverLabel(p, mh, "Modules", "Rucksack comes with all its parts, but only loads the ones ticked here. An unticked part isn't loaded at all: no memory, no work.\n\nTick or untick what you like, then click Apply (bottom right). Parts you ticked load right away; if you unticked any, it asks once to reload.")
+  Text(p, 100, y - 1, "GameFontDisableSmall", 500):SetText("tick what you want, then Apply (bottom right)  ·  unticked parts aren't loaded at all")
   y = y - 22
   for _, m in ipairs(ns.MODULES) do
     local cb = p:Add(Check(p, 0, y, m.name .. "  |cff999999" .. m.what .. "|r", nil,
-      function() return ns.ModuleWanted(m.key) end, function(v) ns.SetModule(m, v) end))
+      function() return wantedNow(m.key) end, function(v) pend[m.key] = v ns.Changed() end))
     local state = cb:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     state:SetPoint("LEFT", cb, "LEFT", 380, 1)
-    tip(cb, m.name, m.what .. ". Ticked: loaded. Unticked: not loaded at all (after a reload).")
+    tip(cb, m.name, m.what .. ".\nTicked: loaded. Unticked: not loaded at all. Click Apply to make the change.")
     p.updates[#p.updates + 1] = function()
-      local has, want = ns.Has(m.key), ns.ModuleWanted(m.key)
-      if has and want then state:SetText("|cff66dd66loaded|r")
+      local has, want, now = ns.Has(m.key), ns.ModuleWanted(m.key), wantedNow(m.key)
+      if now ~= want or (pendOwn ~= nil and now ~= has) then
+        state:SetText(now and "|cffffd100will load (Apply)|r" or "|cffffd100won't load (Apply)|r")
+      elseif has and want then state:SetText("|cff66dd66loaded|r")
       elseif has then state:SetText("|cffffd100off after reload|r")
       elseif want then state:SetText("|cffff8080couldn't load|r")
       else state:SetText("|cff999999not loaded|r") end
@@ -555,16 +578,59 @@ do
     y = y - 24
   end
   p:Add(Check(p, 0, y, "Just for this character  |cff999999(otherwise the same on all your characters)|r",
-    "Ticked: this character has its own module choices (say, the Faire only on your main).",
-    function() return ns.char.ownModules end, function(v)
-      ns.char.ownModules = v or nil
-      if v then
-        ns.char.modules = ns.char.modules or {}
-        for _, m in ipairs(ns.MODULES) do if ns.char.modules[m.key] == nil then ns.char.modules[m.key] = ns.db.modules == nil or ns.db.modules[m.key] ~= false end end
-      end
-      ns.Changed()
-    end, "GameFontHighlightSmall"))
+    "Ticked: this character has its own module choices (say, the Faire only on your main). Click Apply to make the change.",
+    function() return ownNow() end, function(v) pendOwn = v and true or false ns.Changed() end, "GameFontHighlightSmall"))
   y = y - 10
+  -- Apply / Cancel, bottom right of the page
+  local applyBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+  applyBtn:SetSize(100, 24)
+  applyBtn:SetPoint("BOTTOMRIGHT", 0, 0)
+  applyBtn:SetText("Apply")
+  local cancelBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+  cancelBtn:SetSize(90, 24)
+  cancelBtn:SetPoint("RIGHT", applyBtn, "LEFT", -6, 0)
+  cancelBtn:SetText("Cancel")
+  local pendNote = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+  pendNote:SetPoint("RIGHT", cancelBtn, "LEFT", -10, 0)
+  tip(applyBtn, "Apply", "Makes your module choices happen: ticked parts load now, and if you unticked any, Rucksack asks once to reload.")
+  tip(cancelBtn, "Cancel", "Puts the module ticks back the way they are now.")
+  cancelBtn:SetScript("OnClick", function() wipe(pend) pendOwn = nil ns.Changed() end)
+  applyBtn:SetScript("OnClick", function()
+    -- the final choice for every module, then switch to "this character" or not
+    local final = {}
+    for _, m in ipairs(ns.MODULES) do final[m.key] = wantedNow(m.key) end
+    if pendOwn ~= nil then
+      ns.char.ownModules = pendOwn or nil
+      if pendOwn then ns.char.modules = ns.char.modules or {} end
+    end
+    local loadedNow, offNames, failed = {}, {}, {}
+    for _, m in ipairs(ns.MODULES) do
+      local v = final[m.key]
+      ns.SetModuleWanted(m.key, v)
+      if v and not ns.Has(m.key) then
+        if InCombatLockdown() then failed[#failed + 1] = m.name .. " (after this fight)"
+        elseif ns.LoadModule(m) then loadedNow[#loadedNow + 1] = m.name
+        else failed[#failed + 1] = m.name .. ": " .. (ns.WhyNot(m) or "couldn't load") end
+      elseif not v and ns.Has(m.key) then
+        offNames[#offNames + 1] = m.name
+      end
+    end
+    wipe(pend) pendOwn = nil
+    if #loadedNow > 0 then Print(table.concat(loadedNow, ", ") .. (#loadedNow == 1 and " is" or " are") .. " loaded.") end
+    for _, f in ipairs(failed) do Print("couldn't load " .. f .. ".") end
+    if #offNames > 0 then
+      local names = #offNames > 1 and (table.concat(offNames, ", ", 1, #offNames - 1) .. " and " .. offNames[#offNames]) or offNames[1]
+      StaticPopup_Show("RUCKSACK_RELOAD", names .. (#offNames == 1 and " is" or " are") ..
+        " turned off and stop" .. (#offNames == 1 and "s" or "") .. " loading after a reload. Until then " .. (#offNames == 1 and "it keeps" or "they keep") .. " running.")
+    end
+    ns.Changed()
+  end)
+  p.updates[#p.updates + 1] = function()
+    local any = anyPending()
+    applyBtn:SetEnabled(any)
+    cancelBtn:SetEnabled(any)
+    pendNote:SetText(any and "Module changes waiting" or "")
+  end
   -- the Pocket
   y = y - 44
   Text(p, 0, y, "GameFontNormal"):SetText("The Pocket")
@@ -785,7 +851,7 @@ do
     local E = ns.eat
     if not ns.Has("eat") then notLoaded(eatCard, 5) eatKey:SetText("") end
     if ns.Has("eat") then
-    eatCard.state:SetText(E.enabled ~= false and "|cff66dd66on|r" or "|cff999999off|r")
+    eatCard.state:SetText(E.showIcon ~= false and "|cff66dd66button shown|r" or "|cff999999button hidden|r")
     local Q = "Interface\\Icons\\INV_Misc_QuestionMark"
     eatCard:Set(1, S.food and ns.GetIcon(S.food) or Q, "Next food", S.food and (ns.NameOf(S.food) .. "  x" .. S.foodCount) or "|cff999999none|r")
     eatCard:Set(2, S.drink and ns.GetIcon(S.drink) or Q, "Next water", S.drink and (ns.NameOf(S.drink) .. "  x" .. S.drinkCount) or "|cff999999none|r")
@@ -896,10 +962,10 @@ end
 ---------------------------------------------------------------------------
 local TOOLS = {
   { key = "home", icon = ns.ICON, name = "Home" },
-  { key = "eat", icon = "Interface\\Icons\\INV_Misc_Food_15", name = "Rations", on = function() return ns.eat and ns.eat.enabled ~= false end },
-  { key = "del", icon = "Interface\\Icons\\INV_Misc_Bag_10_Red", name = "Clean-up", on = function() return ns.del and ns.del.enabled end },
+  { key = "eat", icon = "Interface\\Icons\\INV_Misc_Food_15", name = "Rations", on = function() return ns.eat and ns.eat.showIcon ~= false end },
+  { key = "del", icon = "Interface\\Icons\\INV_Misc_Bag_10_Red", name = "Clean-up", on = function() return ns.del and not ns.del.hideIcon end },
   { key = "faire", icon = (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(19182)) or "Interface\\Icons\\INV_Misc_Coin_01",
-    name = "Faire", on = function() return ns.Faire and ns.Faire.On and ns.Faire.On() end },
+    name = "Faire", on = function() return ns.Faire and ns.Faire.db and ns.Faire.db.screenButton == true end },
   { key = "scrolls", icon = "Interface\\Icons\\INV_Scroll_03", name = "Scrolls", on = function() return ns.Scrolls and ns.Scrolls.db and ns.Scrolls.db.button ~= false end },
   { key = "guide", icon = "Interface\\Icons\\INV_Misc_Book_09", name = "Guide", bottom = 2 },
   { key = "general", icon = "Interface\\Icons\\INV_Misc_Gear_01", name = "Settings", bottom = 1 },
@@ -940,9 +1006,10 @@ local function buildSide()
       r.icon:SetDesaturated(true)
       r.text:SetTextColor(0.5, 0.5, 0.5)
     elseif r.tool.on then
+      -- (1.7.3) whether its button is on your screen; the tool itself is on (it's loaded)
       local on = r.tool.on()
-      r.tag:SetText(on and "|cff66dd66on|r" or "|cff999999off|r")
-      r.icon:SetDesaturated(not on)
+      r.tag:SetText(on and "|cff66dd66shown|r" or "|cff999999hidden|r")
+      r.icon:SetDesaturated(false)
       r.text:SetTextColor(1, 0.82, 0)
     end
   end

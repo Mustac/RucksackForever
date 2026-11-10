@@ -12,7 +12,7 @@ Everything is in one window (`/ruck`), with a small on-screen Pocket that shows 
 
 ## Modules: only load what you use
 
-Rucksack comes with all its parts, but only loads the ones you tick in **Settings > Modules**: Rations, Clean-up, Darkmoon Faire and Scrolls. An unticked part isn't loaded at all, so it uses no memory and does nothing. Ticking one loads it right away; unticking one needs a reload. Tick "Just for this character" to choose per character.
+Rucksack comes with all its parts, but only loads the ones you tick in **Settings > Modules**: Rations, Clean-up, Darkmoon Faire and Scrolls. An unticked part isn't loaded at all, so it uses no memory and does nothing. Tick or untick what you want and press Apply: new ones load right away, and ones you turned off stop after a reload. The "Show button" box on each tool's page only hides or shows that tool's button on screen. Tick "Just for this character" to choose per character.
 
 ## Rations: eat and drink with one click
 

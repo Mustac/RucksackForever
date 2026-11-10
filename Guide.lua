@@ -18,7 +18,7 @@ ns.GUIDE = {
     "·  " .. Y .. "Rations card" .. R .. ": your next food and water, how many you have, and the rules you picked.",
     "·  " .. Y .. "Clean-up card" .. R .. ": how many stacks are waiting to be deleted, what a vendor would pay you right now, the gold you've made from selling, and how many items were deleted. " .. Y .. "Delete next" .. R .. " deletes the next waiting item now.",
     "·  " .. Y .. "Right now" .. R .. ": what Rucksack is doing on its own, like keeping items your quests need.",
-    "Click a card to open that tool. The sidebar on the left switches pages; the on/off next to Rations and Clean-up shows whether they're turned on.",
+    "Click a card to open that tool. The sidebar on the left switches pages; shown or hidden next to each tool tells you whether its button is on screen.",
   }, "\n") },
 
   { key = "eat", title = "|cff66dd66Rations|r  ·  eat and drink with one click", text = table.concat({
@@ -112,7 +112,7 @@ ns.GUIDE = {
   { key = "general", title = "|cffffd100Settings and commands|r", text = table.concat({
     Y .. "Minimap button" .. R .. ": left-click opens Rucksack, right-click shows or hides the Pocket, drag moves it around the minimap.",
     Y .. "Open Rucksack" .. R .. ": a key that opens and closes the window.",
-    Y .. "Modules" .. R .. ": Rucksack comes with all its parts (Rations, Clean-up, Darkmoon Faire) but only loads the ones you tick. Ticking one loads it right away; unticking one needs a reload, and then it isn't loaded at all. Tick \"Just for this character\" to choose per character.",
+    Y .. "Modules" .. R .. ": Rucksack comes with all its parts (Rations, Clean-up, Darkmoon Faire) but only loads the ones you tick. Tick or untick what you want, then press Apply (Cancel puts the ticks back). New ones load right away; ones you turned off need a reload, and then they aren't loaded at all. Tick \"Just for this character\" to choose per character.",
     "",
     Y .. "/ruck" .. R .. " or " .. Y .. "/rucksack" .. R .. ": open the window",
     Y .. "/rations" .. R .. " " .. G .. "(or /eatdrink)" .. R .. ": the Rations page",

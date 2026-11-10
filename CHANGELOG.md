@@ -1,3 +1,10 @@
+# Rucksack 1.7.3
+
+### Changed
+- **Settings > Modules:** ticking and unticking no longer happens one by one. Pick what you want, then press **Apply** (bottom right) and everything changes at once: new modules load right away, and if you turned any off you get one reload prompt. **Cancel** puts your ticks back.
+- Each tool page's top box is now **Show button**: it only shows or hides that tool's button on screen. Turning a tool really on or off is done in Settings > Modules.
+- The sidebar now says shown or hidden next to each tool.
+
 # Rucksack 1.7.2
 
 ### Fixed

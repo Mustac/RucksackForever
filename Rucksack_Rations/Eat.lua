@@ -11,6 +11,7 @@ if not ns then return end
 ns.Module("eat", (...), function()
   RucksackEatDB = RucksackEatDB or ns.legacy.eat or {}
   ns.eat = RucksackEatDB
+  ns.eat.enabled = true -- (1.7.3: off is Settings > Modules now; the page box only hides the button)
 end)
 local Print = ns.Print
 local DB
