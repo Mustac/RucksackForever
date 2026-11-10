@@ -8,11 +8,11 @@ local Pocket = {}
 ns.Pocket = Pocket
 
 local LINES = {
-  { key = "bags", name = "Bag space" },
-  { key = "sell", name = "At a vendor" },
-  { key = "food", name = "Next food" },
-  { key = "water", name = "Next water" },
-  { key = "del", name = "To delete" },
+  { key = "bags", name = "Bags" },
+  { key = "sell", name = "Vendor" },
+  { key = "food", name = "Food" },
+  { key = "water", name = "Water" },
+  { key = "del", name = "Cheapest item" },
 }
 Pocket.LINES = LINES
 
@@ -117,6 +117,65 @@ sw:SetScript("OnClick", function(self)
   ns.Changed()
   if self:IsMouseOver() then self:GetScript("OnEnter")(self) end
 end)
+-- (10 Nov) what the Pocket shows: a small list to tick, right here (same as Settings > Lines)
+local eye = CreateFrame("Button", nil, f)
+eye:SetSize(16, 16)
+eye:SetPoint("RIGHT", sw, "LEFT", -4, 0)
+eye.icon = eye:CreateTexture(nil, "ARTWORK")
+eye.icon:SetAllPoints()
+eye.icon:SetTexture("Interface\\Icons\\INV_Misc_Spyglass_02")
+eye.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+eye.icon:SetVertexColor(0.85, 0.8, 0.7)
+local pick = CreateFrame("Frame", nil, f, ns.BACKDROP_TMPL)
+pick:SetSize(130, 10)
+pick:SetPoint("TOPRIGHT", eye, "BOTTOMRIGHT", 30, -4)
+pick:SetFrameStrata("DIALOG")
+pick:EnableMouse(true)
+if pick.SetBackdrop then
+  pick:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 8, edgeSize = 10, insets = { left = 2, right = 2, top = 2, bottom = 2 } })
+  pick:SetBackdropColor(0.05, 0.05, 0.06, 0.97)
+  pick:SetBackdropBorderColor(0.62, 0.5, 0.3, 1)
+end
+pick:Hide()
+local pickHead = pick:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+pickHead:SetPoint("TOPLEFT", 8, -7)
+pickHead:SetText("Show on the Pocket")
+local pickBoxes = {}
+for i, l in ipairs(LINES) do
+  local cb = CreateFrame("CheckButton", nil, pick, "UICheckButtonTemplate")
+  cb:SetSize(20, 20)
+  cb:SetPoint("TOPLEFT", 4, -20 - (i - 1) * 19)
+  local t = cb:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  t:SetPoint("LEFT", cb, "RIGHT", 1, 1)
+  t:SetText(l.name)
+  cb:SetHitRectInsets(0, -90, 0, 0)
+  cb:SetScript("OnClick", function(self)
+    local o = P()
+    if not o then return end
+    o.lines[l.key] = self:GetChecked() and true or false
+    Pocket.Update()
+    ns.Changed()
+  end)
+  pickBoxes[i] = { cb = cb, key = l.key }
+end
+pick:SetHeight(26 + #LINES * 19)
+pick:SetScript("OnShow", function()
+  local o = P()
+  for _, b in ipairs(pickBoxes) do b.cb:SetChecked(not o or o.lines[b.key] ~= false) end
+end)
+eye:SetScript("OnClick", function() pick:SetShown(not pick:IsShown()) end)
+eye:SetScript("OnEnter", function(self)
+  self.icon:SetVertexColor(1, 1, 1)
+  GameTooltip:SetOwner(self, "ANCHOR_TOP")
+  GameTooltip:AddLine("What the Pocket shows")
+  GameTooltip:AddLine("Tick the lines you want: Bags, Vendor, Food, Water, Cheapest item.", 1, 1, 1, true)
+  GameTooltip:Show()
+end)
+eye:SetScript("OnLeave", function(self) self.icon:SetVertexColor(0.85, 0.8, 0.7) GameTooltip:Hide() end)
+f:HookScript("OnHide", function() pick:Hide() end)
+Pocket.Picker = pick
+
 sw:SetScript("OnEnter", function(self)
   GameTooltip:SetOwner(self, "ANCHOR_TOP")
   GameTooltip:AddLine("Clean-up: " .. (ns.del.enabled and "|cff66dd66on|r" or "|cff999999off|r"))
@@ -239,12 +298,12 @@ local function tipLines(self, fn)
   self:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 tipLines(rows.bags, function(S)
-  GameTooltip:AddLine("Bag space")
+  GameTooltip:AddLine("Bags")
   GameTooltip:AddLine(("%d of %d free. Clean-up deletes when fewer than %d are free."):format(S.free, S.total, S.minFree), 1, 1, 1, true)
   GameTooltip:AddLine("Click: Rucksack's Home page.", 0.7, 0.7, 0.7)
 end)
 tipLines(rows.sell, function(S)
-  GameTooltip:AddLine("At a vendor")
+  GameTooltip:AddLine("Vendor")
   if S.sellCount == 0 then
     GameTooltip:AddLine((ns.del.sellGrey or ns.del.sellList) and "Nothing to sell right now." or "Selling is off (Clean-up page).", 1, 1, 1, true)
   else
@@ -272,7 +331,7 @@ end
 itemTip(rows.food, function() return S and S.food end, "Next food")
 itemTip(rows.water, function() return S and S.drink end, "Next water")
 tipLines(rows.del, function(S)
-  GameTooltip:AddLine("To delete")
+  GameTooltip:AddLine("Cheapest item")
   if S.nextDel then
     GameTooltip:AddLine(("%d %s waiting. Next: %s"):format(S.waitStacks, S.waitStacks == 1 and "stack" or "stacks",
       (S.nextDel.link or ns.NameOf(S.nextDel.id)) .. ((S.nextDel.deleteCount or S.nextDel.count or 1) > 1 and (" x" .. (S.nextDel.deleteCount or S.nextDel.count)) or "")), 1, 1, 1, true)

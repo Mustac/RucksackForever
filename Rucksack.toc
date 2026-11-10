@@ -3,7 +3,7 @@
 ## Notes: Rations (eat and drink with one click) and Clean-up (delete or sell what you don't need) in one window. /ruck
 ## IconTexture: Interface\AddOns\Rucksack\Icon
 ## Author: Marijan
-## Version: 1.5
+## Version: 1.6
 ## X-Curse-Project-ID: 1796228
 ## SavedVariables: RucksackDB, RucksackDeleteDB, RucksackEatDB, AutoDeleteDB, EatDrinkDB
 ## SavedVariablesPerCharacter: RucksackCharDB

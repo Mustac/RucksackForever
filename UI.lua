@@ -23,6 +23,8 @@ fill:SetPoint("BOTTOMRIGHT", -12, 11)
 fill:SetColorTexture(0.05, 0.05, 0.05, 0.92)
 f:Hide()
 tinsert(UISpecialFrames, "RucksackFrame")
+-- (10 Nov) closing Rucksack locks the eating alert if it was being moved
+f:HookScript("OnHide", function() if ns.LockAlert then ns.LockAlert() end end)
 
 local logo = f:CreateTexture(nil, "ARTWORK")
 logo:SetSize(22, 22)
@@ -590,8 +592,8 @@ do
   end
   y = y - 24
   -- (10 Nov) the "don't move" alert while eating buff food
-  p:Add(Check(p, 20, y, "Alert me while I eat for the buff",
-    "While you eat buff food, big text in the middle of the screen says \"don't move\" with the seconds left (you need to stay seated about 10 seconds). When Well Fed lands it tells you that you can move again.",
+  local alertBox = p:Add(Check(p, 20, y, "Alert me while I eat for the buff",
+    "While you eat buff food, big text in the middle of the screen says \"don't move\" with the seconds left (you need to stay seated about 10 seconds). When Well Fed lands it tells you that you can move again.\n\nOnly works with \"Eat buff food when the buff is missing\" ticked.",
     function() return E().buffAlert ~= false end, function(v) E().buffAlert = v and true or false end, "GameFontHighlightSmall"))
   local moveBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
   moveBtn:SetSize(130, 20)
@@ -601,14 +603,24 @@ do
     local moving = ns.Eat.MoveAlert()
     self:SetText(moving and "Lock it here" or "Move the alert")
   end)
-  tip(moveBtn, "Move the alert", "Shows the alert so you can drag it where you like. Click again to lock it there.")
+  tip(moveBtn, "Move the alert", "Shows the alert so you can drag it where you like. Click again to lock it there (closing Rucksack locks it too).")
+  -- (10 Nov) the alert only goes with buff food: greyed out while that's off
+  p.updates[#p.updates + 1] = function()
+    local on = E().buffFood and true or false
+    alertBox:SetEnabled(on)
+    alertBox.label:SetFontObject(on and "GameFontHighlightSmall" or "GameFontDisableSmall")
+    moveBtn:SetEnabled(on)
+    if not on and ns.Eat.AlertMoving and ns.Eat.AlertMoving() then ns.Eat.MoveAlert() end
+    moveBtn:SetText((ns.Eat.AlertMoving and ns.Eat.AlertMoving()) and "Lock it here" or "Move the alert")
+  end
+  ns.LockAlert = function()
+    if ns.Eat.AlertMoving and ns.Eat.AlertMoving() then ns.Eat.MoveAlert() end
+    moveBtn:SetText("Move the alert")
+  end
   y = y - 30
-  controls[#controls + 1] = p:Add(KeyButton(p, 0, y, "Eat and drink", "CLICK EatDrinkButton:LeftButton", "The key that eats and drinks, same as clicking the button (and the EatDrink macro)."))
-  y = y - 28
-  controls[#controls + 1] = p:Add(KeyButton(p, 0, y, "Food only", "CLICK RucksackFoodButton:LeftButton", "A key that only eats (like the Eat macro), whether the button is together or separate."))
-  y = y - 28
-  controls[#controls + 1] = p:Add(KeyButton(p, 0, y, "Water only", "CLICK RucksackDrinkButton:LeftButton", "A key that only drinks (like the Drink macro), whether the button is together or separate."))
-  y = y - 32
+  -- (10 Nov) no key buttons here any more: the macros go on your bars
+  Text(p, 0, y, "GameFontDisableSmall", 560):SetText("On your bars: drag the |cffffd100EatDrink|r, |cffffd100Eat|r or |cffffd100Drink|r macro there (Esc > Macros > General tab).")
+  y = y - 24
   -- (9 Nov) what one click uses: food, water or both, every time. (The "below N% health / mana"
   -- settings are gone: this server hides your current health and mana from addons.)
   -- (10 Nov) and "Separate": food and water as two buttons side by side (the Eat and drink key
@@ -732,7 +744,7 @@ do
     ax = ax + 82
   end
   y = y - 28
-  p:Add(Stepper(p, 0, y, "Bags nearly full when under", 0, 30, 1, "%d free slots",
+  p:Add(Stepper(p, 0, y, "Keep empty slots", 0, 30, 1, "%d free slots",
     function() return D().minFree or 2 end, function(v) D().minFree = v ns.Del.Refresh() end,
     "How many free bag slots Clean-up keeps for you. Say 3: while you have 3 or more free, nothing is touched. Drop to 2, and it throws out your cheapest junk first (the stuff worth the least), one stack per key press, until you're back to 3 free.\n\n" ..
     "Items set to \"As soon as I get it\" don't wait for this. At 0, Clean-up only deletes when you click the trash button or press its key.\n\n" ..
@@ -775,8 +787,8 @@ do
     end
   end
   y = y - 28
-  p:Add(KeyButton(p, 0, y, "Delete next item", "AUTODELETE_NOW", "Deletes the next item waiting to go right away, full bags or not."))
-  y = y - 30
+  Text(p, 0, y + 2, "GameFontDisableSmall", 560):SetText("To delete the next item with one click, drag the |cffffd100RuckDelete|r macro onto your bars (Esc > Macros > General tab).")
+  y = y - 24
   local drop = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
   drop:SetHeight(28)
   drop:SetPoint("TOPLEFT", 0, y)
@@ -1366,9 +1378,7 @@ do
     eatCard:Set(3, "Interface\\Icons\\INV_Misc_Food_15", "Use first", nameIn(ns.Eat.ORDERS, E.order or "best"))
     eatCard:Set(4, "Interface\\Icons\\INV_Misc_Note_01", "Food level", nameIn(ns.Eat.LEVELS, E.level or "any"))
     eatCard:Set(5, "Interface\\Icons\\INV_Drink_07", "Deletes", S.eatRules)
-    local key = GetBindingKey("CLICK EatDrinkButton:LeftButton")
-    eatKey:SetText(key and ("Eat and drink: press |cffffd100" .. GetBindingText(key) .. "|r or click the on-screen button.")
-      or "Eat and drink: click the on-screen button (or set a key on the Rations page).")
+    eatKey:SetText("Eat and drink: click the on-screen button, or put the |cffffd100EatDrink|r macro on your bars.")
     -- Clean-up
     local D = ns.del
     delCard.state:SetText(D.enabled and "|cff66dd66on|r" or "|cff999999off|r")

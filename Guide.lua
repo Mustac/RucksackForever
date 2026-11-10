@@ -22,8 +22,8 @@ ns.GUIDE = {
   }, "\n") },
 
   { key = "eat", title = "|cff66dd66Rations|r  ·  eat and drink with one click", text = table.concat({
-    Y .. "The eat button" .. R .. ": a button on your screen with your food on the left and your water on the right, with how many you have. Click it (or press its key) to eat and drink at once. Shift-drag to move it. It turns grey in combat, because the game doesn't let you eat or drink in a fight.",
-    Y .. "Keys" .. R .. ": " .. Y .. "Eat and drink" .. R .. ", " .. Y .. "Food only" .. R .. " and " .. Y .. "Water only" .. R .. " (on the Rations page, or the game's Key Bindings under Rucksack). They work in both modes.",
+    Y .. "The eat button" .. R .. ": a button on your screen with your food on the left and your water on the right, with how many you have. Click it to eat and drink at once. Shift-drag to move it. It turns grey in combat, because the game doesn't let you eat or drink in a fight.",
+    Y .. "Macros" .. R .. ": Rucksack makes " .. Y .. "EatDrink" .. R .. ", " .. Y .. "Eat" .. R .. " and " .. Y .. "Drink" .. R .. " for all your characters (Esc > Macros > General). Drag them onto your bars; they always use your best food and water.",
     Y .. "Macros" .. R .. ": three macros shared by all your characters (/macro, General tab), kept up to date with the food and water of whoever you're playing: " .. Y .. "EatDrink" .. R .. " (like the button), " .. Y .. "Eat" .. R .. " (food only) and " .. Y .. "Drink" .. R .. " (water only). Put them on any action bar.",
     Y .. "Eat button" .. R .. " (click it to go through the choices): " .. Y .. "Food and water" .. R .. " (one click eats and drinks), " .. Y .. "Food only" .. R .. ", " .. Y .. "Water only" .. R .. ", or " .. Y .. "Separate" .. R .. " (two buttons side by side: click the food to eat, the water to drink).",
     "",
@@ -52,12 +52,12 @@ ns.GUIDE = {
     Y .. "Always / Yes / No" .. R .. ": when you destroy an item, the game's box gets an " .. Y .. "Always" .. R .. " button. Always deletes it now and puts it on your list: from then on it's deleted whenever you pick it up and your bags are nearly full. Yes deletes it just this once.",
     Y .. "Why a key press" .. R .. ": the game only lets an addon delete an item during a click or a key press. So Clean-up deletes one waiting item each time you press a key or click the trash button. Never in combat.",
     "",
-    Y .. "Delete on any key press" .. R .. ": on, any key you press out of combat deletes the next waiting item. Off, only the trash button or its key does.",
+    Y .. "Delete on any key press" .. R .. ": on, any key you press out of combat deletes the next waiting item. Off, only the trash button or the RuckDelete macro does.",
     Y .. "Chat message when deleting" .. R .. ": prints a line in chat for each item deleted.",
     Y .. "Always show the trash button" .. R .. ": the trash button normally shows only when something is waiting. Click it to delete the next item; Shift-drag to move it.",
-    Y .. "Bags nearly full" .. R .. ": the number of free slots below which Clean-up starts deleting. The cheapest stack goes first.",
+    Y .. "Keep empty slots" .. R .. ": how many free bag slots Clean-up keeps for you. Drop below it and the cheapest stack goes first.",
     Y .. "Also delete everything up to" .. R .. ": a quality (grey, white or green). Every item of that quality or lower goes too, except items you set to Keep. It starts at " .. Y .. "Trash" .. R .. ": grey items go by themselves, so " .. Y .. "My list" .. R .. " is only the white and better items you chose.",
-    Y .. "Delete next item" .. R .. ": a key that deletes the next waiting item right away, full bags or not.",
+    Y .. "RuckDelete macro" .. R .. ": put it on your bars; one click deletes the next waiting item right away, full bags or not.",
     Y .. "Drop an item here" .. R .. ": drag an item onto the box to put it on your list without deleting it.",
     "",
     Y .. "Each item" .. R .. " (click it in the list): " .. Y .. "When my bags are nearly full" .. R .. " or " .. Y .. "As soon as I get it" .. R .. ", and " .. Y .. "Stop deleting it" .. R .. ". An item caught by a rule (its quality, or a Rations rule) has a " .. Y .. "Keep" .. R .. " button in the list.",
@@ -76,8 +76,9 @@ ns.GUIDE = {
   }, "\n") },
 
   { key = "pocket", title = "|cffffd100The Pocket|r  ·  a small window that stays on screen", text = table.concat({
-    "Five lines: " .. Y .. "Bags" .. R .. " (free slots), " .. Y .. "Vendor" .. R .. " (what a vendor would pay right now; hover it for the list), " .. Y .. "Food" .. R .. ", " .. Y .. "Water" .. R .. " and " .. Y .. "Delete" .. R .. " (stacks waiting and the next item).",
-    "Click a line to open its page. Shift-click " .. Y .. "Delete" .. R .. " to delete the next item now. " .. Y .. "Right-click" .. R .. " anywhere on it: Settings. Drag it to move it.",
+    "Five lines: " .. Y .. "Bags" .. R .. " (free slots), " .. Y .. "Vendor" .. R .. " (what a vendor would pay right now; hover it for the list), " .. Y .. "Food" .. R .. ", " .. Y .. "Water" .. R .. " and " .. Y .. "Cheapest item" .. R .. " (the next thing Clean-up would throw out, and how many stacks are waiting).",
+    "Click a line to open its page. Shift-click " .. Y .. "Cheapest item" .. R .. " to delete the next item now. " .. Y .. "Right-click" .. R .. " anywhere on it: Settings. Drag it to move it.",
+    Y .. "Spyglass" .. R .. " (top of the Pocket): tick which lines it shows.",
     Y .. "Clean-up on / off" .. R .. " (top of the Pocket): turns Clean-up on or off with one click. Off: nothing is deleted or sold until you turn it back on; your list stays.",
     "Show or hide it: " .. Y .. "/ruck pocket" .. R .. ", the box on Home or Settings, or right-click the minimap button.",
     "On Settings: " .. Y .. "Lock it in place" .. R .. ", " .. Y .. "Hide it in combat" .. R .. ", " .. Y .. "Size" .. R .. ", and which " .. Y .. "Lines" .. R .. " to show.",

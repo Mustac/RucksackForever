@@ -10,7 +10,7 @@ Everything is in one window (`/ruck`), with a small on-screen Pocket that shows 
 
 ## Rations: eat and drink with one click
 
-- One button (or key) eats your food and drinks your water. It greys out in combat, when you can't eat or drink.
+- One button eats your food and drinks your water. It greys out in combat, when you can't eat or drink.
 - **Eat button:** Food and water (one click does both), Food only, Water only, or Separate (a food button and a water button side by side).
 - **Use first:** Strongest first, Conjured first, Save conjured, or Random.
 - **Food level:** Any level, Only my level, or Use up old food.
@@ -18,7 +18,7 @@ Everything is in one window (`/ruck`), with a small on-screen Pocket that shows 
 - Warriors and rogues: delete all water as soon as you get it (set per character).
 - **Buff food:** tick "Eat buff food when the buff is missing" and it's eaten first whenever you're not Well Fed. A big "don't move" alert counts down while you eat, and tells you when you're Well Fed and can move (you can drag it anywhere).
 - Set any food to "Use this first" or "Never use this".
-- Three macros shared by all your characters, kept up to date: **EatDrink**, **Eat** and **Drink**.
+- Three macros shared by all your characters, kept up to date: **EatDrink**, **Eat** and **Drink**. Drag them onto your bars.
 
 ## Clean-up: delete or sell what you don't need
 
@@ -28,7 +28,8 @@ Grey trash goes by itself. Anything else only goes if you told it to: click **Al
 
 - The game's delete box gets an **Always** button: the item goes on your list and is deleted from then on.
 - Grey trash goes by itself. Choose a quality to also delete white or green items.
-- Deletes only when your bags are nearly full (you set how full), the cheapest stack first.
+- **Keep empty slots:** deletes only when you drop below the free slots you want to keep, the cheapest stack first.
+- **RuckDelete** macro: one click on your bars deletes the next waiting item.
 - Keeps exactly what your current quests still need, never more. Quest starters are kept.
 - **At a vendor:** sells your Clean-up items and grey items for gold instead of deleting them (hold Shift to skip).
 - **Gear you can't use:** soulbound weapons your class can never use (and shields and relics that aren't for your class) are sold at a vendor, never deleted. Tick Cloth, Leather, Mail or Plate to also sell armor types this character never wears.
@@ -37,7 +38,7 @@ Grey trash goes by itself. Anything else only goes if you told it to: click **Al
 ## Home, Pocket and Guide
 
 - **Home:** bag space, your next food and water, what's waiting to go, and what a vendor would pay right now.
-- **Pocket:** a small window that stays on screen with the same numbers, plus a Clean-up on/off switch.
+- **Pocket:** a small window that stays on screen with the same numbers, plus a Clean-up on/off switch. Tick which lines it shows: Bags, Vendor, Food, Water, Cheapest item.
 - **Guide:** every feature explained in the game. Hover any option for a short tip.
 
 ## Commands

@@ -621,6 +621,18 @@ table.insert(ns.onLoad, function()
 end)
 table.insert(ns.onLogin, function() Refresh() end)
 
+-- (10 Nov) the RuckDelete macro (shared by all characters): one click on your bars deletes the
+-- next waiting item. Made once; if you delete it, it stays deleted.
+table.insert(ns.onLogin, function()
+  if DB.madeDeleteMacro or InCombatLockdown() or not (GetNumMacros and CreateMacro and GetMacroInfo) then return end
+  local nAcc = GetNumMacros() or 0
+  for i = 1, nAcc do if GetMacroInfo(i) == "RuckDelete" then DB.madeDeleteMacro = true return end end
+  if nAcc < (MAX_ACCOUNT_MACROS or 120) and pcall(CreateMacro, "RuckDelete", "INV_Misc_Bag_10_Red", "/run AutoDelete_DeleteNext()", false) then
+    DB.madeDeleteMacro = true
+    Print("made the macro |cffffd100RuckDelete|r (/macro, General tab): put it on your bars, one click deletes the next waiting item.")
+  end
+end)
+
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "BAG_UPDATE_DELAYED", "QUEST_LOG_UPDATE", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED" }) do ev:RegisterEvent(e) end
 ev:SetScript("OnEvent", function(_, e) if e == "QUEST_LOG_UPDATE" then reqAt = -1 end Refresh() end)

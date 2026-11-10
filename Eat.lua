@@ -714,7 +714,7 @@ alertEv:SetScript("OnEvent", function(_, e, unit, _, spellID)
   if not DB or state == "moving" then return end
   if e == "PLAYER_REGEN_DISABLED" then if state then stop() end return end
   if e == "UNIT_SPELLCAST_SUCCEEDED" then
-    if DB.buffAlert == false or issecretv(spellID) then return end
+    if not DB.buffFood or DB.buffAlert == false or issecretv(spellID) then return end
     for id, f in pairs(Eat.found) do
       if f.buff and itemSpell(id) == spellID then
         if Eat.FoodBuffState() == true then return end -- (already Well Fed: nothing to wait for)
@@ -734,6 +734,7 @@ alertEv:SetScript("OnEvent", function(_, e, unit, _, spellID)
   end
 end)
 
+function Eat.AlertMoving() return state == "moving" end
 -- "Move the alert": show it to drag around; again to lock it in place
 function Eat.MoveAlert()
   if state == "moving" then

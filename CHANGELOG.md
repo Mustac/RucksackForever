@@ -1,3 +1,16 @@
+# Rucksack Forever 1.6
+
+### New
+- **Pocket:** a spyglass at the top of the Pocket lets you tick which lines it shows: Bags, Vendor, Food, Water, Cheapest item.
+- **RuckDelete macro:** made for all your characters (General tab of /macro). Put it on your bars and one click deletes the next waiting item.
+
+### Changed
+- "Bags nearly full when under" is now **Keep empty slots**.
+- The eating alert follows buff food: with "Eat buff food when the buff is missing" off, the alert and "Move the alert" are greyed out.
+- Closing Rucksack while moving the alert locks it where it is.
+- The "Set key" buttons for eat and drink, food only, water only and delete next item are gone: drag the EatDrink, Eat, Drink or RuckDelete macro onto your bars instead. Keys you already set keep working (Esc > Key Bindings > Rucksack).
+- Pocket lines are renamed to match: Bags, Vendor, Food, Water, Cheapest item.
+
 # Rucksack Forever 1.5
 
 ### New
