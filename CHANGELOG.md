@@ -1,3 +1,16 @@
+# Rucksack Forever 1.4
+
+### New
+- **Eat buff food when the buff is missing:** tick it on the Rations page and the eat button uses your buff food first while you're not Well Fed, then goes back to plain food.
+- **Eating alert:** while you eat buff food, the middle of the screen says "don't move" with a 10-second countdown, then "Well Fed! You can move now." You can turn it off or drag it anywhere ("Move the alert").
+
+### Changed
+- **Eat button:** one button now cycles through Food and water, Food only, Water only and Separate (two buttons side by side). The separate Together/Separate row is gone.
+- **Clean-up** is explained in plain words in the Guide and the "Bags nearly full" tip.
+
+### Fixed
+- The eat button's tooltip now says what a click does for the choice you picked.
+
 # Rucksack Forever 1.3.1
 
 - **Guide:** the first page now explains what Rucksack Forever is for: Rations picks your food and water and eats with one click; Clean-up keeps your bags free of junk without touching what your quests need.

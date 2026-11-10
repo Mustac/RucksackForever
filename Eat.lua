@@ -94,8 +94,37 @@ Eat.found = {}
 -- top two tiers you can eat, others only if there's nothing else), "old" (lowest level first).
 Eat.ORDERS = { { "best", "Strongest first" }, { "conjured", "Conjured first" }, { "saveconj", "Save conjured" }, { "random", "Random" } }
 Eat.LEVELS = { { "any", "Any level" }, { "mine", "Only my level" }, { "old", "Use up old food" } }
+-- (10 Nov) "Eat buff food when the buff is missing": are you Well Fed now? true / false, or nil
+-- when it can't be told (in a fight, or the game hides buffs from addons)
+local function issecretv(v) return issecretvalue and issecretvalue(v) or false end
+function Eat.FoodBuffState()
+  if InCombatLockdown() then return nil end
+  local C = C_UnitAuras
+  for i = 1, 40 do
+    local name
+    if C and C.GetAuraDataByIndex then
+      local ok, a = pcall(C.GetAuraDataByIndex, "player", i, "HELPFUL")
+      if not ok then return nil end
+      if not a then break end
+      name = a.name
+    elseif UnitBuff then
+      name = UnitBuff("player", i)
+      if not name then break end
+    else
+      return nil
+    end
+    if issecretv(name) then return nil end
+    if type(name) == "string" and name:find("Well Fed", 1, true) then return true end
+  end
+  return false
+end
+
 function Eat.Pick()
   local found = Eat.found
+  -- buff food counts while you're not Well Fed (and the box is ticked)
+  if DB.buffFood then Eat.buffState = Eat.FoodBuffState() else Eat.buffState = nil end
+  local buffWanted = DB.buffFood and Eat.buffState == false
+  Eat.buffWanted = buffWanted
   wipe(found)
   local order = DB.order or "best"
   local lvMode = DB.level or "any"
@@ -118,7 +147,7 @@ function Eat.Pick()
             deleting = ns.del and ns.del.items and ns.del.items[id] and true or false,
           }
           found[id] = f
-          f.usable = not (f.buff or f.tooLow or f.never or f.deleting)
+          f.usable = not ((f.buff and not buffWanted) or f.tooLow or f.never or f.deleting)
           if f.usable then
             if health > 0 then foods[#foods + 1] = id end
             if mana > 0 then drinks[#drinks + 1] = id end
@@ -130,6 +159,7 @@ function Eat.Pick()
   local function better(a, b, key)
     local f, c = found[a], found[b]
     if f.prefer ~= c.prefer then return f.prefer end
+    if buffWanted and f.buff ~= c.buff then return f.buff end
     if order == "conjured" and f.conjured ~= c.conjured then return f.conjured end
     if order == "saveconj" and f.conjured ~= c.conjured then return not f.conjured end
     if lvMode == "old" and f.tier ~= c.tier then return f.tier < c.tier end
@@ -155,6 +185,9 @@ function Eat.Pick()
     local function pick(list, cur)
       local pool = {}
       for _, id in ipairs(list) do if found[id].prefer then pool[#pool + 1] = id end end
+      if #pool == 0 and buffWanted then
+        for _, id in ipairs(list) do if found[id].buff then pool[#pool + 1] = id end end
+      end
       if #pool == 0 then pool = list end
       -- keep the last random pick while it's still there (the ticker and every bag change call this)
       for _, id in ipairs(pool) do if id == cur then return cur end end
@@ -268,7 +301,7 @@ local function half(name, left, kind)
     if id and GameTooltip.SetItemByID then GameTooltip:SetItemByID(id)
     else GameTooltip:AddLine(kind == "food" and "No plain food in your bags" or "No plain water in your bags") end
     GameTooltip:AddLine(kind == "food" and "Click: eat (food only)." or "Click: drink (water only).", 0.7, 0.7, 0.7)
-    GameTooltip:AddLine("Shift-drag to move.  Together or separate: /rations.", 0.7, 0.7, 0.7)
+    GameTooltip:AddLine("Shift-drag to move.  Eat button choices: /rations.", 0.7, 0.7, 0.7)
     GameTooltip:Show()
   end)
   b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -292,9 +325,8 @@ btn:SetScript("OnEnter", function(self)
   line("Next food", self.foodID)
   line("Next water", self.drinkID)
   local use = DB.use or "both"
-  GameTooltip:AddDoubleLine("One click uses", use == "food" and "food only" or use == "drink" and "water only" or "food and water",
-    0.7, 0.7, 0.7, 1, 1, 1)
-  GameTooltip:AddLine("Click: eat and drink. Shift-drag to move. Settings: /rations.", 0.7, 0.7, 0.7, true)
+  GameTooltip:AddLine(use == "food" and "Click: eat." or use == "drink" and "Click: drink." or "Click: eat and drink.", 0.7, 0.7, 0.7)
+  GameTooltip:AddLine("Shift-drag to move. Eat button choices: /rations.", 0.7, 0.7, 0.7, true)
   GameTooltip:Show()
 end)
 btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -519,6 +551,7 @@ table.insert(ns.onLoad, function()
   if DB.macro == nil then DB.macro = true end
   DB.use = DB.use or "both" -- (9 Nov) "both", "food" or "drink": what one click uses
   if DB.split == nil then DB.split = false end -- (10 Nov) the eat button: together or separate
+  if DB.split then DB.use = "both" end -- ("Separate" is the fourth choice: the key still eats and drinks)
   DB.madeMacros = DB.madeMacros or {}
   -- (the old "below N%" settings: gone, the server hides health and mana from addons)
   DB.eatBelow, DB.drinkBelow, DB.eatAlways, DB.drinkAlways = nil, nil, nil, nil
@@ -535,9 +568,11 @@ unitEv:RegisterUnitEvent("UNIT_HEALTH", "player")
 unitEv:RegisterUnitEvent("UNIT_MAXHEALTH", "player")
 unitEv:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
 unitEv:RegisterUnitEvent("UNIT_MAXPOWER", "player")
-unitEv:SetScript("OnEvent", function()
+unitEv:RegisterUnitEvent("UNIT_AURA", "player")
+unitEv:SetScript("OnEvent", function(_, e)
   if not DB or InCombatLockdown() then return end
-  if Eat.WantFood() ~= Eat.wantF or Eat.WantDrink() ~= Eat.wantD then
+  local buffChanged = e == "UNIT_AURA" and DB.buffFood and Eat.FoodBuffState() ~= Eat.buffState
+  if buffChanged or Eat.WantFood() ~= Eat.wantF or Eat.WantDrink() ~= Eat.wantD then
     if soon then return end
     soon = true
     C_Timer.After(0.2, function() soon = false Eat.Update(false) end)
@@ -547,7 +582,11 @@ ev:SetScript("OnEvent", function(_, e)
   if not DB then return end
   if e == "BAG_UPDATE" then setCounts() return end -- (a fight: only the counts can change)
   if e == "PLAYER_REGEN_DISABLED" then paintFight(true) return end
-  if e == "PLAYER_REGEN_ENABLED" then paintFight(false) if not pending then return end end
+  if e == "PLAYER_REGEN_ENABLED" then
+    paintFight(false)
+    -- (also when the food buff ran out during the fight)
+    if not pending and not (DB.buffFood and Eat.FoodBuffState() ~= Eat.buffState) then return end
+  end
   if soon then return end
   soon = true
   C_Timer.After(0.3, function() soon = false Eat.Update(false) end) -- (bag changes come in bursts)
@@ -586,3 +625,142 @@ SlashCmdList.RUCKSACKEAT = function(msg)
   end
   Rucksack_Open("eat")
 end
+
+---------------------------------------------------------------------------
+-- (10 Nov) The eating alert: while you eat buff food (and aren't Well Fed yet), big text in the
+-- middle of the screen says to stay seated, with the seconds left; when Well Fed lands it says
+-- you can move. "Move the alert" on the Rations page shows it to drag it where you like.
+---------------------------------------------------------------------------
+local EAT_SECONDS = 10 -- (seated this long, buff food gives Well Fed)
+local alert = CreateFrame("Frame", "RucksackEatAlert", UIParent)
+alert:SetSize(460, 64)
+alert:SetPoint("CENTER", UIParent, "CENTER", 0, 140)
+alert:SetFrameStrata("HIGH")
+alert:SetClampedToScreen(true)
+alert:SetMovable(true)
+alert:EnableMouse(false)
+alert:RegisterForDrag("LeftButton")
+alert:Hide()
+alert.bg = alert:CreateTexture(nil, "BACKGROUND")
+alert.bg:SetAllPoints()
+alert.bg:SetColorTexture(0, 0, 0, 0.55)
+alert.bg:Hide()
+alert.text = alert:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+alert.text:SetPoint("TOP", 0, -6)
+alert.sub = alert:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+alert.sub:SetPoint("TOP", alert.text, "BOTTOM", 0, -6)
+
+local state, started, hideAt -- state: nil, "eating", "done", "stopped", "moving"
+local function show(main, sub, r, g, b, seconds)
+  alert.text:SetText(main)
+  alert.text:SetTextColor(r, g, b)
+  alert.sub:SetText(sub or "")
+  alert:SetAlpha(1)
+  hideAt = seconds and (GetTime() + seconds) or nil
+  alert:Show()
+end
+local function stop() state, hideAt = nil, nil alert:Hide() end
+
+-- the "eating" aura (Food, Food & Drink, Refreshment) is still on: you're still seated
+local function stillEating()
+  local C = C_UnitAuras
+  for i = 1, 40 do
+    local name
+    if C and C.GetAuraDataByIndex then
+      local ok, a = pcall(C.GetAuraDataByIndex, "player", i, "HELPFUL")
+      if not ok then return nil end
+      if not a then break end
+      name = a.name
+    elseif UnitBuff then
+      name = UnitBuff("player", i)
+      if not name then break end
+    else
+      return nil
+    end
+    if issecretv(name) then return nil end
+    if name == "Food" or name == "Food & Drink" or name == "Refreshment" then return true end
+  end
+  return false
+end
+
+alert:SetScript("OnUpdate", function(self, elapsed)
+  self.tick = (self.tick or 0) + elapsed
+  if self.tick < 0.1 then return end
+  self.tick = 0
+  local now = GetTime()
+  if state == "eating" then
+    local left = math.ceil(EAT_SECONDS - (now - started))
+    alert.sub:SetText(left > 0 and ("Stay seated: |cffffffff%d|r"):format(left) or "Almost there...")
+    if now - started > EAT_SECONDS + 20 then stop() end -- (never heard back: give up quietly)
+  elseif hideAt then
+    local left = hideAt - now
+    if left <= 0 then stop() elseif left < 1 then alert:SetAlpha(left) end
+  end
+end)
+
+-- which spell each buff food casts when eaten
+local function itemSpell(id)
+  local get = (C_Item and C_Item.GetItemSpell) or GetItemSpell
+  if not get then return nil end
+  local _, spellID = get(id)
+  return spellID
+end
+
+local alertEv = CreateFrame("Frame")
+alertEv:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+alertEv:RegisterUnitEvent("UNIT_AURA", "player")
+alertEv:RegisterEvent("PLAYER_REGEN_DISABLED")
+alertEv:SetScript("OnEvent", function(_, e, unit, _, spellID)
+  if not DB or state == "moving" then return end
+  if e == "PLAYER_REGEN_DISABLED" then if state then stop() end return end
+  if e == "UNIT_SPELLCAST_SUCCEEDED" then
+    if DB.buffAlert == false or issecretv(spellID) then return end
+    for id, f in pairs(Eat.found) do
+      if f.buff and itemSpell(id) == spellID then
+        if Eat.FoodBuffState() == true then return end -- (already Well Fed: nothing to wait for)
+        state, started = "eating", GetTime()
+        show("Eating for Well Fed: don't move", ("Stay seated: |cffffffff%d|r"):format(EAT_SECONDS), 1, 0.82, 0)
+        return
+      end
+    end
+  elseif e == "UNIT_AURA" and state == "eating" then
+    if Eat.FoodBuffState() == true then
+      state = "done"
+      show("Well Fed! You can move now.", nil, 0.4, 1, 0.4, 3)
+    elseif GetTime() - started > 1 and stillEating() == false then
+      state = "stopped"
+      show("Stopped eating: no Well Fed", "Eat again and stay seated for " .. EAT_SECONDS .. " seconds.", 1, 0.35, 0.3, 3.5)
+    end
+  end
+end)
+
+-- "Move the alert": show it to drag around; again to lock it in place
+function Eat.MoveAlert()
+  if state == "moving" then
+    stop()
+    alert:EnableMouse(false)
+    alert.bg:Hide()
+    return false
+  end
+  state = "moving"
+  alert:EnableMouse(true)
+  alert.bg:Show()
+  show("Eating for Well Fed: don't move", "Drag me where you like, then click \"Move the alert\" again.", 1, 0.82, 0)
+  return true
+end
+alert:SetScript("OnDragStart", function(self) if state == "moving" then self:StartMoving() end end)
+alert:SetScript("OnDragStop", function(self)
+  self:StopMovingOrSizing()
+  local p, _, rp, x, y = self:GetPoint()
+  DB.alertPos = { p, rp, x, y }
+end)
+Eat.AlertFrame = alert
+
+table.insert(ns.onLoad, function()
+  if DB.buffAlert == nil then DB.buffAlert = true end
+  local pos = DB.alertPos
+  if pos then
+    alert:ClearAllPoints()
+    alert:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
+  end
+end)

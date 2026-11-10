@@ -11,7 +11,7 @@ ns.GUIDE = {
     "Rucksack Forever takes care of the two chores every adventurer repeats all day: eating and drinking, and full bags.",
     "",
     Y .. "Rations" .. R .. " picks the right food and water for you and eats and drinks with one click. No more searching your bags after every fight or eating the wrong stack.",
-    Y .. "Clean-up" .. R .. " keeps your bags from filling up with junk. Grey trash and anything you mark goes on its own when space runs low, or gets sold the next time you visit a vendor. It never touches what your quests still need.",
+    Y .. "Clean-up" .. R .. " keeps a few bag slots free for you, always. When space runs low, the cheapest junk goes first (or gets sold at the next vendor), and quest items stay.",
     "",
     Y .. "Home" .. R .. " (the page that opens with /ruck) shows everything at a glance:",
     "·  " .. Y .. "Bag space" .. R .. ": free slots. The bar turns yellow, then red, as your bags fill up.",
@@ -23,10 +23,9 @@ ns.GUIDE = {
 
   { key = "eat", title = "|cff66dd66Rations|r  ·  eat and drink with one click", text = table.concat({
     Y .. "The eat button" .. R .. ": a button on your screen with your food on the left and your water on the right, with how many you have. Click it (or press its key) to eat and drink at once. Shift-drag to move it. It turns grey in combat, because the game doesn't let you eat or drink in a fight.",
-    Y .. "Eat button: Together or Separate" .. R .. ": Together, one click eats and drinks. Separate, the button becomes two: click the food to eat, click the water to drink.",
     Y .. "Keys" .. R .. ": " .. Y .. "Eat and drink" .. R .. ", " .. Y .. "Food only" .. R .. " and " .. Y .. "Water only" .. R .. " (on the Rations page, or the game's Key Bindings under Rucksack). They work in both modes.",
     Y .. "Macros" .. R .. ": three macros shared by all your characters (/macro, General tab), kept up to date with the food and water of whoever you're playing: " .. Y .. "EatDrink" .. R .. " (like the button), " .. Y .. "Eat" .. R .. " (food only) and " .. Y .. "Drink" .. R .. " (water only). Put them on any action bar.",
-    Y .. "One click uses" .. R .. ": food and water, food only, or water only.",
+    Y .. "Eat button" .. R .. " (click it to go through the choices): " .. Y .. "Food and water" .. R .. " (one click eats and drinks), " .. Y .. "Food only" .. R .. ", " .. Y .. "Water only" .. R .. ", or " .. Y .. "Separate" .. R .. " (two buttons side by side: click the food to eat, the water to drink).",
     "",
     Y .. "Use first" .. R .. " (which food and water it picks):",
     "·  " .. Y .. "Strongest first" .. R .. ": the one that restores the most.",
@@ -41,10 +40,15 @@ ns.GUIDE = {
     Y .. "Delete all water as soon as I get it" .. R .. ": for characters with no mana. Set for each character, and on by default for warriors and rogues. Clean-up deletes the water on your next key press.",
     "",
     Y .. "The list" .. R .. ": all food and water in your bags. Click one to set " .. Y .. "Use this first" .. R .. " (always picked before the rest, never deleted) or " .. Y .. "Never use this" .. R .. ".",
-    G .. "Never eaten: food with a buff (Well Fed and similar), food above your level, and anything on your Clean-up list." .. R,
+    Y .. "Eat buff food when the buff is missing" .. R .. ": food that gives a buff (Well Fed) is normally kept. Ticked, the eat button uses it first whenever you're not Well Fed, then goes back to plain food.",
+    Y .. "Alert me while I eat for the buff" .. R .. ": while you eat buff food, the middle of the screen says \"don't move\" with a 10-second countdown, then \"Well Fed! You can move now.\" " .. Y .. "Move the alert" .. R .. " lets you drag it anywhere.",
+    G .. "Never eaten: buff food (unless the box above is ticked), food above your level, and anything on your Clean-up list." .. R,
   }, "\n") },
 
   { key = "del", title = "|cffff5555Clean-up|r  ·  delete what you don't need", text = table.concat({
+    "Clean-up is like a little bag helper. You pick how many free slots you always want to keep, say 4. As soon as you drop below that, it throws out your " .. Y .. "cheapest junk first" .. R .. ", the stuff worth the least, until you're back to 4 free slots. No more \"Inventory is full\" in the middle of a dungeon.",
+    "Grey trash goes by itself. Anything else only goes if you told it to: click " .. Y .. "Always" .. R .. " when you delete something once, and Clean-up remembers it. Passing a vendor? It " .. Y .. "sells" .. R .. " the junk for gold instead. And it never touches what your quests still need: if a quest wants 8 wolf pelts, it keeps 8.",
+    "",
     Y .. "Always / Yes / No" .. R .. ": when you destroy an item, the game's box gets an " .. Y .. "Always" .. R .. " button. Always deletes it now and puts it on your list: from then on it's deleted whenever you pick it up and your bags are nearly full. Yes deletes it just this once.",
     Y .. "Why a key press" .. R .. ": the game only lets an addon delete an item during a click or a key press. So Clean-up deletes one waiting item each time you press a key or click the trash button. Never in combat.",
     "",

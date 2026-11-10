@@ -538,19 +538,9 @@ do
     function() return E().showIcon ~= false end, function(v) ns.Eat.SetShown(v) end))
   y = y - 24
   controls[#controls + 1] = p:Add(Check(p, 0, y, "Keep the macros up to date  |cffaaaaaa(EatDrink, Eat, Drink)|r",
-    "Three macros for your action bars, shared by all your characters (/macro, General tab):\n|cffffd100EatDrink|r: same as the eat button (eats and drinks, or what \"One click uses\" says).\n|cffffd100Eat|r: food only.\n|cffffd100Drink|r: water only.\nRucksack keeps them up to date with the food and water of the character you're playing. A character's own older EatDrink macro is kept up to date too.",
+    "Three macros for your action bars, shared by all your characters (/macro, General tab):\n|cffffd100EatDrink|r: same as the eat button (eats and drinks, or what the Eat button choice says).\n|cffffd100Eat|r: food only.\n|cffffd100Drink|r: water only.\nRucksack keeps them up to date with the food and water of the character you're playing. A character's own older EatDrink macro is kept up to date too.",
     function() return E().macro ~= false end, function(v) E().macro = v ns.Eat.Update(v) end))
   y = y - 26
-  -- (10 Nov) the eat button: one button, or food and water as two
-  controls[#controls + 1] = p:Add(Choices(p, 0, y, "Eat button", {
-    { false, "Together", 90, "One button: a click eats and drinks (or what \"One click uses\" says)." },
-    { true, "Separate", 90, "Two buttons in one: click the food to eat, click the water to drink." },
-  }, function() return E().split and true or false end, function(v)
-    if InCombatLockdown() then Print("after the fight, please.") return end
-    E().split = v ns.Eat.Update(false)
-  end, "Eat button",
-    "Together: the whole button eats and drinks with one click.\nSeparate: the food half eats, the water half drinks.\nThe keys below and the Eat and Drink macros work either way."))
-  y = y - 30
   -- (10 Nov) which food and water go first, and from which levels
   local function changed() ns.Eat.randomFood, ns.Eat.randomDrink = nil, nil ns.Eat.Update(false) end
   p:Add(Choices(p, 0, y, "Use first", {
@@ -584,6 +574,34 @@ do
   p:Add(Check(p, 0, y, "Delete all water as soon as I get it  |cffaaaaaa(this character)|r",
     "For characters without mana (warriors, rogues): every plain drink goes. Food that restores health too is kept. Set per character; on by default for warriors and rogues.",
     function() return ns.char.noWater end, function(v) ns.char.noWater = v and true or false changed() ns.Del.Refresh() end))
+  y = y - 24
+  -- (10 Nov) buff food (Well Fed) while the buff is missing
+  local buffBox = p:Add(Check(p, 0, y, "Eat buff food when the buff is missing",
+    "Food that gives a buff (Well Fed and similar) is normally never eaten. Ticked: while you're not Well Fed, the eat button picks your buff food first. Once the buff is up, it goes back to plain food until the buff wears off.\n\nBuffs are checked outside fights only (you can't eat in one anyway).",
+    function() return E().buffFood end, function(v) E().buffFood = v and true or false changed() end))
+  p.updates[#p.updates + 1] = function()
+    local note = ""
+    if E().buffFood then
+      local st = ns.Eat.FoodBuffState()
+      note = st == true and "  |cff66dd66(Well Fed now)|r" or st == false and "  |cffffd100(not Well Fed: buff food first)|r"
+        or (not InCombatLockdown() and "  |cff999999(this server doesn't let addons see your buffs)|r") or ""
+    end
+    buffBox.label:SetText("Eat buff food when the buff is missing" .. note)
+  end
+  y = y - 24
+  -- (10 Nov) the "don't move" alert while eating buff food
+  p:Add(Check(p, 20, y, "Alert me while I eat for the buff",
+    "While you eat buff food, big text in the middle of the screen says \"don't move\" with the seconds left (you need to stay seated about 10 seconds). When Well Fed lands it tells you that you can move again.",
+    function() return E().buffAlert ~= false end, function(v) E().buffAlert = v and true or false end, "GameFontHighlightSmall"))
+  local moveBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+  moveBtn:SetSize(130, 20)
+  moveBtn:SetPoint("TOPLEFT", 300, y - 2)
+  moveBtn:SetText("Move the alert")
+  moveBtn:SetScript("OnClick", function(self)
+    local moving = ns.Eat.MoveAlert()
+    self:SetText(moving and "Lock it here" or "Move the alert")
+  end)
+  tip(moveBtn, "Move the alert", "Shows the alert so you can drag it where you like. Click again to lock it there.")
   y = y - 30
   controls[#controls + 1] = p:Add(KeyButton(p, 0, y, "Eat and drink", "CLICK EatDrinkButton:LeftButton", "The key that eats and drinks, same as clicking the button (and the EatDrink macro)."))
   y = y - 28
@@ -593,29 +611,33 @@ do
   y = y - 32
   -- (9 Nov) what one click uses: food, water or both, every time. (The "below N% health / mana"
   -- settings are gone: this server hides your current health and mana from addons.)
-  local USE = { { "both", "Food and water" }, { "food", "Food only" }, { "drink", "Water only" } }
+  -- (10 Nov) and "Separate": food and water as two buttons side by side (the Eat and drink key
+  -- and the EatDrink macro still use both then)
+  local USE = { { "both", "Food and water" }, { "food", "Food only" }, { "drink", "Water only" }, { "split", "Separate" } }
+  local function useNow() return E().split and "split" or (E().use or "both") end
   local useRow = CreateFrame("Frame", nil, p)
   useRow:SetSize(420, 24)
   useRow:SetPoint("TOPLEFT", 0, y)
   local ul = useRow:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
   ul:SetPoint("LEFT", 4, 0)
-  ul:SetText("One click uses")
-  HoverLabel(useRow, ul, "One click uses", "What one click on the eat button (or one press of its key) uses: food and water together, food only, or water only. Click the button on the right to change it.")
+  ul:SetText("Eat button")
+  HoverLabel(useRow, ul, "Eat button", "What the eat button on your screen does. Click the button on the right to go through the choices:\n|cffffd100Food and water|r: one click eats and drinks.\n|cffffd100Food only|r / |cffffd100Water only|r: just that one.\n|cffffd100Separate|r: two buttons side by side, click the food to eat or the water to drink.")
   local ub = CreateFrame("Button", nil, useRow, "UIPanelButtonTemplate")
   ub:SetSize(200, 22)
   ub:SetPoint("LEFT", 240, 0)
   local function useText()
-    for _, o in ipairs(USE) do if o[1] == (E().use or "both") then return o[2] end end
+    for _, o in ipairs(USE) do if o[1] == useNow() then return o[2] end end
     return USE[1][2]
   end
   ub:SetScript("OnClick", function()
     local i = 1
-    for k, o in ipairs(USE) do if o[1] == (E().use or "both") then i = k end end
-    E().use = USE[i % #USE + 1][1]
+    for k, o in ipairs(USE) do if o[1] == useNow() then i = k end end
+    local v = USE[i % #USE + 1][1]
+    if v == "split" then E().split, E().use = true, "both" else E().split, E().use = false, v end
     ub:SetText(useText())
     ns.Eat.Update(false)
   end)
-  tip(ub, "One click uses", "Food and water: eats and drinks at once.\nFood only / Water only: just that one.\nEvery click, whatever your health and mana. Click to change.")
+  tip(ub, "Eat button", "Food and water: one click eats and drinks.\nFood only / Water only: just that one.\nSeparate: two buttons, food and water.\nClick to change. (In a fight it changes after the fight.)")
   useRow.Update = function()
     ub:SetText(useText())
     local on = E().enabled ~= false
@@ -652,6 +674,8 @@ do
       elseif e.id == fd then tag = "|cffffd100eat next|r"
       elseif e.id == dr then tag = "|cffffd100drink next|r"
       elseif e.fd.prefer then tag = "first"
+      elseif e.fd.buff and E().buffFood then tag = "|cff66aaffbuff food|r"
+      elseif e.fd.buff then tag = "|cff777777buff food: off|r"
       elseif not e.fd.usable then tag = "|cff777777off|r" end
       local why = ns.Del.ByFood and ns.Del.ByFood(e.id)
       if why then tag = "|cffff8080deletes: " .. why .. "|r"
@@ -693,8 +717,7 @@ do
   y = y - 28
   p:Add(Stepper(p, 0, y, "Bags nearly full when under", 0, 30, 1, "%d free slots",
     function() return D().minFree or 2 end, function(v) D().minFree = v ns.Del.Refresh() end,
-    "Clean-up only deletes the items on your list when your bags are nearly full: when you have fewer free bag slots than this.\n\n" ..
-    "Example, at 3: nothing is deleted while 3 or more slots are free. Down to 2 free, each key press deletes the cheapest stack on your list, until 3 are free again.\n\n" ..
+    "How many free bag slots Clean-up keeps for you. Say 3: while you have 3 or more free, nothing is touched. Drop to 2, and it throws out your cheapest junk first (the stuff worth the least), one stack per key press, until you're back to 3 free.\n\n" ..
     "Items set to \"As soon as I get it\" don't wait for this. At 0, Clean-up only deletes when you click the trash button or press its key.\n\n" ..
     "Shift-click - or + to change it by 5."))
   y = y - 28
@@ -1153,7 +1176,8 @@ do
       if id == ns.Eat.food and id == ns.Eat.drink then s = "|cffffd100Next to eat and drink.|r"
       elseif id == ns.Eat.food then s = "|cffffd100Next to eat.|r"
       elseif id == ns.Eat.drink then s = "|cffffd100Next to drink.|r"
-      elseif fd.buff then s = "|cff999999Not used: it gives a buff (Well Fed or similar).|r"
+      elseif fd.buff and E().buffFood then s = "|cff999999Buff food: eaten first while you're not Well Fed.|r"
+      elseif fd.buff then s = "|cff999999Not used: it gives a buff (Well Fed or similar). Tick \"Eat buff food when the buff is missing\" on the Rations page to use it.|r"
       elseif fd.tooLow then s = "|cff999999Not used: your level is too low for it.|r"
       elseif fd.deleting then s = "|cffff8080Not used: it's on your Clean-up list.|r"
       elseif fd.never then s = "|cff999999Not used: set to never use.|r"
@@ -1161,7 +1185,7 @@ do
       status:SetText(s)
     end
     prefer.Update() never.Update()
-    local usable = fd and not fd.buff and not fd.tooLow and not fd.deleting
+    local usable = fd and (not fd.buff or E().buffFood) and not fd.tooLow and not fd.deleting
     prefer:SetEnabled(usable and true or false)
     prefer.label:SetFontObject(usable and "GameFontHighlight" or "GameFontDisable")
   end

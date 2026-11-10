@@ -11,12 +11,13 @@ Everything is in one window (`/ruck`), with a small on-screen Pocket that shows 
 ## Rations: eat and drink with one click
 
 - One button (or key) eats your food and drinks your water. It greys out in combat, when you can't eat or drink.
-- **Together or Separate:** one button for both, or a food button and a water button side by side.
+- **Eat button:** Food and water (one click does both), Food only, Water only, or Separate (a food button and a water button side by side).
 - **Use first:** Strongest first, Conjured first, Save conjured, or Random.
 - **Food level:** Any level, Only my level, or Use up old food.
 - **Delete below level:** Off, Auto, or a level (5 to 55): old food you've outgrown goes when your bags fill up.
 - Warriors and rogues: delete all water as soon as you get it (set per character).
-- Food with a buff (Well Fed) is never used. Set any food to "Use this first" or "Never use this".
+- **Buff food:** tick "Eat buff food when the buff is missing" and it's eaten first whenever you're not Well Fed. A big "don't move" alert counts down while you eat, and tells you when you're Well Fed and can move (you can drag it anywhere).
+- Set any food to "Use this first" or "Never use this".
 - Three macros shared by all your characters, kept up to date: **EatDrink**, **Eat** and **Drink**.
 
 ## Clean-up: delete or sell what you don't need
