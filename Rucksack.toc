@@ -1,0 +1,18 @@
+## Interface: 16001
+## Title: |cffc8a165Ruck|r|cffffd100sack|r Forever
+## Notes: Rations (eat and drink with one click) and Clean-up (delete or sell what you don't need) in one window. /ruck
+## IconTexture: Interface\AddOns\Rucksack\Icon
+## Author: Marijan
+## Version: 1.3
+## X-Curse-Project-ID: 1796228
+## SavedVariables: RucksackDB, RucksackDeleteDB, RucksackEatDB, AutoDeleteDB, EatDrinkDB
+## SavedVariablesPerCharacter: RucksackCharDB
+
+Core.lua
+Delete.lua
+Sell.lua
+Eat.lua
+Pocket.lua
+Guide.lua
+UI.lua
+Minimap.lua

@@ -1,0 +1,11 @@
+<Bindings>
+	<Binding name="AUTODELETE_NOW" category="Rucksack">
+		AutoDelete_DeleteNext()
+	</Binding>
+	<Binding name="AUTODELETE_TOGGLE" category="Rucksack">
+		Rucksack_Toggle()
+	</Binding>
+	<Binding name="CLICK EatDrinkButton:LeftButton" category="Rucksack"/>
+	<Binding name="CLICK RucksackFoodButton:LeftButton" category="Rucksack"/>
+	<Binding name="CLICK RucksackDrinkButton:LeftButton" category="Rucksack"/>
+</Bindings>
