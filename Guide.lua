@@ -8,7 +8,10 @@ local R = "|r"
 
 ns.GUIDE = {
   { key = "home", title = "|cffc8a165Ruck|r|cffffd100sack|r Forever", text = table.concat({
-    "Two bag tools in one window. " .. Y .. "Rations" .. R .. " eats and drinks for you with one click. " .. Y .. "Clean-up" .. R .. " gets rid of what you don't need: it deletes it when your bags fill up, or sells it when you visit a vendor.",
+    "Rucksack Forever takes care of the two chores every adventurer repeats all day: eating and drinking, and full bags.",
+    "",
+    Y .. "Rations" .. R .. " picks the right food and water for you and eats and drinks with one click. No more searching your bags after every fight or eating the wrong stack.",
+    Y .. "Clean-up" .. R .. " keeps your bags from filling up with junk. Grey trash and anything you mark goes on its own when space runs low, or gets sold the next time you visit a vendor. It never touches what your quests still need.",
     "",
     Y .. "Home" .. R .. " (the page that opens with /ruck) shows everything at a glance:",
     "·  " .. Y .. "Bag space" .. R .. ": free slots. The bar turns yellow, then red, as your bags fill up.",

@@ -1,3 +1,7 @@
+# Rucksack Forever 1.3.1
+
+- **Guide:** the first page now explains what Rucksack Forever is for: Rations picks your food and water and eats with one click; Clean-up keeps your bags free of junk without touching what your quests need.
+
 # Rucksack Forever 1.3
 
 First release on CurseForge.

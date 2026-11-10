@@ -49,6 +49,10 @@ Get it from [CurseForge](https://www.curseforge.com/wow/addons/rucksack-forever)
 
 Works alongside bag addons like Bagnon and Baganator.
 
+## Support
+
+Enjoying Rucksack Forever? You can [buy me a coffee](https://buymeacoffee.com/zyxon) ☕
+
 ## Releasing
 
 Releases are automatic. To release a new version:
