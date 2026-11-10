@@ -467,7 +467,7 @@ for i, p in ipairs(D.PRIZES) do
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine(PURPLE .. "Faire:|r " .. self.p.cost .. " tickets at Gelvas Grimegate, from level " .. self.p.lv .. ".", 1, 1, 1, true)
     GameTooltip:AddLine(self.p.note .. ".", 0.8, 0.8, 0.8, true)
-    GameTooltip:AddLine(ns.char.goal == self.p.name and "Click to stop tracking it." or "Click to track it on screen.", 0.6, 0.85, 1, true)
+    GameTooltip:AddLine(ns.char.goal == self.p.name and "Click to stop tracking it." or "Click to track it (Pocket and Home).", 0.6, 0.85, 1, true)
     GameTooltip:Show()
   end)
   t:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -514,7 +514,7 @@ local function drawPrizes()
     bar:SetWidth(1)
     barWait:Hide()
     barText:SetText(("%d tickets%s"):format(have, waiting > 0 and ("   +%d waiting in your bags"):format(waiting) or ""))
-    routeText:SetText(GREY .. "Click a prize below: it shows on screen with how many tickets you have and need.|r")
+    routeText:SetText(GREY .. "Click a prize below: the Pocket's Tickets line and Home show how many tickets you have and need.|r")
   end
   -- log: this Faire's totals, then the latest lines
   local h = ns.char.history
@@ -606,10 +606,10 @@ end, "Clean-up never deletes or sells the items the Faire NPCs want (Small Furry
 c3:SetPoint("TOPLEFT", 0, -256)
 local c4 = check(F, "Note in chat at login during the Faire", function() return ns.db.loginNote ~= false end, function(v) ns.db.loginNote = v end)
 c4:SetPoint("TOPLEFT", 0, -282)
-local c5 = check(F, "Button on screen", function() return ns.db.screenButton ~= false end, function(v)
+local c5 = check(F, "Button on screen", function() return ns.db.screenButton == true end, function(v)
   ns.db.screenButton = v
   if ns.UpdateScreenButton then ns.UpdateScreenButton() end
-end, "A small ticket button you can drag anywhere. Left-click opens the Faire page, right-click the prizes. /faire button turns it on or off.")
+end, "Off by default: the Pocket's Tickets line shows the same. On: a small ticket button you can drag anywhere (a card with your tracked prize). Left-click opens the Faire page, right-click the prizes. /faire button turns it on or off.")
 c5:SetPoint("TOPLEFT", 0, -308)
 local c6 = check(F, "Only while the Faire is open", function() return ns.db.screenButtonFaireOnly end, function(v)
   ns.db.screenButtonFaireOnly = v or nil
@@ -850,7 +850,7 @@ end
 function ns.UpdateScreenButton()
   local db = ns.db
   if not db then return end
-  local show = ns.On() and db.screenButton ~= false
+  local show = ns.On() and db.screenButton == true
   if show and db.screenButtonFaireOnly then show = ns.FaireStatus() == true end
   if show then
     sb:ClearAllPoints()

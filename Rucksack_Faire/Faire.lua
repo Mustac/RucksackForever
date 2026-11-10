@@ -381,6 +381,9 @@ on("ADDON_LOADED", function(name)
     c.migrated = true
   end
   if db.enabled == nil then db.enabled = true end
+  -- (1.7.1) the on-screen ticket button / prize card is off unless you turn it on: the Pocket's
+  -- Tickets line shows the same. (Hidden once for everyone who had it from before.)
+  if not db.screenButtonOffOnce then db.screenButtonOffOnce = true db.screenButton = nil end
   if db.keepItems == nil then db.keepItems = true end
   db.learned = db.learned or {}
   db.recipes = db.recipes or {}
@@ -520,7 +523,7 @@ SlashCmdList.RUCKSACKFAIRE = function(msg)
     return
   end
   if m == "button" then
-    ns.db.screenButton = ns.db.screenButton == false
+    ns.db.screenButton = not ns.db.screenButton
     if ns.UpdateScreenButton then ns.UpdateScreenButton() end
     ns.Print(ns.db.screenButton and "on-screen button on." or "on-screen button off (/faire button brings it back).")
     return

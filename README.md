@@ -45,7 +45,7 @@ Grey trash goes by itself. Anything else only goes if you told it to: click **Al
 
 - Every ticket turn-in: what it wants, how many you have (bank too) and the tickets it gives. Ready, need more, too low level, or closed by your Faire reputation.
 - **Where to get it:** good farm spots for each animal part, closest to your level first. Click one to pin it on your world map (TomTom too); shift-click pins them all. Crafted items show their profession and materials.
-- **Prizes:** click a prize to track it. The ticket button on your screen becomes a card with the prize's icon filling up, 37 / 50, and glows gold when you have enough.
+- **Prizes:** click a prize to track it. The Pocket and Home show it as 37 / 50; turn on the on-screen ticket button for a card that fills up and glows gold when you have enough.
 - Darkmoon deck checklist, the Faire's dates and places, Sayge's answers.
 - Item tooltips, and quick turn-ins at Yebb, Kerri, Rinling and Chronos (hold Shift to do it yourself). Clean-up keeps the turn-in items.
 

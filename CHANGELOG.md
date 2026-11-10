@@ -1,3 +1,11 @@
+# Rucksack 1.7.1
+
+### Changed
+- The on-screen Darkmoon ticket button / prize card is off by default: the Pocket's Tickets line and Home already show your tracked prize (37 / 50). Turn it back on with "Button on screen" on the Faire & Sayge tab, or /faire button.
+
+### Fixed
+- Settings: the Pocket's Lines checkboxes now sit four to a row instead of running off the page.
+
 # Rucksack 1.7
 
 ### New

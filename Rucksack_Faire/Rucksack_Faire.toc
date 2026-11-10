@@ -2,7 +2,7 @@
 ## Title: |cffc8a165Ruck|r|cffffd100sack|r: |cffb48cffDarkmoon Faire|r
 ## Notes: Part of Rucksack: Darkmoon Faire tickets, turn-ins (with map pins), prizes and the prize tracker. Turn it on or off in Rucksack's Settings > Modules.
 ## Author: Marijan
-## Version: 1.7
+## Version: 1.7.1
 ## Dependencies: Rucksack
 ## LoadOnDemand: 1
 ## SavedVariables: RucksackFaireDB

@@ -89,7 +89,7 @@ ns.GUIDE = {
     "",
     Y .. "Turn-ins" .. R .. ": every ticket quest, how many items it wants, how many you have (the bank too, once you've opened it) and the tickets it gives. " .. Y .. "Ready" .. R .. " means you can hand it in now. " .. Y .. "Closed" .. R .. " means your Faire reputation is past that quest's limit: bring higher ones.",
     Y .. "Where to get it" .. R .. ": click a turn-in. Animal parts list good places to farm, closest to your level first. Click one to " .. Y .. "pin it on your map" .. R .. " (shift-click pins them all). Crafted items show their profession, and their materials once you open that profession's window.",
-    Y .. "Prizes" .. R .. ": click a prize to " .. Y .. "track" .. R .. " it. The ticket button on your screen turns into a little card with the prize, 37 / 50 and a bar, and glows gold when you have enough.",
+    Y .. "Prizes" .. R .. ": click a prize to " .. Y .. "track" .. R .. " it. The Pocket's Tickets line and Home show it as 37 / 50. Want it on screen too? Turn on " .. Y .. "Button on screen" .. R .. " (Faire & Sayge tab): a little card that fills up and glows gold when you have enough.",
     Y .. "Decks" .. R .. ": which Darkmoon cards you have, Ace to Eight, for all four decks.",
     Y .. "Faire & Sayge" .. R .. ": when and where the Faire is, Sayge's answers (1 then 1 = +10% damage) and the settings.",
     "",

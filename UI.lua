@@ -596,11 +596,11 @@ do
   local linesLabel = Text(p, 0, y, "GameFontHighlight")
   linesLabel:SetText("Lines")
   HoverLabel(p, linesLabel, "Lines", "Which lines the Pocket shows. Untick the ones you don't need.")
-  local x = 60
-  for _, l in ipairs(ns.Pocket.LINES) do
-    p:Add(Check(p, x, y + 5, l.name, POCKET_TIPS[l.key],
+  -- (four to a row, so they stay inside the page)
+  for i, l in ipairs(ns.Pocket.LINES) do
+    local col, row = (i - 1) % 4, math.floor((i - 1) / 4)
+    p:Add(Check(p, 60 + col * 140, y + 5 - row * 24, l.name, POCKET_TIPS[l.key],
       function() return O().lines[l.key] ~= false end, function(v) O().lines[l.key] = v apply() end, "GameFontHighlightSmall"))
-    x = x + 105
   end
 end
 
