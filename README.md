@@ -4,7 +4,7 @@
 
 **Rations** picks the right food and water for you and eats and drinks with one click. No more searching your bags after every fight or eating the wrong stack.
 
-**Clean-up** keeps your bags from filling up with junk. Grey trash and anything you mark goes on its own when space runs low, or gets sold the next time you visit a vendor. It never touches what your quests still need.
+**Clean-up** keeps a few bag slots free for you, always. When space runs low, the cheapest junk goes first (or gets sold at the next vendor), and quest items stay.
 
 Everything is in one window (`/ruck`), with a small on-screen Pocket that shows bag space, your next meal and what a vendor would pay.
 
@@ -20,6 +20,10 @@ Everything is in one window (`/ruck`), with a small on-screen Pocket that shows 
 - Three macros shared by all your characters, kept up to date: **EatDrink**, **Eat** and **Drink**.
 
 ## Clean-up: delete or sell what you don't need
+
+**Clean-up is like a little bag helper.** You pick how many free slots you always want to keep, say 4. As soon as you drop below that, it throws out your **cheapest junk first**, the stuff worth the least, until you're back to 4 free slots. No more "Inventory is full" in the middle of a dungeon.
+
+Grey trash goes by itself. Anything else only goes if you told it to: click **Always** when you delete something once, and Clean-up remembers it. Passing a vendor? It **sells** the junk for gold instead. And it never touches what your quests still need: if a quest wants 8 wolf pelts, it keeps 8.
 
 - The game's delete box gets an **Always** button: the item goes on your list and is deleted from then on.
 - Grey trash goes by itself. Choose a quality to also delete white or green items.
