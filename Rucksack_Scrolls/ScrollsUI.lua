@@ -71,7 +71,7 @@ p.updates[#p.updates + 1] = function()
     bar:SetValue(max > 0 and skill / max or 0)
     bar:Show()
   else
-    skillText:SetText(GREY .. "Comprehension: not learned on this character|r")
+    skillText:SetText(GREY .. (mage and "Comprehension: couldn't read your skill, so no scroll is held back" or "Comprehension: mages only") .. "|r")
     bar:Hide()
   end
   local lines = {}

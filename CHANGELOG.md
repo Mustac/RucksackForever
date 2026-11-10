@@ -1,3 +1,8 @@
+# Rucksack 1.7.2
+
+### Fixed
+- **Scrolls:** the scroll button said your skill was too low when the Skills list had "Secondary Skills" folded shut. It now finds your Comprehension skill either way, and if it really can't, it doesn't hold any scroll back (it reads the easiest first).
+
 # Rucksack 1.7.1
 
 ### Changed

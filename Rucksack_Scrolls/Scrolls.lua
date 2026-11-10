@@ -44,14 +44,42 @@ function S.TierOfName(name)
   return rest and TIER_OF[rest]
 end
 
--- your Comprehension skill: rank (with buffs like the Scroll of Comprehension's +15) and cap
-function S.Skill()
-  if not (GetNumSkillLines and GetSkillLineInfo) then return nil end
+-- your Comprehension skill: rank (with buffs like the Scroll of Comprehension's +15) and cap.
+-- (1.7.2) The skill list hides skills under a folded header ("Secondary Skills"), so folded
+-- headers are opened for the look and folded again. Not found at all: nil (then nothing is held back).
+local function findSkill()
   for i = 1, GetNumSkillLines() do
     local name, header, _, rank, temp, mod, max = GetSkillLineInfo(i)
-    if not header and name == S.SKILL then return (rank or 0) + (mod or 0) + (temp or 0), max or 0, rank or 0 end
+    if not header and type(name) == "string" and name:find("Comprehen") then
+      return (rank or 0) + (mod or 0) + (temp or 0), max or 0, rank or 0
+    end
   end
-  return nil
+end
+local skillAt, skillA, skillB, skillC = -10
+function S.Skill()
+  if not (GetNumSkillLines and GetSkillLineInfo) then return nil end
+  local a, b, c = findSkill()
+  if a or not ExpandSkillHeader then return a, b, c end
+  -- (opening folded headers fires a skill-list event: do it at most every few seconds)
+  if GetTime() - skillAt < 3 then return skillA, skillB, skillC end
+  skillAt = GetTime()
+  S.expandedAt = skillAt
+  local folded = {}
+  for i = GetNumSkillLines(), 1, -1 do
+    local name, header, expanded = GetSkillLineInfo(i)
+    if header and not expanded then folded[#folded + 1] = name ExpandSkillHeader(i) end
+  end
+  if #folded == 0 then return nil end
+  a, b, c = findSkill()
+  -- fold them back as they were
+  local again = {}
+  for _, n in ipairs(folded) do again[n] = true end
+  for i = GetNumSkillLines(), 1, -1 do
+    local name, header = GetSkillLineInfo(i)
+    if header and again[name] and CollapseSkillHeader then CollapseSkillHeader(i) end
+  end
+  skillA, skillB, skillC = a, b, c
+  return a, b, c
 end
 function S.KnowsSpell()
   if C_Spell and C_Spell.GetSpellInfo then
@@ -98,7 +126,7 @@ end
 -- every undeciphered scroll in your bags: { bag, slot, id, name, count, need, tier, ok }
 function S.Scan()
   local list = {}
-  local skill = S.Skill() or 0
+  local skill = S.Skill()
   for bag = 0, ns.NUM_BAGS do
     for slot = 1, (ns.GetNumSlots(bag) or 0) do
       local id, count, link = ns.SlotInfo(bag, slot)
@@ -108,16 +136,17 @@ function S.Scan()
           local tier = S.TierOfName(name)
           local need = needFromTooltip(bag, slot, id) or (tier and tier.skill)
           list[#list + 1] = { bag = bag, slot = slot, id = id, name = name, count = count or 1,
-            need = need, tier = tier, ok = need == nil or skill >= need }
+            need = need, tier = tier, ok = need == nil or skill == nil or skill >= need }
         end
       end
     end
   end
-  -- readable ones first, the hardest you can read first (the likeliest to raise your skill)
+  -- readable ones first, the hardest you can read first (the likeliest to raise your skill);
+  -- skill unknown: the easiest first
   table.sort(list, function(a, b)
     if a.ok ~= b.ok then return a.ok end
     if (a.need or 0) ~= (b.need or 0) then
-      if a.ok then return (a.need or 0) > (b.need or 0) end
+      if a.ok and skill then return (a.need or 0) > (b.need or 0) end
       return (a.need or 0) < (b.need or 0)
     end
     return a.name < b.name
@@ -243,6 +272,8 @@ local ev = CreateFrame("Frame")
 ev:SetScript("OnEvent", function(_, e)
   if e == "PLAYER_REGEN_DISABLED" then inFight = true
   elseif e == "PLAYER_REGEN_ENABLED" then inFight = false end
+  -- (our own peek at folded skill headers fires this too: ignore those)
+  if e == "SKILL_LINES_CHANGED" and S.expandedAt and GetTime() - S.expandedAt < 1 then return end
   if e == "BAG_UPDATE_DELAYED" or e == "SKILL_LINES_CHANGED" then wipe(tipCache) end
   if e == "PLAYER_REGEN_DISABLED" or (e == "PLAYER_REGEN_ENABLED" and not S.pending) then
     -- only the look changes
