@@ -51,6 +51,8 @@ local function byQuality(id)
   if not sell or sell <= 0 then return false end
   if classID == 12 or classID == 13 then return false end
   if quality >= 1 and classID and SAFE_CLASS[classID] then return false end
+  -- (10 Nov) gear this character can't use is only ever sold at a vendor, never deleted
+  if quality >= 1 and (classID == 2 or classID == 4) and ns.Sell and ns.Sell.CantUseType(id) then return false end
   return true
 end
 Del.ByQuality = function(id) return DB and byQuality(id) end

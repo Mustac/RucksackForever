@@ -69,6 +69,7 @@ ns.GUIDE = {
     "When you open a vendor, Rucksack sells for you, a few items at a time. A line in chat says what it sold and for how much.",
     Y .. "At a vendor: sell my Clean-up items for gold" .. R .. " " .. G .. "(on by default)" .. R .. ": everything Clean-up would delete is sold instead, if you reach a vendor before your bags fill up. Deleting pays nothing; selling pays gold, and you can buy it back from the vendor if you made a mistake.",
     Y .. "Sell grey items" .. R .. ": every grey item with a price is sold.",
+    Y .. "Sell soulbound gear I can't use" .. R .. ": soulbound weapons your class can never use (by WoW Forever's weapon trainers), and shields and relics that aren't for your class. Tick " .. Y .. "Cloth, Leather, Mail or Plate" .. R .. " to also sell soulbound armor of types this character never wears. Only ever sold, never deleted. Up to blue; epics, cloaks and unbound gear are kept.",
     G .. "Never sold: amounts your quests need, items set to Keep, items with no vendor price, and blue or better unless you put them on your list yourself." .. R,
     Y .. "Hold Shift" .. R .. " while opening the vendor to sell nothing that time. " .. G .. "(The vendor can buy back only your last 12 items.)" .. R,
     "Home shows what a vendor would pay right now and the gold you've made so far.",

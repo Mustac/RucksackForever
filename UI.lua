@@ -714,6 +714,23 @@ do
   p:Add(Check(p, 0, y, "At a vendor: sell my Clean-up items for gold  |cffaaaaaa(instead of deleting them later)|r",
     "Everything Clean-up would delete (your list, the quality rule, Rations' rules) is sold when you open a vendor, if it has a price. If your bags fill up before you reach one, they're still deleted. Never sold: amounts your quests need, Keep items, blue and better unless on your list.",
     function() return D().sellList end, set("sellList")))
+  y = y - 24
+  -- (10 Nov) soulbound gear this character can't use: sold, never deleted
+  p:Add(Check(p, 0, y, "Sell soulbound gear I can't use  |cffaaaaaa(weapons, shields, relics)|r",
+    "At a vendor, soulbound weapons your class can never use in WoW Forever are sold, and shields and relics your class can't use. Weapons you can learn but haven't trained yet are kept.\n\nOnly ever sold, never deleted, even with full bags. Up to blue: epics are never sold. Bind on equip that isn't bound yet is kept (for the Auction House). Keep items are never sold.",
+    function() return D().sellGear end, set("sellGear")))
+  y = y - 24
+  local armorLbl = Text(p, 26, y - 4, "GameFontHighlightSmall")
+  armorLbl:SetText("Also sell soulbound armor:")
+  HoverLabel(p, armorLbl, "Armor to sell (this character)", "Tick the armor types this character never wears: soulbound pieces of those types are sold at a vendor (never deleted). Cloaks are never sold. Set for each character.")
+  local ax = 190
+  for i = 1, 4 do
+    local name = ns.Sell.ARMOR[i]
+    p:Add(Check(p, ax, y, name, "Sell soulbound " .. name:lower() .. " armor at vendors (this character). Cloaks never.",
+      function() return ns.char.sellArmor and ns.char.sellArmor[i] end,
+      function(v) ns.char.sellArmor = ns.char.sellArmor or {} ns.char.sellArmor[i] = v or nil ns.Changed() end, "GameFontHighlightSmall"))
+    ax = ax + 82
+  end
   y = y - 28
   p:Add(Stepper(p, 0, y, "Bags nearly full when under", 0, 30, 1, "%d free slots",
     function() return D().minFree or 2 end, function(v) D().minFree = v ns.Del.Refresh() end,

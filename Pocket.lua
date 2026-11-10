@@ -250,7 +250,7 @@ tipLines(rows.sell, function(S)
   else
     for i, it in ipairs(S.sellList) do
       if i > 12 then GameTooltip:AddLine(("... and %d more"):format(#S.sellList - 12), 0.7, 0.7, 0.7) break end
-      GameTooltip:AddDoubleLine((it.link or ns.NameOf(it.id)) .. (it.count > 1 and (" x" .. it.count) or ""), coins(it.price * it.count), 1, 1, 1, 1, 1, 1)
+      GameTooltip:AddDoubleLine((it.link or ns.NameOf(it.id)) .. (it.count > 1 and (" x" .. it.count) or "") .. (it.why and ("  |cff999999" .. it.why .. "|r") or ""), coins(it.price * it.count), 1, 1, 1, 1, 1, 1)
     end
     GameTooltip:AddDoubleLine("Total", coins(S.sellValue), 1, 0.82, 0, 1, 1, 1)
   end

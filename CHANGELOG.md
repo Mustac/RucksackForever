@@ -1,3 +1,11 @@
+# Rucksack Forever 1.5
+
+### New
+- **Sell soulbound gear I can't use** (Clean-up page, on by default): at a vendor, soulbound weapons your class can never use in WoW Forever are sold, plus shields and relics that aren't for your class. Weapons you can learn but haven't trained yet are kept.
+- **Also sell soulbound armor:** tick Cloth, Leather, Mail or Plate for armor types this character never wears (set per character).
+- This gear is only ever sold, never deleted, even with full bags. Up to blue; epics, cloaks and unbound gear are kept.
+- The Pocket's vendor list says why each item sells ("can't use: One-Handed Axes").
+
 # Rucksack Forever 1.4
 
 ### New

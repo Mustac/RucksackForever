@@ -31,6 +31,7 @@ Grey trash goes by itself. Anything else only goes if you told it to: click **Al
 - Deletes only when your bags are nearly full (you set how full), the cheapest stack first.
 - Keeps exactly what your current quests still need, never more. Quest starters are kept.
 - **At a vendor:** sells your Clean-up items and grey items for gold instead of deleting them (hold Shift to skip).
+- **Gear you can't use:** soulbound weapons your class can never use (and shields and relics that aren't for your class) are sold at a vendor, never deleted. Tick Cloth, Leather, Mail or Plate to also sell armor types this character never wears.
 - Search your list, see what's in your bags, and a history of the last 100 items deleted.
 
 ## Home, Pocket and Guide
