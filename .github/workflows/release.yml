@@ -1,11 +1,14 @@
-# Push a version tag (for example v1.3.1) and this builds the addon zip and uploads it to
-# CurseForge (project 1796228, from the .toc) and to GitHub Releases.
+# Releases happen on their own: when a push to main carries a new "## Version" in Rucksack.toc
+# (one that has no tag yet), this tags it (v1.3.1, ...), builds the addon zip and uploads it to
+# CurseForge (project 1796228, from the .toc) and to GitHub Releases. Pushes that keep the same
+# version build nothing. "Run workflow" on the Actions tab does the same check by hand.
 name: Package and release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -21,4 +24,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: BigWigsMods/packager@v2
+      - name: Tag the version in Rucksack.toc (if it's new)
+        id: tag
+        run: |
+          version=$(sed -n 's/^## Version: *//p' Rucksack.toc | tr -d '\r' | head -n 1)
+          tag="v$version"
+          echo "Version in Rucksack.toc: $version"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "$tag is already released: nothing to do."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "Rucksack Forever $version"
+          git push origin "$tag"
+          echo "new=true" >> "$GITHUB_OUTPUT"
+
+      - name: Package and upload
+        if: steps.tag.outputs.new == 'true'
+        uses: BigWigsMods/packager@v2
