@@ -54,7 +54,10 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/BigWigsMods/packager/v2/release.sh -o "$RUNNER_TEMP/release.sh"
           set +e
-          bash "$RUNNER_TEMP/release.sh" 2>&1 | tee "$RUNNER_TEMP/packager.log"
+          # (build the tag: started by a push to main, the packager would otherwise wait for a
+          # separate run of the tag, which a tag made inside a workflow never starts)
+          GITHUB_REF="refs/tags/${{ steps.tag.outputs.tag }}" GITHUB_REF_NAME="${{ steps.tag.outputs.tag }}" GITHUB_REF_TYPE=tag \
+            bash "$RUNNER_TEMP/release.sh" 2>&1 | tee "$RUNNER_TEMP/packager.log"
           status=${PIPESTATUS[0]}
           {
             echo "## Packager output (exit code $status)"
