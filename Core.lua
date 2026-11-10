@@ -1,9 +1,86 @@
--- Rucksack: Rations (eat and drink) and Clean-up (delete and sell) in one addon.
---   Core.lua   shared helpers, saved settings, slash commands
---   Delete.lua AutoDelete: the Always / Yes / No box, the remembered items, deleted history, the trash button
---   Eat.lua    EatDrink: best plain food and water, the macro and the on-screen button
---   UI.lua     the window: items on the left, the chosen item's settings on the right
+-- Rucksack 1.7: the core (window, Home, Settings, Guide, Pocket, minimap button) and modules,
+-- each its own folder that only loads when it's ticked in Settings > Modules:
+--   Rucksack_Rations  eat and drink        Rucksack_CleanUp  delete and sell
+--   Rucksack_Faire    the Darkmoon Faire
+-- The modules are "load on demand": the game never loads them by itself, the core loads the
+-- ticked ones. An unticked module isn't loaded at all (no code, no events, no memory).
+-- All of them share one table, the global Rucksack (this file's namespace).
 local ADDON, ns = ...
+Rucksack = ns
+
+-- the modules: each registers itself (key, name, folder) when it loads
+ns.MODULES = {
+  { key = "eat", folder = "Rucksack_Rations", name = "Rations", what = "eat and drink with one click" },
+  { key = "del", folder = "Rucksack_CleanUp", name = "Clean-up", what = "delete or sell what you don't need" },
+  { key = "faire", folder = "Rucksack_Faire", name = "Darkmoon Faire", what = "tickets, turn-ins and prizes" },
+  { key = "scrolls", folder = "Rucksack_Scrolls", name = "Scrolls", what = "mages: one click deciphers a scroll" },
+}
+ns.loaded = {}   -- key -> true once that module's files ran
+function ns.Has(key) return ns.loaded[key] and true or false end
+-- a module calls this first: when its saved settings arrive (its ADDON_LOADED), init() sets them up,
+-- then its own ns.onLoad functions run, the same moment they always did
+-- Done once per module, whichever comes first: its own ADDON_LOADED, LoadAddOn returning, or the
+-- login (the game can hold a load-on-demand addon's ADDON_LOADED back until after login).
+ns.pending = {}
+local function finish(m)
+  if m.done then return end
+  m.done = true
+  if m.init then m.init() end
+  ns.loaded[m.key] = true -- (counts as loaded once its settings are in place)
+  for i = m.first, m.lastLoad or #ns.onLoad do ns.onLoad[i]() end
+  -- ticked while playing (after login): run its login setup now too
+  if ns.loggedIn then
+    for i = m.firstLogin, m.lastLogin or #ns.onLogin do pcall(ns.onLogin[i]) end
+    ns.Changed()
+  end
+end
+function ns.FinishModules() for _, m in pairs(ns.pending) do finish(m) end end
+function ns.Module(key, addon, init)
+  local m = { key = key, addon = addon, init = init, first = #ns.onLoad + 1, firstLogin = #ns.onLogin + 1 }
+  ns.pending[addon] = m
+  local ev = CreateFrame("Frame")
+  ev:RegisterEvent("ADDON_LOADED")
+  ev:SetScript("OnEvent", function(self, _, name)
+    if name ~= addon then return end
+    self:UnregisterAllEvents()
+    finish(m)
+  end)
+end
+
+-- (1.7) which modules to load: ticked in Settings > Modules. Account-wide, or this character's own.
+function ns.ModuleWanted(key)
+  local c = ns.char
+  if c and c.ownModules and c.modules and c.modules[key] ~= nil then return c.modules[key] end
+  local m = ns.db and ns.db.modules
+  if m and m[key] ~= nil then return m[key] end
+  return true -- (new: everything on)
+end
+function ns.SetModuleWanted(key, on)
+  if ns.char and ns.char.ownModules then
+    ns.char.modules = ns.char.modules or {}
+    ns.char.modules[key] = on and true or false
+  else
+    ns.db.modules = ns.db.modules or {}
+    ns.db.modules[key] = on and true or false
+  end
+end
+-- load a module now; returns true, or false and why ("DISABLED" = unticked in the game's AddOns list)
+local loadAddOn = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
+function ns.LoadModule(m)
+  if ns.Has(m.key) then return true end
+  if not loadAddOn then return false, "MISSING" end
+  local ok, loaded, reason = pcall(loadAddOn, m.folder)
+  if not ok then return false, "ERROR" end
+  if not loaded then m.why = reason return false, reason end
+  m.why = nil
+  -- its files and saved settings are in now: set it up right away
+  local p = ns.pending[m.folder]
+  if p then
+    p.lastLoad, p.lastLogin = p.lastLoad or #ns.onLoad, p.lastLogin or #ns.onLogin
+    finish(p)
+  end
+  return true
+end
 
 ns.PREFIX = "|cffc8a165Ruck|r|cffffd100sack|r: "
 function ns.Print(msg) DEFAULT_CHAT_FRAME:AddMessage(ns.PREFIX .. msg) end
@@ -66,6 +143,36 @@ function ns.LinkOf(id, fallbackLink)
   return nil
 end
 
+-- free and total ordinary bag slots (core: Home and the Pocket need them without Clean-up)
+function ns.FreeSlots()
+  local free = 0
+  for bag = 0, ns.NUM_BAGS do
+    local n, family = ns.GetFree(bag)
+    if n and (family == nil or family == 0) then free = free + n end
+  end
+  return free
+end
+function ns.TotalSlots()
+  local n = 0
+  for bag = 0, ns.NUM_BAGS do
+    local _, family = ns.GetFree(bag)
+    if family == nil or family == 0 then n = n + (ns.GetNumSlots(bag) or 0) end
+  end
+  return n
+end
+
+-- (1.7) modules can ask Clean-up to keep items (Faire turn-in items, undeciphered scrolls...):
+-- each adds a function(id) to ns.keepers that says true for items to keep
+ns.keepers = {}
+function ns.KeepItem(id)
+  if not id then return false end
+  for _, fn in ipairs(ns.keepers) do
+    local ok, keep = pcall(fn, id)
+    if ok and keep then return true end
+  end
+  return false
+end
+
 function ns.CursorItem()
   local t, id, link = GetCursorInfo()
   if t == "item" and id then return id, link end
@@ -107,18 +214,12 @@ ev:RegisterEvent("PLAYER_LOGIN")
 ev:SetScript("OnEvent", function(self, event, arg1)
   if event == "ADDON_LOADED" then
     if arg1 ~= ADDON then return end
-    -- (10 Nov) AutoDelete and Eat & Drink keep their settings under Rucksack's own names now
-    -- (other addons use AutoDeleteDB / EatDrinkDB too). Settings from earlier Rucksack versions
-    -- move over once: only when Rucksack has run here before, so another addon's are never taken.
-    local before = RucksackDB ~= nil
+    -- the core's own settings; each module keeps its own
     RucksackDB = RucksackDB or {}
-    if RucksackDeleteDB == nil and before and type(AutoDeleteDB) == "table" and type(AutoDeleteDB.items) == "table" then
-      RucksackDeleteDB = AutoDeleteDB
-    end
-    if RucksackEatDB == nil and before and type(EatDrinkDB) == "table" then RucksackEatDB = EatDrinkDB end
-    RucksackDeleteDB = RucksackDeleteDB or {}
-    RucksackEatDB = RucksackEatDB or {}
-    ns.db, ns.del, ns.eat = RucksackDB, RucksackDeleteDB, RucksackEatDB
+    ns.db = RucksackDB
+    -- (1.7) settings from 1.x lived in this addon's saved file; the modules take them over the
+    -- first time they load (after that they're saved in the module's own file)
+    ns.legacy = { eat = RucksackEatDB, del = RucksackDeleteDB, faire = RucksackFaireDB, faireChar = RucksackFaireCharDB }
     -- (10 Nov) this character's own settings: warriors and rogues drink nothing, so their water goes
     RucksackCharDB = RucksackCharDB or {}
     ns.char = RucksackCharDB
@@ -126,10 +227,17 @@ ev:SetScript("OnEvent", function(self, event, arg1)
       local _, class = UnitClass("player")
       ns.char.noWater = (class == "WARRIOR" or class == "ROGUE") and true or false
     end
+    -- (the core's own; each module runs its own when it loads, see ns.Module)
     for _, fn in ipairs(ns.onLoad) do fn() end
     self:UnregisterEvent("ADDON_LOADED")
+    -- (1.7) now load the ticked modules
+    for _, m in ipairs(ns.MODULES) do
+      if ns.ModuleWanted(m.key) then ns.LoadModule(m) end
+    end
   else
+    ns.FinishModules() -- (any module still waiting for its setup)
     for _, fn in ipairs(ns.onLogin) do fn() end
+    ns.loggedIn = true
   end
 end)
 
@@ -148,8 +256,9 @@ SlashCmdList.RUCKSACK = function(msg)
   if m == "eat" or m == "drink" or m == "rations" then Rucksack_Open("eat") return end
   if m == "pocket" then if ns.Pocket then ns.Pocket.Toggle() end return end
   if m == "settings" then Rucksack_Open("general") return end
+  if m == "faire" or m == "dmf" or m == "darkmoon" then Rucksack_Open("faire") return end
   if m == "" then Rucksack_Toggle() return end
-  ns.Print("|cffffd100/ruck|r opens the window.  |cffffd100/rations|r, |cffffd100/cleanup|r: those pages.  |cffffd100/ruck pocket|r: the small info window.  |cffffd100/ruck minimap|r: the minimap button.")
+  ns.Print("|cffffd100/ruck|r opens the window.  |cffffd100/rations|r, |cffffd100/cleanup|r, |cffffd100/faire|r: those pages.  |cffffd100/ruck pocket|r: the small info window.  |cffffd100/ruck minimap|r: the minimap button.")
 end
 
 BINDING_HEADER_RUCKSACK = "Rucksack"
@@ -163,8 +272,8 @@ _G["BINDING_NAME_CLICK RucksackDrinkButton:LeftButton"] = "Rations: water only"
 function ns.Summary()
   local S = { notes = {} }
   local Del, Eat, Sell, D, E = ns.Del, ns.Eat, ns.Sell, ns.del or {}, ns.eat or {}
-  S.free = Del and Del.FreeSlots() or 0
-  S.total = Del and Del.TotalSlots() or 0
+  S.free = ns.FreeSlots()
+  S.total = ns.TotalSlots()
   S.minFree = D.minFree or 2
   -- Rations
   if Eat and Eat.Pick and E.enabled ~= false then pcall(Eat.Pick) end

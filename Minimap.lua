@@ -58,14 +58,21 @@ b:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) icon:Se
 b:SetScript("OnEnter", function(self)
   GameTooltip:SetOwner(self, "ANCHOR_LEFT")
   GameTooltip:AddLine("|cffc8a165Ruck|r|cffffd100sack|r")
-  local fd, dr = ns.Eat.food, ns.Eat.drink
-  if ns.eat.enabled ~= false then
+  local fd, dr = ns.Eat and ns.Eat.food, ns.Eat and ns.Eat.drink
+  if ns.Has("eat") and ns.eat.enabled ~= false then
     GameTooltip:AddDoubleLine("Next food", fd and ns.NameOf(fd) .. " x" .. (ns.GetCount(fd) or 0) or "none", 1, 1, 1, 1, 1, 1)
     GameTooltip:AddDoubleLine("Next water", dr and ns.NameOf(dr) .. " x" .. (ns.GetCount(dr) or 0) or "none", 1, 1, 1, 1, 1, 1)
   end
-  local _, waiting = ns.Del.Scan(false)
-  if ns.del.enabled and waiting and waiting > 0 then
+  local waiting
+  if ns.Del then waiting = select(2, ns.Del.Scan(false)) end
+  if ns.del and ns.del.enabled and waiting and waiting > 0 then
     GameTooltip:AddDoubleLine("To delete", waiting .. " item(s)", 1, 1, 1, 1, 0.4, 0.4)
+  end
+  local F = ns.Faire
+  if F and F.db and F.On() then
+    GameTooltip:AddDoubleLine("Darkmoon tickets", tostring(F.Tickets()), 1, 1, 1, 1, 0.82, 0)
+    local open = F.FaireStatus()
+    if open then GameTooltip:AddLine(F.FaireLine(), 1, 1, 1) end
   end
   GameTooltip:AddLine("Left-click: open.  Right-click: the Pocket.  Drag: move.", 0.7, 0.7, 0.7, true)
   GameTooltip:Show()

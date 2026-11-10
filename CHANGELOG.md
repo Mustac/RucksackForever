@@ -1,3 +1,15 @@
+# Rucksack 1.7
+
+### New
+- **Modules:** Rucksack now comes in parts: Rations, Clean-up, Darkmoon Faire and Scrolls. Pick which ones load in **Settings > Modules**. Ticking one loads it right away; unticking one needs a reload, and then it isn't loaded at all (no memory, no work). "Just for this character" lets a character have its own choice. Your settings carry over.
+- **Darkmoon Faire module:** every ticket turn-in with how many items you have and the tickets it gives; where to farm each animal part, closest to your level first, and one click pins it on your map; crafted items show their profession and materials. Prizes as tiles: click one to track it, and an on-screen card shows the prize filling up (37 / 50) and glows when you have enough. Darkmoon deck checklist, Faire dates and Sayge's answers, item tooltips and quick turn-ins at the Faire NPCs. /faire
+- **Scrolls module (mages):** one click deciphers your next scroll with Comprehend Scroll, only ones your Comprehension skill allows (no sheep). A scroll button with a counter, a Decipher macro, and a page with your skill and every scroll in your bags. /scrolls
+- **Clean-up keeps** Darkmoon turn-in items and undeciphered scrolls (both can be switched off).
+- **Pocket:** new Tickets and Scrolls lines.
+
+### Changed
+- The addon is called just **Rucksack** in the game.
+
 # Rucksack Forever 1.6
 
 ### New

@@ -4,7 +4,8 @@
 -- set to Keep, items with no vendor price, blue and better unless you put them on your list.
 -- A few at a time (the game drops sales sent too fast); only whole stacks (a stack partly needed
 -- for a quest waits for Clean-up).
-local _, ns = ...
+local ns = Rucksack
+if not ns then return end
 local Print = ns.Print
 local Sell = {}
 ns.Sell = Sell
@@ -107,7 +108,7 @@ function Sell.Items()
   for bag = 0, ns.NUM_BAGS do
     for slot = 1, (ns.GetNumSlots(bag) or 0) do
       local id, count, link, _, locked = ns.SlotInfo(bag, slot)
-      if id and not DB.keep[id] then
+      if id and not DB.keep[id] and not ns.KeepItem(id) then
         local _, _, quality, _, _, _, _, _, _, _, price = ns.GetInfo(link or id)
         price = price or 0
         if price > 0 then

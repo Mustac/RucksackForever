@@ -1,5 +1,13 @@
 package-as: Rucksack
 
+# The repository's top folder is the Rucksack core; each module is its own addon folder
+# (load on demand, loaded by Rucksack when ticked in Settings > Modules).
+move-folders:
+  Rucksack/Rucksack_Rations: Rucksack_Rations
+  Rucksack/Rucksack_CleanUp: Rucksack_CleanUp
+  Rucksack/Rucksack_Faire: Rucksack_Faire
+  Rucksack/Rucksack_Scrolls: Rucksack_Scrolls
+
 manual-changelog:
   filename: CHANGELOG.md
   markup-type: markdown

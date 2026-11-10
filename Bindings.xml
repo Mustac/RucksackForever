@@ -1,6 +1,6 @@
 <Bindings>
 	<Binding name="AUTODELETE_NOW" category="Rucksack">
-		AutoDelete_DeleteNext()
+		if AutoDelete_DeleteNext then AutoDelete_DeleteNext() end
 	</Binding>
 	<Binding name="AUTODELETE_TOGGLE" category="Rucksack">
 		Rucksack_Toggle()

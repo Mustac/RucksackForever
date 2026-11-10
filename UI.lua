@@ -1,7 +1,7 @@
+local _, ns = ...
 -- Rucksack / the window (/ruck). Left: Home, Rations, Clean-up (each with on/off) and Settings at the
 -- bottom. Right: Home is a dashboard (bag space, what you eat next, what's waiting to go, what a vendor
 -- would pay); a tool's page has its settings and its list of items; click an item for its own settings.
-local _, ns = ...
 local Print = ns.Print
 
 local W, H, SIDE_W = 960, 640, 190
@@ -32,7 +32,7 @@ logo:SetPoint("TOP", -88, -16)
 logo:SetTexture(ns.ICON)
 local title = f:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 title:SetPoint("LEFT", logo, "RIGHT", 6, 0)
-title:SetText("|cffc8a165Ruck|r|cffffd100sack|r |cffffffffForever|r")
+title:SetText("|cffc8a165Ruck|r|cffffd100sack|r")
 local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
 close:SetPoint("TOPRIGHT", -6, -6)
 
@@ -461,6 +461,62 @@ end
 local pages = {}
 local current -- "general", "eat", "del", "food:<id>", "del:<id>"
 
+-- (1.7) the widgets, for the modules' own pages
+ns.UI = {
+  tip = tip, HoverLabel = HoverLabel, Text = Text, TipText = TipText, Check = Check, Stepper = Stepper,
+  Choices = Choices, KeyButton = KeyButton, List = List, Page = Page, GuideButton = GuideButton,
+  ToolHeader = ToolHeader, ItemHeader = ItemHeader, pages = pages,
+}
+
+-- (1.7) ticking a module loads it now; unticking needs a reload (the game can't unload code)
+StaticPopupDialogs["RUCKSACK_RELOAD"] = {
+  text = "%s\n\nReload now?",
+  button1 = "Reload", button2 = "Later",
+  OnAccept = function() ReloadUI() end,
+  timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+}
+local WHY = {
+  DISABLED = "it's unticked in the game's AddOns list (character select): tick it there",
+  MISSING = "its folder isn't installed",
+  DEP_MISSING = "Rucksack itself is missing",
+  INTERFACE_VERSION = "it's marked out of date: tick \"Load out of date AddOns\"",
+}
+function ns.WhyNot(m) return WHY[m.why or ""] or (m.why and ("the game says: " .. tostring(m.why))) or nil end
+function ns.SetModule(m, on)
+  ns.SetModuleWanted(m.key, on)
+  if on then
+    if ns.Has(m.key) then return end
+    if InCombatLockdown() then Print(m.name .. " loads after this fight (or on your next reload).") return end
+    local ok = ns.LoadModule(m)
+    if ok then Print(m.name .. " is loaded.")
+    else Print(m.name .. " couldn't load: " .. (ns.WhyNot(m) or "unknown reason") .. ".") end
+    ns.Changed()
+  elseif ns.Has(m.key) then
+    StaticPopup_Show("RUCKSACK_RELOAD", m.name .. " is turned off. It stops loading after a reload; until then it keeps running.")
+  end
+  ns.Changed()
+end
+-- a page for a module that isn't loaded
+do
+  local p = Page()
+  pages.missing = p
+  p.title = Text(p, 0, -2, "GameFontNormalLarge")
+  p.body = Text(p, 0, -34, "GameFontHighlight", 600)
+  local b = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+  b:SetSize(160, 24)
+  b:SetPoint("TOPLEFT", 0, -90)
+  b:SetText("Turn it on")
+  b:SetScript("OnClick", function() if p.mod then ns.SetModule(p.mod, true) end end)
+  p.updates[#p.updates + 1] = function()
+    local m = p.mod
+    if not m then return end
+    p.title:SetText(m.name .. "  |cff999999off|r")
+    local why = ns.ModuleWanted(m.key) and ns.WhyNot(m)
+    p.body:SetText(m.name .. " (" .. m.what .. ") is a module you can turn on or off in Settings. It's off right now, so it isn't loaded and uses nothing." ..
+      (why and ("\n\n|cffff8080It's ticked but couldn't load: " .. why .. ".|r") or "\n\nClick below to turn it on: it loads right away, no reload needed."))
+  end
+end
+
 ---------------------------------------------------------------------------
 -- General
 ---------------------------------------------------------------------------
@@ -477,13 +533,38 @@ do
   y = y - 34
   p:Add(KeyButton(p, 0, y, "Open Rucksack", "AUTODELETE_TOGGLE", "A key that opens and closes this window."))
   y = y - 44
-  Text(p, 0, y, "GameFontNormal"):SetText("Tools")
+  -- (1.7) modules: tick the parts you want. Unticked = not loaded at all.
+  local mh = Text(p, 0, y, "GameFontNormal")
+  mh:SetText("Modules")
+  HoverLabel(p, mh, "Modules", "Rucksack comes with all its parts, but only loads the ones ticked here. An unticked part isn't loaded at all: no memory, no work.\n\nTicking one loads it right away. Unticking one needs a reload.")
+  Text(p, 100, y - 1, "GameFontDisableSmall", 500):SetText("only ticked parts are loaded  ·  ticking loads it now, unticking needs a reload")
   y = y - 22
-  p:Add(Check(p, 0, y, "|cff66dd66Rations|r", "One button or key eats and drinks your plain food and water, in the order you pick.",
-    function() return ns.eat.enabled ~= false end, function(v) ns.eat.enabled = v ns.Eat.Update(false) end))
-  y = y - 26
-  p:Add(Check(p, 0, y, "|cffff5555Clean-up|r", "Always / Yes / No when you delete; deletes or sells what you don't need when your bags fill up.",
-    function() return ns.del.enabled end, function(v) ns.del.enabled = v ns.Del.Refresh() end))
+  for _, m in ipairs(ns.MODULES) do
+    local cb = p:Add(Check(p, 0, y, m.name .. "  |cff999999" .. m.what .. "|r", nil,
+      function() return ns.ModuleWanted(m.key) end, function(v) ns.SetModule(m, v) end))
+    local state = cb:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    state:SetPoint("LEFT", cb, "LEFT", 380, 1)
+    tip(cb, m.name, m.what .. ". Ticked: loaded. Unticked: not loaded at all (after a reload).")
+    p.updates[#p.updates + 1] = function()
+      local has, want = ns.Has(m.key), ns.ModuleWanted(m.key)
+      if has and want then state:SetText("|cff66dd66loaded|r")
+      elseif has then state:SetText("|cffffd100off after reload|r")
+      elseif want then state:SetText("|cffff8080couldn't load|r")
+      else state:SetText("|cff999999not loaded|r") end
+    end
+    y = y - 24
+  end
+  p:Add(Check(p, 0, y, "Just for this character  |cff999999(otherwise the same on all your characters)|r",
+    "Ticked: this character has its own module choices (say, the Faire only on your main).",
+    function() return ns.char.ownModules end, function(v)
+      ns.char.ownModules = v or nil
+      if v then
+        ns.char.modules = ns.char.modules or {}
+        for _, m in ipairs(ns.MODULES) do if ns.char.modules[m.key] == nil then ns.char.modules[m.key] = ns.db.modules == nil or ns.db.modules[m.key] ~= false end end
+      end
+      ns.Changed()
+    end, "GameFontHighlightSmall"))
+  y = y - 10
   -- the Pocket
   y = y - 44
   Text(p, 0, y, "GameFontNormal"):SetText("The Pocket")
@@ -509,6 +590,8 @@ do
     food = "The food the eat button uses next, and how many you have.",
     water = "The water the eat button uses next, and how many you have.",
     del = "How many stacks are waiting to be deleted, and which one goes next.",
+    faire = "Your Darkmoon tickets, or the prize you track (37/50). Only while the Faire tool is on.",
+    scrolls = "Undeciphered mage scrolls in your bags, and how many you can read now.",
   }
   local linesLabel = Text(p, 0, y, "GameFontHighlight")
   linesLabel:SetText("Lines")
@@ -517,743 +600,7 @@ do
   for _, l in ipairs(ns.Pocket.LINES) do
     p:Add(Check(p, x, y + 5, l.name, POCKET_TIPS[l.key],
       function() return O().lines[l.key] ~= false end, function(v) O().lines[l.key] = v apply() end, "GameFontHighlightSmall"))
-    x = x + 120
-  end
-end
-
----------------------------------------------------------------------------
--- Eat & Drink
----------------------------------------------------------------------------
-do
-  local p = Page()
-  pages.eat = p
-  GuideButton(p, "eat")
-  local E = function() return ns.eat end
-  local controls = {}
-  ToolHeader(p, "|cff66dd66Rations|r",
-    function() return E().enabled ~= false end,
-    function(v) E().enabled = v ns.Eat.Update(false) end,
-    "On: the button and its key eat and drink. Off: they do nothing and the button goes away.")
-  local next = Text(p, 0, -30, "GameFontHighlightSmall", 440)
-  local y = -52
-  controls[#controls + 1] = p:Add(Check(p, 0, y, "Show the eat button on screen", "Food on the left, drink on the right, with how many you have; grey = in combat (you can't eat or drink then). Shift-drag: move it.",
-    function() return E().showIcon ~= false end, function(v) ns.Eat.SetShown(v) end))
-  y = y - 24
-  controls[#controls + 1] = p:Add(Check(p, 0, y, "Keep the macros up to date  |cffaaaaaa(EatDrink, Eat, Drink)|r",
-    "Three macros for your action bars, shared by all your characters (/macro, General tab):\n|cffffd100EatDrink|r: same as the eat button (eats and drinks, or what the Eat button choice says).\n|cffffd100Eat|r: food only.\n|cffffd100Drink|r: water only.\nRucksack keeps them up to date with the food and water of the character you're playing. A character's own older EatDrink macro is kept up to date too.",
-    function() return E().macro ~= false end, function(v) E().macro = v ns.Eat.Update(v) end))
-  y = y - 26
-  -- (10 Nov) which food and water go first, and from which levels
-  local function changed() ns.Eat.randomFood, ns.Eat.randomDrink = nil, nil ns.Eat.Update(false) end
-  p:Add(Choices(p, 0, y, "Use first", {
-    { "best", "Strongest first", 104, "The food and water that restore the most." },
-    { "conjured", "Conjured first", 100, "Mage food and water before anything else (they vanish anyway), then the strongest." },
-    { "saveconj", "Save conjured", 100, "Everything else first; conjured food and water are kept as a backup." },
-    { "random", "Random", 64, "Any of them, a new pick after each meal." },
-  }, function() return E().order or "best" end, function(v) E().order = v changed() end, "Use first",
-    "Which of your food and water the eat button picks first. Hover a choice to see what it does."))
-  y = y - 26
-  local lvRow = Choices(p, 0, y, "Food level", {
-    { "any", "Any level", 80, "Anything you can eat." },
-    { "mine", "Only my level", 100, "Only food made for your level: the two strongest kinds you can eat (at level 30: food for level 25 and 15). Weaker food only when there's nothing else." },
-    { "old", "Use up old food", 110, "The lowest-level food first, to clear out old stacks. (Not with Random.)" },
-  }, function() return E().level or "any" end, function(v) E().level = v changed() end, "Food level",
-    "Which levels of food and water the eat button may use. Food that's too high for you is always skipped.")
-  lvRow.usable = function(v) return not (v == "old" and E().order == "random") end
-  p:Add(lvRow)
-  y = y - 26
-  local BELOW = { { nil, "Off", 40, "Rations deletes no food or water for its level." },
-    { "auto", "Auto", 48, "Follows your level: deletes food and water weaker than the two strongest kinds you can eat (at level 40: everything for below level 25)." } }
-  for _, lv in ipairs({ 5, 15, 25, 35, 45, 55 }) do
-    BELOW[#BELOW + 1] = { lv, tostring(lv), 34, "Deletes food and water made for below level " .. lv .. "." }
-  end
-  p:Add(Choices(p, 0, y, "Delete below level", BELOW,
-    function() return E().delBelow end, function(v) E().delBelow = v changed() ns.Del.Refresh() end, "Delete food and water",
-    "Gets rid of old food and water you've outgrown, so it doesn't fill your bags. Clean-up deletes it (or a vendor buys it) when your bags are nearly full. Food set to \"Use this first\" and Keep items are never deleted."))
-  y = y - 24
-  Text(p, 150, y, "GameFontDisableSmall", 420):SetText("Clean-up deletes them when your bags are nearly full. Never \"Use this first\" or Keep items.")
-  y = y - 18
-  p:Add(Check(p, 0, y, "Delete all water as soon as I get it  |cffaaaaaa(this character)|r",
-    "For characters without mana (warriors, rogues): every plain drink goes. Food that restores health too is kept. Set per character; on by default for warriors and rogues.",
-    function() return ns.char.noWater end, function(v) ns.char.noWater = v and true or false changed() ns.Del.Refresh() end))
-  y = y - 24
-  -- (10 Nov) buff food (Well Fed) while the buff is missing
-  local buffBox = p:Add(Check(p, 0, y, "Eat buff food when the buff is missing",
-    "Food that gives a buff (Well Fed and similar) is normally never eaten. Ticked: while you're not Well Fed, the eat button picks your buff food first. Once the buff is up, it goes back to plain food until the buff wears off.\n\nBuffs are checked outside fights only (you can't eat in one anyway).",
-    function() return E().buffFood end, function(v) E().buffFood = v and true or false changed() end))
-  p.updates[#p.updates + 1] = function()
-    local note = ""
-    if E().buffFood then
-      local st = ns.Eat.FoodBuffState()
-      note = st == true and "  |cff66dd66(Well Fed now)|r" or st == false and "  |cffffd100(not Well Fed: buff food first)|r"
-        or (not InCombatLockdown() and "  |cff999999(this server doesn't let addons see your buffs)|r") or ""
-    end
-    buffBox.label:SetText("Eat buff food when the buff is missing" .. note)
-  end
-  y = y - 24
-  -- (10 Nov) the "don't move" alert while eating buff food
-  local alertBox = p:Add(Check(p, 20, y, "Alert me while I eat for the buff",
-    "While you eat buff food, big text in the middle of the screen says \"don't move\" with the seconds left (you need to stay seated about 10 seconds). When Well Fed lands it tells you that you can move again.\n\nOnly works with \"Eat buff food when the buff is missing\" ticked.",
-    function() return E().buffAlert ~= false end, function(v) E().buffAlert = v and true or false end, "GameFontHighlightSmall"))
-  local moveBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-  moveBtn:SetSize(130, 20)
-  moveBtn:SetPoint("TOPLEFT", 300, y - 2)
-  moveBtn:SetText("Move the alert")
-  moveBtn:SetScript("OnClick", function(self)
-    local moving = ns.Eat.MoveAlert()
-    self:SetText(moving and "Lock it here" or "Move the alert")
-  end)
-  tip(moveBtn, "Move the alert", "Shows the alert so you can drag it where you like. Click again to lock it there (closing Rucksack locks it too).")
-  -- (10 Nov) the alert only goes with buff food: greyed out while that's off
-  p.updates[#p.updates + 1] = function()
-    local on = E().buffFood and true or false
-    alertBox:SetEnabled(on)
-    alertBox.label:SetFontObject(on and "GameFontHighlightSmall" or "GameFontDisableSmall")
-    moveBtn:SetEnabled(on)
-    if not on and ns.Eat.AlertMoving and ns.Eat.AlertMoving() then ns.Eat.MoveAlert() end
-    moveBtn:SetText((ns.Eat.AlertMoving and ns.Eat.AlertMoving()) and "Lock it here" or "Move the alert")
-  end
-  ns.LockAlert = function()
-    if ns.Eat.AlertMoving and ns.Eat.AlertMoving() then ns.Eat.MoveAlert() end
-    moveBtn:SetText("Move the alert")
-  end
-  y = y - 30
-  -- (10 Nov) no key buttons here any more: the macros go on your bars
-  Text(p, 0, y, "GameFontDisableSmall", 560):SetText("On your bars: drag the |cffffd100EatDrink|r, |cffffd100Eat|r or |cffffd100Drink|r macro there (Esc > Macros > General tab).")
-  y = y - 24
-  -- (9 Nov) what one click uses: food, water or both, every time. (The "below N% health / mana"
-  -- settings are gone: this server hides your current health and mana from addons.)
-  -- (10 Nov) and "Separate": food and water as two buttons side by side (the Eat and drink key
-  -- and the EatDrink macro still use both then)
-  local USE = { { "both", "Food and water" }, { "food", "Food only" }, { "drink", "Water only" }, { "split", "Separate" } }
-  local function useNow() return E().split and "split" or (E().use or "both") end
-  local useRow = CreateFrame("Frame", nil, p)
-  useRow:SetSize(420, 24)
-  useRow:SetPoint("TOPLEFT", 0, y)
-  local ul = useRow:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-  ul:SetPoint("LEFT", 4, 0)
-  ul:SetText("Eat button")
-  HoverLabel(useRow, ul, "Eat button", "What the eat button on your screen does. Click the button on the right to go through the choices:\n|cffffd100Food and water|r: one click eats and drinks.\n|cffffd100Food only|r / |cffffd100Water only|r: just that one.\n|cffffd100Separate|r: two buttons side by side, click the food to eat or the water to drink.")
-  local ub = CreateFrame("Button", nil, useRow, "UIPanelButtonTemplate")
-  ub:SetSize(200, 22)
-  ub:SetPoint("LEFT", 240, 0)
-  local function useText()
-    for _, o in ipairs(USE) do if o[1] == useNow() then return o[2] end end
-    return USE[1][2]
-  end
-  ub:SetScript("OnClick", function()
-    local i = 1
-    for k, o in ipairs(USE) do if o[1] == useNow() then i = k end end
-    local v = USE[i % #USE + 1][1]
-    if v == "split" then E().split, E().use = true, "both" else E().split, E().use = false, v end
-    ub:SetText(useText())
-    ns.Eat.Update(false)
-  end)
-  tip(ub, "Eat button", "Food and water: one click eats and drinks.\nFood only / Water only: just that one.\nSeparate: two buttons, food and water.\nClick to change. (In a fight it changes after the fight.)")
-  useRow.Update = function()
-    ub:SetText(useText())
-    local on = E().enabled ~= false
-    ub:SetEnabled(on)
-    ul:SetFontObject(on and "GameFontHighlight" or "GameFontDisable")
-  end
-  p:Add(useRow)
-  y = y - 34
-  TipText(p, 0, y, "GameFontNormal", "Food and water in your bags",
-    "Everything Rations found in your bags, strongest first. Click one to set it to \"Use this first\" or \"Never use this\". The tag on the right says if it's skipped or deleted, and why.")
-  Text(p, 230, y, "GameFontDisableSmall", 300):SetText("click one: use it first, or never")
-  local list = List(p, y - 18)
-  p.updates[#p.updates + 1] = function()
-    local on = E().enabled ~= false
-    for _, c in ipairs(controls) do
-      if c.SetEnabled and c.GetObjectType and c:GetObjectType() == "CheckButton" then
-        c:SetEnabled(on)
-        c.label:SetFontObject(on and "GameFontHighlight" or "GameFontDisable")
-      end
-    end
-    local fd, dr = ns.Eat.food, ns.Eat.drink
-    next:SetText(on and ("Next food: " .. (fd and ns.NameOf(fd) or "|cff999999none|r") .. "      Next drink: " .. (dr and ns.NameOf(dr) or "|cff999999none|r"))
-      or "|cff999999Turned off: the button and its key do nothing.|r")
-    local foods = {}
-    for id, fdata in pairs(ns.Eat.found) do foods[#foods + 1] = { id = id, fd = fdata } end
-    table.sort(foods, function(a, b)
-      if a.fd.usable ~= b.fd.usable then return a.fd.usable end
-      return (a.fd.health + a.fd.mana) > (b.fd.health + b.fd.mana)
-    end)
-    local entries = {}
-    for _, e in ipairs(foods) do
-      local tag = ""
-      if e.id == fd and e.id == dr then tag = "|cffffd100both|r"
-      elseif e.id == fd then tag = "|cffffd100eat next|r"
-      elseif e.id == dr then tag = "|cffffd100drink next|r"
-      elseif e.fd.prefer then tag = "first"
-      elseif e.fd.buff and E().buffFood then tag = "|cff66aaffbuff food|r"
-      elseif e.fd.buff then tag = "|cff777777buff food: off|r"
-      elseif not e.fd.usable then tag = "|cff777777off|r" end
-      local why = ns.Del.ByFood and ns.Del.ByFood(e.id)
-      if why then tag = "|cffff8080deletes: " .. why .. "|r"
-      elseif e.fd.weak and tag == "" then tag = "|cff999999weak for your level|r" end
-      entries[#entries + 1] = { key = "food:" .. e.id, icon = ns.GetIcon(e.id), text = ns.NameOf(e.id, e.fd.link) .. "  |cff999999x" .. (ns.GetCount(e.id) or 0) .. "|r",
-        tag = tag, itemID = e.id, dim = not e.fd.usable }
-    end
-    list:Set(entries, "No food or water in your bags.")
-  end
-end
-
----------------------------------------------------------------------------
--- AutoDelete (with Fuzzy Search, Filters, and Deleted Item History)
----------------------------------------------------------------------------
-do
-  local p = Page()
-  pages.del = p
-  GuideButton(p, "del")
-  local D = function() return ns.del end
-  local function set(key) return function(v) D()[key] = v ns.Del.Refresh() end end
-  ToolHeader(p, "|cffff5555Clean-up|r", function() return D().enabled end, set("enabled"),
-    "On: the Always / Yes / No box, and remembered items get deleted. Off: the game's normal delete box, nothing is deleted.")
-  local info = Text(p, 0, -28, "GameFontHighlightSmall", 440)
-  local y = -48
-  p:Add(Check(p, 0, y, "Delete on any key press", "When a remembered item may go, it's deleted on your next key press (outside combat). Off: only with the trash button or its key.",
-    function() return D().onKey end, set("onKey")))
-  p:Add(Check(p, 235, y, "Chat message when deleting", "Writes a line in chat each time Clean-up deletes something: which item and how many.", function() return D().chat end, set("chat")))
-  y = y - 24
-  p:Add(Check(p, 0, y, "Always show the trash button", "Off: it only shows when something is waiting to be deleted. Shift-drag to move it.",
-    function() return D().alwaysIcon end, set("alwaysIcon")))
-  -- (10 Nov) selling at vendors
-  local greyBox = p:Add(Check(p, 235, y, "Sell grey items at vendors",
-    "When you open a vendor, every grey item with a price is sold. Hold Shift while opening the vendor to sell nothing that time. Only the last 12 items can be bought back.",
-    function() return D().sellGrey end, set("sellGrey")))
-  y = y - 24
-  p:Add(Check(p, 0, y, "At a vendor: sell my Clean-up items for gold  |cffaaaaaa(instead of deleting them later)|r",
-    "Everything Clean-up would delete (your list, the quality rule, Rations' rules) is sold when you open a vendor, if it has a price. If your bags fill up before you reach one, they're still deleted. Never sold: amounts your quests need, Keep items, blue and better unless on your list.",
-    function() return D().sellList end, set("sellList")))
-  y = y - 24
-  -- (10 Nov) soulbound gear this character can't use: sold, never deleted
-  p:Add(Check(p, 0, y, "Sell soulbound gear I can't use  |cffaaaaaa(weapons, shields, relics)|r",
-    "At a vendor, soulbound weapons your class can never use in WoW Forever are sold, and shields and relics your class can't use. Weapons you can learn but haven't trained yet are kept.\n\nOnly ever sold, never deleted, even with full bags. Up to blue: epics are never sold. Bind on equip that isn't bound yet is kept (for the Auction House). Keep items are never sold.",
-    function() return D().sellGear end, set("sellGear")))
-  y = y - 24
-  local armorLbl = Text(p, 26, y - 4, "GameFontHighlightSmall")
-  armorLbl:SetText("Also sell soulbound armor:")
-  HoverLabel(p, armorLbl, "Armor to sell (this character)", "Tick the armor types this character never wears: soulbound pieces of those types are sold at a vendor (never deleted). Cloaks are never sold. Set for each character.")
-  local ax = 190
-  for i = 1, 4 do
-    local name = ns.Sell.ARMOR[i]
-    p:Add(Check(p, ax, y, name, "Sell soulbound " .. name:lower() .. " armor at vendors (this character). Cloaks never.",
-      function() return ns.char.sellArmor and ns.char.sellArmor[i] end,
-      function(v) ns.char.sellArmor = ns.char.sellArmor or {} ns.char.sellArmor[i] = v or nil ns.Changed() end, "GameFontHighlightSmall"))
-    ax = ax + 82
-  end
-  y = y - 28
-  p:Add(Stepper(p, 0, y, "Keep empty slots", 0, 30, 1, "%d free slots",
-    function() return D().minFree or 2 end, function(v) D().minFree = v ns.Del.Refresh() end,
-    "How many free bag slots Clean-up keeps for you. Say 3: while you have 3 or more free, nothing is touched. Drop to 2, and it throws out your cheapest junk first (the stuff worth the least), one stack per key press, until you're back to 3 free.\n\n" ..
-    "Items set to \"As soon as I get it\" don't wait for this. At 0, Clean-up only deletes when you click the trash button or press its key.\n\n" ..
-    "Shift-click - or + to change it by 5."))
-  y = y - 28
-  local QCOL = { [0] = "|cff9d9d9d", [1] = "|cffffffff", [2] = "|cff1eff00", [3] = "|cff0070dd", [4] = "|cffa335ee" }
-  do
-    local lbl = p:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    lbl:SetPoint("TOPLEFT", 4, y - 4)
-    lbl:SetText("Also delete everything up to")
-    HoverLabel(p, lbl, "Also delete everything up to", "Besides the items on your list, Clean-up can delete every item of a low quality: grey (junk), white (common) or green (uncommon), and everything below it. Off: only your list.\n\nNever deleted: items you set to Keep (in the list below), and amounts your quests still need. Like your list, they only go when your bags are nearly full.")
-    local qBtns = {}
-    local qx = 200
-    for i, q in ipairs(ns.Del.QUALITIES or {}) do
-      local b = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
-      b:SetSize(q[1] == nil and 46 or 72, 22)
-      b:SetPoint("TOPLEFT", qx, y)
-      qx = qx + b:GetWidth() + 3
-      b:SetBackdrop(ns.SLOT_BACKDROP)
-      b.label = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-      b.label:SetPoint("CENTER")
-      b.label:SetText((q[1] and QCOL[q[1]] or "") .. q[2] .. (q[1] and "|r" or ""))
-      local hl = b:CreateTexture(nil, "HIGHLIGHT")
-      hl:SetPoint("TOPLEFT", 3, -3) hl:SetPoint("BOTTOMRIGHT", -3, 3)
-      hl:SetColorTexture(1, 1, 1, 0.08)
-      b:SetScript("OnClick", function() D().upTo = q[1] ns.Del.Refresh() end)
-      tip(b, q[1] == nil and "Off" or ("Up to " .. q[2]), q[1] == nil and "Only the items on your Always delete list."
-        or ("Every " .. (q[1] == 0 and "grey (trash)" or q[1] == 1 and "grey and white" or "grey, white and green")
-          .. " item goes too, like your list: when your bags are nearly full, cheapest stack first.\n\n"
-          .. "Never: items with no vendor price, quest and key items" .. (q[1] >= 1 and ", food and drink, potions, reagents, trade goods and bags" or "")
-          .. ". Click Keep on an item in the list below to keep it."))
-      qBtns[i] = { b = b, v = q[1] }
-    end
-    p.updates[#p.updates + 1] = function()
-      for _, e in ipairs(qBtns) do
-        local on = e.v == D().upTo
-        e.b:SetBackdropColor(on and 0.32 or 0.06, on and 0.24 or 0.06, on and 0.02 or 0.06, 0.95)
-        e.b:SetBackdropBorderColor(on and 1 or 0.3, on and 0.82 or 0.3, on and 0 or 0.3)
-      end
-    end
-  end
-  y = y - 28
-  Text(p, 0, y + 2, "GameFontDisableSmall", 560):SetText("To delete the next item with one click, drag the |cffffd100RuckDelete|r macro onto your bars (Esc > Macros > General tab).")
-  y = y - 24
-  local drop = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
-  drop:SetHeight(28)
-  drop:SetPoint("TOPLEFT", 0, y)
-  drop:SetPoint("RIGHT", 0, 0)
-  drop:SetBackdrop(ns.SLOT_BACKDROP)
-  drop:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
-  drop:SetBackdropBorderColor(0.6, 0.6, 0.6)
-  local dt = drop:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-  dt:SetPoint("CENTER")
-  dt:SetText("Drop an item here to always delete it")
-  local function addFromCursor()
-    local id, link = ns.CursorItem()
-    if not id then return end
-    ClearCursor()
-    ns.Del.Add(id, link)
-    Print((link or ns.NameOf(id)) .. " added: it will always be deleted.")
-  end
-  drop:SetScript("OnReceiveDrag", addFromCursor)
-  drop:SetScript("OnClick", addFromCursor)
-  drop:SetScript("OnEnter", function(self)
-    self:SetBackdropBorderColor(1, 0.82, 0)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine("Add an item to your list")
-    GameTooltip:AddLine("Pick an item up from your bags and drop it here (or click here while holding it). It goes on your list without being deleted now, and is deleted from then on when your bags are nearly full.", 1, 1, 1, true)
-    GameTooltip:Show()
-  end)
-  drop:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(0.6, 0.6, 0.6) GameTooltip:Hide() end)
-
-  -- Search + Filters header (search bar on the left side)
-  y = y - 34
-  TipText(p, 0, y - 3, "GameFontNormal", "Search:", "Type part of an item's name to find it in the list below. Small typos are fine: close matches are found too, best match first.")
-  local searchBox = CreateFrame("EditBox", nil, p, ns.BACKDROP_TMPL)
-  searchBox:SetSize(250, 22)
-  searchBox:SetPoint("TOPLEFT", 58, y)
-  searchBox:SetAutoFocus(false)
-  searchBox:SetFontObject("ChatFontNormal")
-  searchBox:SetTextInsets(8, 22, 0, 0)
-  searchBox:SetBackdrop(ns.SLOT_BACKDROP)
-  searchBox:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
-  searchBox:SetBackdropBorderColor(0.5, 0.5, 0.5)
-  local searchPh = searchBox:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-  searchPh:SetPoint("LEFT", 8, 0)
-  searchPh:SetText("Search")
-  local clearBtn = CreateFrame("Button", nil, searchBox)
-  clearBtn:SetSize(16, 16)
-  clearBtn:SetPoint("RIGHT", -4, 0)
-  local clearFs = clearBtn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-  clearFs:SetPoint("CENTER")
-  clearFs:SetText("|cffaaaaaax|r")
-  clearBtn:Hide()
-
-  local searchQuery = ""
-  local srcFilter = "all" -- "all", "always", "bags", "deleted" (the history)
-  local qualFilter = nil  -- nil (any), 0 (trash), 1 (common), 2 (uncommon+)
-  local refreshList
-
-  clearBtn:SetScript("OnClick", function()
-    searchBox:SetText("")
-    searchBox:ClearFocus()
-  end)
-  searchBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-  searchBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
-  searchBox:SetScript("OnTextChanged", function(self)
-    local txt = (self:GetText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
-    searchQuery = txt:lower()
-    searchPh:SetShown(txt == "")
-    clearBtn:SetShown(txt ~= "")
-    if refreshList then refreshList() end
-  end)
-
-  -- Filter pills row
-  y = y - 24
-  -- (10 Nov) what the list shows: clear names, how many each has, and one line saying what it is
-  local SRC_FILTERS = {
-    { "all", "Everything", 92, "Your list, and what the rules (quality, Rations) catch in your bags." },
-    { "always", "My list", 82, "The items you chose to always delete: white and better (grey trash goes by itself). Remove takes one off your list." },
-    { "bags", "In my bags", 96, "Items on your list or caught by the quality rule that are in your bags now: these get deleted when your bags are nearly full." },
-    { "deleted", "Deleted", 82, "The last 100 items deleted, newest first: how many, when, and why." },
-  }
-  local QUAL_FILTERS = {
-    { nil, "Any", 46 },
-    { 0, "|cff9d9d9dGrey|r", 52 },
-    { 1, "|cffffffffWhite|r", 56 },
-    { 2, "|cff1eff00Green +|r", 70 },
-  }
-  local function Pill(w, h, x, py)
-    local b = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
-    b:SetSize(w, h)
-    b:SetPoint("TOPLEFT", x, py)
-    b:SetBackdrop(ns.SLOT_BACKDROP)
-    b.label = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    b.label:SetPoint("CENTER")
-    local hl = b:CreateTexture(nil, "HIGHLIGHT")
-    hl:SetPoint("TOPLEFT", 3, -3) hl:SetPoint("BOTTOMRIGHT", -3, 3)
-    hl:SetColorTexture(1, 1, 1, 0.08)
-    return b
-  end
-  local srcBtns, qualBtns = {}, {}
-  TipText(p, 0, y - 4, "GameFontNormalSmall", "Show:", "Which items the list shows. Hover each button for what it means; the number is how many items it has.")
-  local fx = 52
-  for i, sf in ipairs(SRC_FILTERS) do
-    local b = Pill(sf[3], 20, fx, y)
-    fx = fx + sf[3] + 3
-    b.name = sf[2]
-    b.label:SetText(sf[2])
-    b:SetScript("OnClick", function() srcFilter = sf[1] if refreshList then refreshList() end end)
-    tip(b, sf[2], sf[4])
-    srcBtns[i] = { b = b, v = sf[1], tip = sf[4] }
-  end
-  y = y - 22
-  TipText(p, 0, y - 4, "GameFontNormalSmall", "Quality:", "Show only items of this quality: grey (junk), white (common), or green and better. Any: all of them.")
-  local qfx = 52
-  for i, qf in ipairs(QUAL_FILTERS) do
-    local b = Pill(qf[3], 19, qfx, y)
-    qfx = qfx + qf[3] + 3
-    b.label:SetText(qf[2])
-    b:SetScript("OnClick", function() qualFilter = qf[1] if refreshList then refreshList() end end)
-    qualBtns[i] = { b = b, v = qf[1] }
-  end
-  local showing = Text(p, qfx + 10, y - 4, "GameFontDisableSmall", 440 - qfx)
-  showing:SetWordWrap(false)
-
-  -- Fuzzy match helper: returns a numeric score (>0 matches, nil does not match)
-  local function fuzzyScore(q, name, id)
-    if not q or q == "" then return 1 end
-    local s = (name or ""):lower()
-    local idStr = tostring(id or "")
-    if idStr:find(q, 1, true) then return 200 end
-    local pos = s:find(q, 1, true)
-    if pos then return 150 - math.min(40, pos) end
-    -- Multi-word check: every space-separated token matched as substring
-    if q:find(" ", 1, true) then
-      local allWords = true
-      for w in q:gmatch("%S+") do
-        if not s:find(w, 1, true) then allWords = false break end
-      end
-      if allWords then return 100 end
-    end
-    -- Initials check (e.g. "icm" -> "Ice Cold Milk")
-    local initials = ""
-    for w in s:gmatch("%w+") do initials = initials .. w:sub(1, 1) end
-    local qClean = q:gsub("%s+", "")
-    if initials:find(qClean, 1, true) then return 90 end
-    -- Subsequence fuzzy match (all characters of qClean appear in order in s)
-    local qi, lenQ, lenS, gaps = 1, #qClean, #s, 0
-    for si = 1, lenS do
-      if s:sub(si, si) == qClean:sub(qi, qi) then
-        qi = qi + 1
-        if qi > lenQ then return math.max(10, 70 - gaps) end
-      elseif qi > 1 then
-        gaps = gaps + 1
-      end
-    end
-    return nil
-  end
-
-  local list = List(p, y - 22)
-  refreshList = function()
-    for _, e in ipairs(srcBtns) do
-      local on = e.v == srcFilter
-      e.b:SetBackdropColor(on and 0.32 or 0.06, on and 0.24 or 0.06, on and 0.02 or 0.06, 0.95)
-      e.b:SetBackdropBorderColor(on and 1 or 0.3, on and 0.82 or 0.3, on and 0 or 0.3)
-    end
-    for _, e in ipairs(qualBtns) do
-      local on = e.v == qualFilter
-      e.b:SetBackdropColor(on and 0.32 or 0.06, on and 0.24 or 0.06, on and 0.02 or 0.06, 0.95)
-      e.b:SetBackdropBorderColor(on and 1 or 0.3, on and 0.82 or 0.3, on and 0 or 0.3)
-    end
-
-    local n = 0
-    for id, v in pairs(D().items) do
-      local q = ns.QualityOf(id, type(v) == "string" and v or nil)
-      if not (q == 0 and D().upTo ~= nil) then n = n + 1 end
-    end
-    info:SetText(D().enabled and ("%d on your list,  %d deleted so far,  %d free bag slots"):format(n, D().deleted or 0, ns.Del.FreeSlots())
-      or "|cff999999Turned off: nothing is deleted or sold.|r")
-
-    local meta = D().meta or {}
-    local rowsData = {}
-    local seenID = {}
-
-    local function srcOK(fl, which)
-      if which == "always" then return fl.always end
-      if which == "deleted" then return fl.count <= 0 end
-      if which == "bags" then return fl.count > 0 end
-      if which == "quality" then return fl.quality end
-      return true
-    end
-    local function passesFilters(isAlways, isQuality, count, q)
-      if qualFilter ~= nil then
-        if q == nil then return false end
-        if qualFilter == 2 then
-          if q < 2 then return false end
-        elseif q ~= qualFilter then
-          return false
-        end
-      end
-      return true
-    end
-
-    -- 1. All items on the Always Delete list (including items already deleted with 0 in bags!)
-    for id, linkVal in pairs(D().items) do
-      seenID[id] = true
-      local m = meta[id]
-      local l = (type(linkVal) == "string" and linkVal) or (m and m.link) or ns.LinkOf(id)
-      local nm = ns.NameOf(id, l)
-      local q = ns.QualityOf(id, l) or (m and m.quality)
-      local count = ns.GetCount(id) or 0
-      local qNeed = ns.Del.QuestNeed and ns.Del.QuestNeed(id, l) or 0
-      local score = fuzzyScore(searchQuery, nm, id)
-      -- (10 Nov) trash goes by the quality rule anyway: grey items show under "By rule", and
-      -- "My list" is what you put there yourself, white and better
-      local greyRule = q == 0 and D().upTo ~= nil
-      if score and passesFilters(true, false, count, q) then
-        local fl = { always = not greyRule, quality = greyRule, count = count }
-        local colored = l or ((q and QCOL[q] and (QCOL[q] .. "[" .. nm .. "]|r")) or nm)
-        local itemID = id
-        local itemLabel = l or nm
-        local qTag = (qNeed > 0 and qNeed < math.huge and ("|cff66dd66quest " .. count .. "/" .. qNeed .. "|r  "))
-          or (qNeed >= math.huge and "|cff66dd66quest item|r  ") or ""
-        rowsData[#rowsData + 1] = {
-          score = score,
-          fl = fl,
-          sortGroup = 1,
-          name = nm,
-          entry = {
-            key = "del:" .. itemID,
-            icon = ns.GetIcon(itemID) or (m and m.icon) or "Interface\\Icons\\INV_Misc_QuestionMark",
-            text = colored,
-            tag = qTag .. (greyRule and "|cff9d9d9dtrash: goes by itself|r  " or D().now[itemID] and "|cffff5555now|r  " or "|cffff8080always|r  ")
-              .. (count > 0 and ("|cffffffffx" .. count .. " in bags|r") or "|cff888888deleted (0 in bags)|r"),
-            itemID = itemID,
-            dim = false,
-            removeLabel = "Remove",
-            onRemove = function()
-              Print(itemLabel .. " removed from the Always Delete list.")
-              ns.Del.Remove(itemID)
-            end,
-          },
-        }
-      end
-    end
-
-    -- 2. Items in bags caught by the quality rule or Rations' rules (or marked Keep)
-    do
-      for bag = 0, ns.NUM_BAGS do
-        for slot = 1, (ns.GetNumSlots(bag) or 0) do
-          local id, _, link = ns.SlotInfo(bag, slot)
-          if id and not seenID[id] then
-            local _, _, q = ns.GetInfo(id)
-            q = q or ns.QualityOf(id, link)
-            local kept = D().keep[id]
-            local why = ns.Del.Reason(id)
-            if (why and not D().items[id]) or (kept and ((D().upTo and q and q <= D().upTo) or ns.Eat.found[id])) then
-              seenID[id] = true
-              local nm = ns.NameOf(id, link)
-              local count = ns.GetCount(id) or 0
-              local score = fuzzyScore(searchQuery, nm, id)
-              if score and passesFilters(false, true, count, q) then
-                local fl = { always = false, quality = true, count = count }
-                local itemID = id
-                local isKept = kept
-                rowsData[#rowsData + 1] = {
-                  score = score,
-                  fl = fl,
-                  sortGroup = 2,
-                  name = nm,
-                  entry = {
-                    key = "delq:" .. itemID,
-                    icon = ns.GetIcon(itemID) or "Interface\\Icons\\INV_Misc_QuestionMark",
-                    text = link or nm,
-                    tag = (isKept and "|cff66dd66kept|r  " or ("|cffaaaaaa" .. (why or "") .. "|r  ")) .. "x" .. count,
-                    itemID = itemID,
-                    dim = isKept,
-                    removeLabel = isKept and "Allow" or "Keep",
-                    onRemove = function()
-                      D().keep[itemID] = not isKept or nil
-                      Print((link or nm) .. (D().keep[itemID] and " will now be kept." or " can be deleted again."))
-                      ns.Del.Refresh()
-                    end,
-                  },
-                }
-              end
-            end
-          end
-        end
-      end
-    end
-
-    -- 3. Recently deleted items from history (deleted by quality rule or Yes, not currently on Always list)
-    for id, m in pairs(meta) do
-      if not seenID[id] and D().keep[id] then -- (10 Nov: what was deleted is in the history now)
-        seenID[id] = true
-        local l = m.link or ns.LinkOf(id)
-        local nm = m.name or ns.NameOf(id, l)
-        local q = m.quality or ns.QualityOf(id, l)
-        local count = ns.GetCount(id) or 0
-        local isKept = D().keep[id]
-        local score = fuzzyScore(searchQuery, nm, id)
-        if score and passesFilters(false, true, count, q) then
-          -- (deleted with Yes before: "by quality" only if the rule catches it, or it's kept)
-          local fl = { always = false, quality = (isKept or (ns.Del.ByQuality and ns.Del.ByQuality(id))) and true or false, count = count }
-          local colored = l or ((q and QCOL[q] and (QCOL[q] .. "[" .. nm .. "]|r")) or nm)
-          local itemID = id
-          rowsData[#rowsData + 1] = {
-            score = score,
-            fl = fl,
-            sortGroup = 3,
-            name = nm,
-            entry = {
-              key = "delq:" .. itemID,
-              icon = ns.GetIcon(itemID) or m.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
-              text = colored,
-              tag = (isKept and "|cff66dd66kept|r  " or "|cff888888deleted history|r  ")
-                .. (count > 0 and ("x" .. count) or "(0 in bags)"),
-              itemID = itemID,
-              dim = isKept,
-              removeLabel = isKept and "Allow" or "Keep",
-              onRemove = function()
-                D().keep[itemID] = not isKept or nil
-                Print(colored .. (D().keep[itemID] and " marked to KEEP (won't be auto-deleted)." or " allowed to be deleted again."))
-                ns.Del.Refresh()
-              end,
-            },
-          }
-        end
-      end
-    end
-
-    table.sort(rowsData, function(a, b)
-      if searchQuery ~= "" and a.score ~= b.score then return a.score > b.score end
-      if a.sortGroup ~= b.sortGroup then return a.sortGroup < b.sortGroup end
-      return a.name < b.name
-    end)
-
-    -- (10 Nov) Deleted: the history, newest first
-    local hist = {}
-    local fmt = date or (os and os.date)
-    local HOW = { always = "on your list", quality = "by quality", rations = "Rations rule", once = "Yes, once" }
-    local today = fmt and fmt("%d.%m.%Y")
-    for i, h in ipairs(D().history or {}) do
-      local l = h.link or ns.LinkOf(h.id)
-      local nm = ns.NameOf(h.id, l)
-      local q = ns.QualityOf(h.id, l)
-      local score = fuzzyScore(searchQuery, nm, h.id)
-      if score and passesFilters(false, false, 0, q) then
-        local when = ""
-        if fmt and h.t then
-          when = (fmt("%d.%m.%Y", h.t) == today) and fmt("%H:%M", h.t) or fmt("%d.%m.  %H:%M", h.t)
-        end
-        hist[#hist + 1] = {
-          key = D().items[h.id] and ("del:" .. h.id) or nil,
-          icon = ns.GetIcon(h.id) or "Interface\\Icons\\INV_Misc_QuestionMark",
-          text = l or ((q and QCOL[q] and (QCOL[q] .. "[" .. nm .. "]|r")) or nm),
-          tag = (h.count and h.count > 1 and ("|cffffffffx" .. h.count .. "|r   ") or "")
-            .. "|cff888888" .. when .. "|r   " .. "|cffff8080" .. (HOW[h.how] or "deleted") .. "|r",
-          itemID = h.id,
-        }
-      end
-    end
-
-    local entries = {}
-    if srcFilter == "deleted" then entries = hist
-    else for _, r in ipairs(rowsData) do if srcOK(r.fl, srcFilter) then entries[#entries + 1] = r.entry end end end
-    for _, e in ipairs(srcBtns) do
-      local n = 0
-      if e.v == "deleted" then n = #hist
-      else for _, r in ipairs(rowsData) do if srcOK(r.fl, e.v) then n = n + 1 end end end
-      e.b.label:SetText(e.b.name .. "  |cffaaaaaa" .. n .. "|r")
-      if e.v == srcFilter then showing:SetText(e.tip) end
-    end
-    local EMPTY = { all = "Nothing here yet: delete an item and click Always, or drop one in the box above.",
-      always = "Your list is empty: delete an item and click Always, or drop one in the box above.",
-      bags = "Nothing in your bags is waiting to be deleted.", deleted = "Nothing deleted yet.",
- }
-    list:Set(entries, searchQuery ~= "" and ("No items matching \"" .. searchQuery .. "\".")
-      or EMPTY[srcFilter] or "Nothing here.")
-  end
-  p.updates[#p.updates + 1] = refreshList
-end
-
----------------------------------------------------------------------------
--- One food or water item
----------------------------------------------------------------------------
-do
-  local p = Page()
-  pages.food = p
-  ItemHeader(p, "eat", "Rations")
-  local stats = Text(p, 0, -54, "GameFontHighlight", 440)
-  local status = Text(p, 0, -78, "GameFontHighlight", 440)
-  local E = function() return ns.eat end
-  local prefer = Check(p, 0, -108, "Use this first", "Picked before any other food or water you have, even better ones.",
-    function() return E().prefer[p.id] end,
-    function(v) E().prefer[p.id] = v or nil if v then E().never[p.id] = nil end ns.Eat.Update(false) end)
-  local never = Check(p, 0, -134, "Never use this", "The eat button and its key skip it.",
-    function() return E().never[p.id] end,
-    function(v) E().never[p.id] = v or nil if v then E().prefer[p.id] = nil end ns.Eat.Update(false) end)
-  p.updates[#p.updates + 1] = function()
-    local id = p.id
-    local fd = ns.Eat.found[id]
-    p.link = fd and fd.link or ns.LinkOf(id)
-    p.icon.tex:SetTexture(ns.GetIcon(id))
-    p.name:SetText(p.link or ns.NameOf(id))
-    p.sub:SetText("You have " .. (ns.GetCount(id) or 0))
-    if not fd then
-      stats:SetText("Not in your bags any more.")
-      status:SetText("")
-    else
-      local parts = {}
-      if fd.health > 0 then parts[#parts + 1] = fd.health .. " health" end
-      if fd.mana > 0 then parts[#parts + 1] = fd.mana .. " mana" end
-      stats:SetText("Restores " .. table.concat(parts, " and ") .. (fd.conjured and "   (conjured)" or ""))
-      local s
-      if id == ns.Eat.food and id == ns.Eat.drink then s = "|cffffd100Next to eat and drink.|r"
-      elseif id == ns.Eat.food then s = "|cffffd100Next to eat.|r"
-      elseif id == ns.Eat.drink then s = "|cffffd100Next to drink.|r"
-      elseif fd.buff and E().buffFood then s = "|cff999999Buff food: eaten first while you're not Well Fed.|r"
-      elseif fd.buff then s = "|cff999999Not used: it gives a buff (Well Fed or similar). Tick \"Eat buff food when the buff is missing\" on the Rations page to use it.|r"
-      elseif fd.tooLow then s = "|cff999999Not used: your level is too low for it.|r"
-      elseif fd.deleting then s = "|cffff8080Not used: it's on your Clean-up list.|r"
-      elseif fd.never then s = "|cff999999Not used: set to never use.|r"
-      else s = (E().order == "random" and "|cff999999Not picked this time (Random).|r") or (E().order == "conjured" and not fd.conjured and "|cff999999Not used now: conjured food or water goes first.|r") or "|cff999999Not used now: you have something better.|r" end
-      status:SetText(s)
-    end
-    prefer.Update() never.Update()
-    local usable = fd and (not fd.buff or E().buffFood) and not fd.tooLow and not fd.deleting
-    prefer:SetEnabled(usable and true or false)
-    prefer.label:SetFontObject(usable and "GameFontHighlight" or "GameFontDisable")
-  end
-end
-
----------------------------------------------------------------------------
--- One remembered (always delete) item
----------------------------------------------------------------------------
-do
-  local p = Page()
-  pages.delItem = p
-  ItemHeader(p, "del", "Clean-up")
-  local price = Text(p, 0, -54, "GameFontHighlight", 440)
-  TipText(p, 0, -84, "GameFontNormal", "When to delete it", "Most items wait until your bags are nearly full (set on the Clean-up page). Pick \"As soon as I get it\" for things you never want to carry, even with empty bags.")
-  local D = function() return ns.del end
-  local wait = Check(p, 0, -104, "When my bags are nearly full", "Waits until you have fewer free bag slots than set on the Clean-up page (the cheapest stack goes first).",
-    function() return not D().now[p.id] end, function() D().now[p.id] = nil ns.Del.Refresh() end)
-  local now = Check(p, 0, -130, "As soon as I get it", "Deleted on your next key press after it lands in your bags, full bags or not.",
-    function() return D().now[p.id] end, function() D().now[p.id] = true ns.Del.Refresh() end)
-  local stop = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-  stop:SetSize(160, 24)
-  stop:SetPoint("TOPLEFT", 0, -172)
-  stop:SetText("Stop deleting it")
-  stop:SetScript("OnClick", function()
-    local id = p.id
-    Print((type(ns.del.items[id]) == "string" and ns.del.items[id] or ns.NameOf(id)) .. " removed from the delete list.")
-    ns.Del.Remove(id)
-    Rucksack_Open("del")
-  end)
-  p.updates[#p.updates + 1] = function()
-    local id = p.id
-    local saved = ns.del.items[id]
-    p.link = type(saved) == "string" and saved or ns.LinkOf(id)
-    p.icon.tex:SetTexture(ns.GetIcon(id))
-    p.name:SetText(p.link or ns.NameOf(id))
-    p.sub:SetText("In your bags: " .. (ns.GetCount(id) or 0))
-    local sell = select(11, ns.GetInfo(id))
-    price:SetText("Vendor price: " .. ((sell and sell > 0) and GetCoinTextureString(sell) or "none"))
-    wait.Update() now.Update()
+    x = x + 105
   end
 end
 
@@ -1264,8 +611,8 @@ do
   local p = Page()
   pages.home = p
   GuideButton(p, "home")
-  Text(p, 0, -2, "GameFontNormalLarge"):SetText("|cffc8a165Ruck|r|cffffd100sack|r |cffffffffForever|r")
-  Text(p, 0, -24, "GameFontDisableSmall", 600):SetText("Rations eats and drinks for you; Clean-up deletes or sells what you don't need. Click a card to set it up, or ? for the Guide.")
+  Text(p, 0, -2, "GameFontNormalLarge"):SetText("|cffc8a165Ruck|r|cffffd100sack|r")
+  Text(p, 0, -24, "GameFontDisableSmall", 600):SetText("Rations eats and drinks for you; Clean-up deletes or sells what you don't need; the Faire tracks your Darkmoon tickets. Click a card to open it, or ? for the Guide.")
   -- bag space
   local bagText = Text(p, 0, -54, "GameFontHighlight", 400)
   local bar = CreateFrame("StatusBar", nil, p)
@@ -1282,7 +629,7 @@ do
   local function Card(x, key, titleText, explain)
     local c = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
     c:SetPoint("TOPLEFT", x, -114)
-    c:SetSize(330, 230)
+    c:SetSize(330, 206)
     c:SetBackdrop(ns.SLOT_BACKDROP)
     c:SetBackdropColor(0.08, 0.08, 0.08, 0.9)
     c:SetBackdropBorderColor(0.45, 0.45, 0.45)
@@ -1352,10 +699,71 @@ do
   eatKey:SetWidth(306)
   eatKey:SetJustifyH("LEFT")
   -- notes: what Rucksack is doing on its own
-  Text(p, 0, -356, "GameFontNormal"):SetText("Right now")
-  local notes = Text(p, 0, -376, "GameFontHighlightSmall", 670)
+  -- (10 Nov) the Darkmoon Faire: a strip under the cards
+  local fc = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
+  fc:SetPoint("TOPLEFT", 0, -328)
+  fc:SetSize(670, 64)
+  fc:SetBackdrop(ns.SLOT_BACKDROP)
+  fc:SetBackdropColor(0.08, 0.06, 0.1, 0.9)
+  fc:SetBackdropBorderColor(0.45, 0.45, 0.45)
+  fc:SetScript("OnClick", function() Rucksack_Open("faire") end)
+  fc:SetScript("OnEnter", function(self)
+    self:SetBackdropBorderColor(1, 0.82, 0)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine("|cffb48cffDarkmoon Faire|r")
+    GameTooltip:AddLine("Your tickets, turn-ins you can hand in now, the prize you're saving for, and when the Faire is open. Click to open it.", 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  fc:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(0.45, 0.45, 0.45) GameTooltip:Hide() end)
+  local fcTitle = fc:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+  fcTitle:SetPoint("TOPLEFT", 12, -10)
+  fcTitle:SetText("|cffb48cffDarkmoon Faire|r")
+  local fcState = fc:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  fcState:SetPoint("LEFT", fcTitle, "RIGHT", 10, 0)
+  local fcLine1 = Text(fc, 12, -34, "GameFontHighlightSmall", 380)
+  local fcLine2 = Text(fc, 12, -48, "GameFontDisableSmall", 380)
+  local fcIcon = fc:CreateTexture(nil, "ARTWORK")
+  fcIcon:SetSize(40, 40)
+  fcIcon:SetPoint("TOPLEFT", 420, -12)
+  fcIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  local fcGoal = Text(fc, 468, -14, "GameFontNormalSmall", 190)
+  local fcNum = Text(fc, 468, -30, "GameFontHighlight", 190)
+  local fcBarBg = fc:CreateTexture(nil, "ARTWORK")
+  fcBarBg:SetPoint("TOPLEFT", 468, -48)
+  fcBarBg:SetSize(190, 5)
+  fcBarBg:SetColorTexture(0.15, 0.12, 0.2, 1)
+  local fcBar = fc:CreateTexture(nil, "OVERLAY")
+  fcBar:SetPoint("TOPLEFT", fcBarBg)
+  fcBar:SetHeight(5)
+  p.updates[#p.updates + 1] = function()
+    local F = ns.Faire
+    fc:SetShown(ns.Has("faire"))
+    if not (F and F.db) then return end
+    local on = F.On()
+    fcState:SetText(on and "|cff66dd66on|r" or "|cff999999off|r")
+    fcLine1:SetText(F.FaireLine())
+    local count, waiting = F.ReadyNow()
+    fcLine2:SetText(("|cffffd100%d|r tickets"):format(F.Tickets()) .. (count > 0 and ("   |cff66dd66%d ready to hand in (+%d)|r"):format(count, waiting) or "   nothing ready to hand in"))
+    local goal = F.Goal and F.Goal()
+    if goal then
+      local have = F.Tickets()
+      fcIcon:SetTexture(F.PrizeIcon(goal))
+      fcGoal:SetText(goal.name)
+      fcNum:SetText((have >= goal.cost and "|cff66dd66" or "|cffffffff") .. have .. "|r |cff999999/ " .. goal.cost .. "|r")
+      fcBar:SetWidth(math.max(1, 190 * math.min(1, have / goal.cost)))
+      fcBar:SetColorTexture(have >= goal.cost and 1 or 0.62, have >= goal.cost and 0.82 or 0.42, have >= goal.cost and 0 or 0.85, 1)
+      fcBar:Show()
+    else
+      fcIcon:SetTexture(F.TicketIcon and F.TicketIcon() or nil)
+      fcGoal:SetText("No prize tracked")
+      fcNum:SetText("|cff999999pick one on the Prizes tab|r")
+      fcBar:Hide()
+    end
+  end
+  Text(p, 0, -402, "GameFontNormal"):SetText("Right now")
+  local notes = Text(p, 0, -420, "GameFontHighlightSmall", 670)
   notes:SetSpacing(4)
-  p:Add(Check(p, 0, -470, "Show the Pocket  |cffaaaaaa(a small window with these numbers, always on screen)|r",
+  p:Add(Check(p, 0, -500, "Show the Pocket  |cffaaaaaa(a small window with these numbers, always on screen)|r",
     "Bag space, what a vendor would pay, your next food and water, and what's waiting to be deleted. Drag it where you like; its options are in Settings. Also: /ruck pocket.",
     function() return ns.db.pocket and ns.db.pocket.shown end, function(v) if ns.Pocket then ns.Pocket.SetShown(v) end end))
   p.updates[#p.updates + 1] = function()
@@ -1368,8 +776,15 @@ do
     else bar:SetStatusBarColor(0.3, 0.75, 0.35) end
     bagWarn:SetText(S.free < S.minFree and ("|cffff6060Nearly full: Clean-up deletes when fewer than %d are free.|r"):format(S.minFree)
       or ("|cff999999Clean-up starts deleting when fewer than %d are free.|r"):format(S.minFree))
+    -- (1.7) a card for a module that isn't loaded says so
+    local function notLoaded(c, n)
+      c.state:SetText("|cff666666not loaded|r")
+      for i = 1, n do c:Set(i, nil, i == 1 and "|cff999999Turned off in Settings > Modules: not loaded, uses nothing.|r" or "", "") end
+    end
     -- Rations
     local E = ns.eat
+    if not ns.Has("eat") then notLoaded(eatCard, 5) eatKey:SetText("") end
+    if ns.Has("eat") then
     eatCard.state:SetText(E.enabled ~= false and "|cff66dd66on|r" or "|cff999999off|r")
     local Q = "Interface\\Icons\\INV_Misc_QuestionMark"
     eatCard:Set(1, S.food and ns.GetIcon(S.food) or Q, "Next food", S.food and (ns.NameOf(S.food) .. "  x" .. S.foodCount) or "|cff999999none|r")
@@ -1379,8 +794,12 @@ do
     eatCard:Set(4, "Interface\\Icons\\INV_Misc_Note_01", "Food level", nameIn(ns.Eat.LEVELS, E.level or "any"))
     eatCard:Set(5, "Interface\\Icons\\INV_Drink_07", "Deletes", S.eatRules)
     eatKey:SetText("Eat and drink: click the on-screen button, or put the |cffffd100EatDrink|r macro on your bars.")
+    end
     -- Clean-up
     local D = ns.del
+    delNext:SetShown(ns.Has("del"))
+    if not ns.Has("del") then notLoaded(delCard, 4) end
+    if ns.Has("del") then
     delCard.state:SetText(D.enabled and "|cff66dd66on|r" or "|cff999999off|r")
     delCard:Set(1, S.nextDel and (S.nextDel.icon or ns.GetIcon(S.nextDel.id)) or "Interface\\Icons\\INV_Misc_Bag_10_Red", "Waiting",
       S.waitStacks > 0 and (S.waitStacks .. (S.waitStacks == 1 and " stack" or " stacks") .. (S.nextDel and ("  ·  next: " .. ns.NameOf(S.nextDel.id)) or "")) or "|cff999999nothing|r")
@@ -1389,6 +808,7 @@ do
     delCard:Set(3, "Interface\\Icons\\INV_Misc_Coin_01", "Sold so far", ns.Sell.Money(D.soldGold or 0))
     delCard:Set(4, "Interface\\Icons\\Ability_Rogue_Disembowel", "Deleted so far", (D.deleted or 0) .. " items")
     delNext:SetEnabled(S.waitAny and true or false)
+    end
     notes:SetText(#S.notes > 0 and ("·  " .. table.concat(S.notes, "\n·  ")) or "|cff999999Nothing special: your bags have room and nothing is being kept back.|r")
   end
 end
@@ -1400,7 +820,7 @@ do
   local p = Page()
   pages.guide = p
   Text(p, 0, -2, "GameFontNormalLarge"):SetText("Guide")
-  Text(p, 70, -6, "GameFontDisableSmall", 560):SetText("What every part of Rucksack Forever does. Hover an option in the window for a short tip too.")
+  Text(p, 70, -6, "GameFontDisableSmall", 560):SetText("What every part of Rucksack does. Hover an option in the window for a short tip too.")
   local box = CreateFrame("Frame", nil, p, ns.BACKDROP_TMPL)
   box:SetPoint("TOPLEFT", 0, -60)
   box:SetPoint("BOTTOMRIGHT", 0, 0)
@@ -1476,8 +896,11 @@ end
 ---------------------------------------------------------------------------
 local TOOLS = {
   { key = "home", icon = ns.ICON, name = "Home" },
-  { key = "eat", icon = "Interface\\Icons\\INV_Misc_Food_15", name = "Rations", on = function() return ns.eat.enabled ~= false end },
-  { key = "del", icon = "Interface\\Icons\\INV_Misc_Bag_10_Red", name = "Clean-up", on = function() return ns.del.enabled end },
+  { key = "eat", icon = "Interface\\Icons\\INV_Misc_Food_15", name = "Rations", on = function() return ns.eat and ns.eat.enabled ~= false end },
+  { key = "del", icon = "Interface\\Icons\\INV_Misc_Bag_10_Red", name = "Clean-up", on = function() return ns.del and ns.del.enabled end },
+  { key = "faire", icon = (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(19182)) or "Interface\\Icons\\INV_Misc_Coin_01",
+    name = "Faire", on = function() return ns.Faire and ns.Faire.On and ns.Faire.On() end },
+  { key = "scrolls", icon = "Interface\\Icons\\INV_Scroll_03", name = "Scrolls", on = function() return ns.Scrolls and ns.Scrolls.db and ns.Scrolls.db.button ~= false end },
   { key = "guide", icon = "Interface\\Icons\\INV_Misc_Book_09", name = "Guide", bottom = 2 },
   { key = "general", icon = "Interface\\Icons\\INV_Misc_Gear_01", name = "Settings", bottom = 1 },
 }
@@ -1511,10 +934,16 @@ local function buildSide()
   local lit = kind == "food" and "eat" or (kind == "del" or kind == "delq") and "del" or current
   for _, r in ipairs(sideRows) do
     r.sel:SetShown(r.tool.key == lit)
-    if r.tool.on then
+    if r.tool.on and not ns.Has(r.tool.key) then
+      -- (1.7) a module that isn't loaded
+      r.tag:SetText("|cff666666not loaded|r")
+      r.icon:SetDesaturated(true)
+      r.text:SetTextColor(0.5, 0.5, 0.5)
+    elseif r.tool.on then
       local on = r.tool.on()
       r.tag:SetText(on and "|cff66dd66on|r" or "|cff999999off|r")
       r.icon:SetDesaturated(not on)
+      r.text:SetTextColor(1, 0.82, 0)
     end
   end
 end
@@ -1523,7 +952,14 @@ local function showPage()
   for _, p in pairs(pages) do p:Hide() end
   local kind, id = (current or ""):match("^(%a+):(%d+)$")
   local p
-  if kind == "food" then
+  -- (1.7) a module's page when that module isn't loaded
+  local mod
+  for _, m in ipairs(ns.MODULES) do
+    if (current == m.key or (m.key == "eat" and kind == "food") or (m.key == "del" and (kind == "del" or kind == "delq"))) and not ns.Has(m.key) then mod = m end
+  end
+  if mod then
+    p = pages.missing p.mod = mod
+  elseif kind == "food" then
     p = pages.food p.id = tonumber(id)
   elseif kind == "del" then
     p = pages.delItem p.id = tonumber(id)
@@ -1552,7 +988,7 @@ function Rucksack_Open(key, section)
   current = key or current or "home"
   if current == "guide" and pages.guide then pages.guide.jumpTo = section end
   if not f:IsShown() then
-    ns.Eat.Update(false)
+    if ns.Eat then ns.Eat.Update(false) end
     f:Show()
   end
   refresh()

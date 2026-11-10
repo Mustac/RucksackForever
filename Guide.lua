@@ -1,4 +1,4 @@
--- Rucksack Forever / the Guide (10 Nov): what every part does, shown on the Guide page of the
+-- Rucksack / the Guide (10 Nov): what every part does, shown on the Guide page of the
 -- window. Each page's "?" button opens the Guide at its own section. Plain text, easy to edit.
 local _, ns = ...
 
@@ -7,8 +7,8 @@ local G = "|cff999999" -- a side note
 local R = "|r"
 
 ns.GUIDE = {
-  { key = "home", title = "|cffc8a165Ruck|r|cffffd100sack|r Forever", text = table.concat({
-    "Rucksack Forever takes care of the two chores every adventurer repeats all day: eating and drinking, and full bags.",
+  { key = "home", title = "|cffc8a165Ruck|r|cffffd100sack|r", text = table.concat({
+    "Rucksack takes care of the two chores every adventurer repeats all day: eating and drinking, and full bags.",
     "",
     Y .. "Rations" .. R .. " picks the right food and water for you and eats and drinks with one click. No more searching your bags after every fight or eating the wrong stack.",
     Y .. "Clean-up" .. R .. " keeps a few bag slots free for you, always. When space runs low, the cheapest junk goes first (or gets sold at the next vendor), and quest items stay.",
@@ -84,14 +84,40 @@ ns.GUIDE = {
     "On Settings: " .. Y .. "Lock it in place" .. R .. ", " .. Y .. "Hide it in combat" .. R .. ", " .. Y .. "Size" .. R .. ", and which " .. Y .. "Lines" .. R .. " to show.",
   }, "\n") },
 
+  { key = "faire", title = "|cffb48cffDarkmoon Faire|r  ·  tickets, turn-ins and prizes", text = table.concat({
+    "Once a month the Darkmoon Faire comes to Elwynn Forest or Mulgore. Four of its people trade " .. Y .. "prize tickets" .. R .. " for things you bring them: animal parts, and blacksmithing, engineering and leatherworking items. Gelvas Grimegate swaps the tickets for prizes, like a 14-slot bag for 50.",
+    "",
+    Y .. "Turn-ins" .. R .. ": every ticket quest, how many items it wants, how many you have (the bank too, once you've opened it) and the tickets it gives. " .. Y .. "Ready" .. R .. " means you can hand it in now. " .. Y .. "Closed" .. R .. " means your Faire reputation is past that quest's limit: bring higher ones.",
+    Y .. "Where to get it" .. R .. ": click a turn-in. Animal parts list good places to farm, closest to your level first. Click one to " .. Y .. "pin it on your map" .. R .. " (shift-click pins them all). Crafted items show their profession, and their materials once you open that profession's window.",
+    Y .. "Prizes" .. R .. ": click a prize to " .. Y .. "track" .. R .. " it. The ticket button on your screen turns into a little card with the prize, 37 / 50 and a bar, and glows gold when you have enough.",
+    Y .. "Decks" .. R .. ": which Darkmoon cards you have, Ace to Eight, for all four decks.",
+    Y .. "Faire & Sayge" .. R .. ": when and where the Faire is, Sayge's answers (1 then 1 = +10% damage) and the settings.",
+    "",
+    Y .. "Quick turn-ins" .. R .. ": talk to Yebb, Kerri, Rinling or Chronos and the quests you have items for are handed in for you. Hold Shift to do it yourself. Prizes are never bought for you.",
+    Y .. "Keep Darkmoon turn-in items" .. R .. ": Clean-up never deletes or sells them, even the grey ones like Small Furry Paws.",
+    Y .. "Tooltips" .. R .. ": turn-in items say who wants them and how many tickets they give.",
+    G .. "/faire or /dmf opens this page. /faire button: the on-screen button. /faire track: the prize tracker. /faire clear: remove map pins." .. R,
+  }, "\n") },
+
+  { key = "scrolls", title = "|cff69ccf0Scrolls|r  ·  mages: decipher with one click", text = table.concat({
+    "Monsters everywhere drop strange scrolls: " .. Y .. "Scroll:" .. R .. " and then words in capitals, like Scroll: UPDOG. A mage reads them with " .. Y .. "Comprehend Scroll" .. R .. " (from the mage trainer at level 6) and gets a useful scroll out: weapon imbues, familiars, Cryoblast and more. Each one read raises your " .. Y .. "Comprehension" .. R .. " skill.",
+    "",
+    Y .. "The scroll button" .. R .. ": shows how many scrolls you carry. One click reads the next one (5 seconds, stand still). Shift-drag to move it. The " .. Y .. "Decipher" .. R .. " macro does the same from your bars.",
+    Y .. "Which one" .. R .. ": the hardest scroll your skill allows. Each needs some skill (1, 15, 50 or 175, shown on the scroll). Reading one above your skill turns you into a sheep for 8 seconds, so those are skipped until you're good enough.",
+    Y .. "In a fight" .. R .. ": the button greys out. Read them somewhere safe.",
+    Y .. "Clean-up keeps them" .. R .. ": scrolls sell for coppers, so Clean-up would throw them out first. They're kept (you can untick it). Other classes keep them too, to send to your mage.",
+    G .. "/scrolls or /decipher opens the page." .. R,
+  }, "\n") },
+
   { key = "general", title = "|cffffd100Settings and commands|r", text = table.concat({
     Y .. "Minimap button" .. R .. ": left-click opens Rucksack, right-click shows or hides the Pocket, drag moves it around the minimap.",
     Y .. "Open Rucksack" .. R .. ": a key that opens and closes the window.",
-    Y .. "Tools" .. R .. ": turn Rations or Clean-up off completely.",
+    Y .. "Modules" .. R .. ": Rucksack comes with all its parts (Rations, Clean-up, Darkmoon Faire) but only loads the ones you tick. Ticking one loads it right away; unticking one needs a reload, and then it isn't loaded at all. Tick \"Just for this character\" to choose per character.",
     "",
     Y .. "/ruck" .. R .. " or " .. Y .. "/rucksack" .. R .. ": open the window",
     Y .. "/rations" .. R .. " " .. G .. "(or /eatdrink)" .. R .. ": the Rations page",
     Y .. "/cleanup" .. R .. " " .. G .. "(or /adel)" .. R .. ": the Clean-up page",
+    Y .. "/faire" .. R .. " " .. G .. "(or /dmf)" .. R .. ": the Darkmoon Faire page",
     Y .. "/ruck pocket" .. R .. ": show or hide the Pocket",
     Y .. "/ruck settings" .. R .. ": the Settings page",
     Y .. "/ruck minimap" .. R .. ": show or hide the minimap button",

@@ -1,17 +1,15 @@
 ## Interface: 16001
-## Title: |cffc8a165Ruck|r|cffffd100sack|r Forever
-## Notes: Rations (eat and drink with one click) and Clean-up (delete or sell what you don't need) in one window. /ruck
+## Title: |cffc8a165Ruck|r|cffffd100sack|r
+## Notes: Rations (eat and drink with one click), Clean-up (delete or sell what you don't need) and the Darkmoon Faire (tickets, turn-ins, prizes). Pick which parts load in Settings > Modules. /ruck
 ## IconTexture: Interface\AddOns\Rucksack\Icon
 ## Author: Marijan
-## Version: 1.6
+## Version: 1.7
 ## X-Curse-Project-ID: 1796228
-## SavedVariables: RucksackDB, RucksackDeleteDB, RucksackEatDB, AutoDeleteDB, EatDrinkDB
+## OptionalDeps: FaireForever
+## SavedVariables: RucksackDB
 ## SavedVariablesPerCharacter: RucksackCharDB
 
 Core.lua
-Delete.lua
-Sell.lua
-Eat.lua
 Pocket.lua
 Guide.lua
 UI.lua

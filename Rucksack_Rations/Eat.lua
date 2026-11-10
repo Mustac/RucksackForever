@@ -5,7 +5,13 @@
 -- procs) is never picked, nor anything on your Clean-up list. Per item: Never use it, or Use it first.
 -- Its delete rules (water on a character that drinks none, food for below a level) are carried out
 -- by Clean-up.
-local _, ns = ...
+local ns = Rucksack
+if not ns then return end
+-- (1.7) Rations' own saved settings (from 1.x: taken over from the core's file)
+ns.Module("eat", (...), function()
+  RucksackEatDB = RucksackEatDB or ns.legacy.eat or {}
+  ns.eat = RucksackEatDB
+end)
 local Print = ns.Print
 local DB
 local ICON = 134400 -- the question mark: with #showtooltip the macro shows the food's own icon

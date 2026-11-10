@@ -13,6 +13,8 @@ local LINES = {
   { key = "food", name = "Food" },
   { key = "water", name = "Water" },
   { key = "del", name = "Cheapest item" },
+  { key = "faire", name = "Tickets" },
+  { key = "scrolls", name = "Scrolls" },
 }
 Pocket.LINES = LINES
 
@@ -101,6 +103,7 @@ sw.dot:SetPoint("LEFT", 7, 0)
 sw.text = sw:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
 sw.text:SetPoint("LEFT", sw.dot, "RIGHT", 5, 0)
 local function paintSwitch()
+  sw:SetShown(ns.Has("del"))
   local on = ns.del and ns.del.enabled
   sw.dot:SetColorTexture(on and 0.3 or 0.45, on and 0.9 or 0.45, on and 0.35 or 0.45, 1)
   sw.text:SetText(on and "Clean-up |cff66dd66on|r" or "Clean-up |cff999999off|r")
@@ -110,6 +113,7 @@ local function paintSwitch()
   end
 end
 sw:SetScript("OnClick", function(self)
+  if not ns.del then return end
   ns.del.enabled = not ns.del.enabled
   ns.Print(ns.del.enabled and "Clean-up is |cff66dd66on|r: your list is deleted when your bags fill up, and sold at vendors."
     or "Clean-up is |cff999999off|r: nothing is deleted or sold until you turn it back on. Your list stays.")
@@ -178,6 +182,7 @@ Pocket.Picker = pick
 
 sw:SetScript("OnEnter", function(self)
   GameTooltip:SetOwner(self, "ANCHOR_TOP")
+  if not ns.del then return end
   GameTooltip:AddLine("Clean-up: " .. (ns.del.enabled and "|cff66dd66on|r" or "|cff999999off|r"))
   GameTooltip:AddLine("Click to turn it " .. (ns.del.enabled and "off" or "on") .. ".", 1, 1, 1)
   GameTooltip:AddLine("On: items on your list are deleted when your bags are nearly full, and sold when you visit a vendor.", 0.8, 0.8, 0.8, true)
@@ -271,6 +276,8 @@ local S -- the last summary (tooltips read it)
 rows.bags:SetScript("OnClick", function() Rucksack_Open("home") end)
 rows.sell:SetScript("OnClick", function() Rucksack_Open("del") end)
 rows.food:SetScript("OnClick", function() Rucksack_Open("eat") end)
+rows.faire:SetScript("OnClick", function() if ns.Faire and ns.Faire.Open then ns.Faire.Open() end end)
+rows.scrolls:SetScript("OnClick", function() Rucksack_Open("scrolls") end)
 rows.water:SetScript("OnClick", function() Rucksack_Open("eat") end)
 rows.del:SetScript("OnClick", function()
   if IsShiftKeyDown() then AutoDelete_DeleteNext() else Rucksack_Open("del") end
@@ -349,8 +356,39 @@ local function icon(r, tex, on)
   r.icon:SetDesaturated(not on)
   r.icon:SetAlpha(on and 1 or 0.5)
 end
+-- (10 Nov) Darkmoon tickets: the prize you track (37/50), or your tickets and what's ready
+local function fillFaire()
+  local F, r = ns.Faire, rows.faire
+  if not (F and F.db and F.On()) then return end
+  local have = F.Tickets()
+  local count, waiting = F.ReadyNow()
+  local goal = F.Goal and F.Goal()
+  if goal then
+    icon(r, F.PrizeIcon(goal), true)
+    r.text:SetText(goal.name)
+    r.value:SetText((have >= goal.cost and "|cff66dd66" or "|cffffd100") .. have .. "|r" .. DIM .. "/" .. goal.cost .. "|r")
+  else
+    icon(r, F.TicketIcon and F.TicketIcon() or Q, true)
+    r.text:SetText("Tickets" .. (count > 0 and ("  |cff66dd66" .. count .. " ready|r") or ""))
+    r.value:SetText("|cffffd100" .. have .. "|r" .. (waiting > 0 and ("|cff66dd66 +" .. waiting .. "|r") or ""))
+  end
+end
+
+-- (1.7) mage scrolls: how many, and how many you can read now
+local function fillScrolls()
+  local Sc, r = ns.Scrolls, rows.scrolls
+  if not (Sc and Sc.db) then return end
+  local total, readable, nextOne = Sc.Summary()
+  Sc.lastTotal = total
+  icon(r, nextOne and ns.GetIcon(nextOne.id) or Sc.ICON, total > 0)
+  r.text:SetText("Scrolls" .. (readable > 0 and ("  |cff66dd66" .. readable .. " to read|r") or ""))
+  r.value:SetText("|cffffd100" .. total .. "|r")
+end
+
 local function fill()
   S = ns.Summary()
+  pcall(fillFaire)
+  pcall(fillScrolls)
   -- bags: free of total, and a bar that fills as they do
   local r = rows.bags
   icon(r, "Interface\\Icons\\INV_Misc_Bag_08", true)
@@ -364,7 +402,7 @@ local function fill()
   r.bar:SetColorTexture(cr, cg, cb, 0.9)
   -- what a vendor would pay
   paintSwitch()
-  local cleanOn = ns.del.enabled and true or false
+  local cleanOn = ns.del and ns.del.enabled and true or false
   r = rows.sell
   icon(r, "Interface\\Icons\\INV_Misc_Coin_02", S.sellCount > 0)
   r.text:SetText("Vendor" .. (S.sellCount > 0 and (DIM .. "  " .. S.sellCount .. (S.sellCount == 1 and " item" or " items") .. "|r") or ""))
@@ -401,7 +439,11 @@ local function layout()
   for _, l in ipairs(LINES) do
     local r = rows[l.key]
     local on = not o or o.lines[l.key] ~= false
-    if l.key == "food" or l.key == "water" then on = on and ns.eat.enabled ~= false end
+    -- (1.7) lines of modules that aren't loaded don't show
+    if l.key == "food" or l.key == "water" then on = on and ns.Has("eat") and ns.eat.enabled ~= false end
+    if l.key == "sell" or l.key == "del" then on = on and ns.Has("del") end
+    if l.key == "scrolls" then on = on and ns.Has("scrolls") and (ns.Scrolls.Summary()) > 0 end
+    if l.key == "faire" then on = on and ns.Faire and ns.Faire.On and ns.Faire.On() end
     r:SetShown(on)
     if on then
       r:ClearAllPoints()

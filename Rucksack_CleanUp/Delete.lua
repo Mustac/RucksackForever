@@ -5,7 +5,13 @@
 -- slots), the cheapest stack first (vendor price x stack). An item set to "as soon as I get it"
 -- (its page in the window) doesn't wait for full bags. Never in combat.
 -- Why a key press: the game only lets an addon delete an item inside a click or a key press.
-local _, ns = ...
+local ns = Rucksack
+if not ns then return end
+-- (1.7) Clean-up's own saved settings (from 1.x: taken over from the core's file)
+ns.Module("del", (...), function()
+  RucksackDeleteDB = RucksackDeleteDB or ns.legacy.del or {}
+  ns.del = RucksackDeleteDB
+end)
 local Print, SlotInfo, CursorItem = ns.Print, ns.SlotInfo, ns.CursorItem
 local DB
 
@@ -45,7 +51,7 @@ local function sellPrice(id) return select(11, ns.GetInfo(id)) or 0 end
 Del.QUALITIES = { { nil, "Off" }, { 0, "Trash" }, { 1, "Common" }, { 2, "Uncommon" } }
 local SAFE_CLASS = { [0] = true, [1] = true, [5] = true, [7] = true, [12] = true, [13] = true }
 local function byQuality(id)
-  if DB.upTo == nil or DB.keep[id] then return false end
+  if DB.upTo == nil or DB.keep[id] or ns.KeepItem(id) then return false end
   local name, _, quality, _, _, _, _, _, _, _, sell, classID = ns.GetInfo(id)
   if not name or not quality or quality > DB.upTo then return false end
   if not sell or sell <= 0 then return false end
@@ -63,7 +69,10 @@ local function byFood(id)
   return ns.Eat.DeleteReason(id)
 end
 Del.ByFood = function(id) if DB then return byFood(id) end end
-local function onList(id) return DB.items[id] or byQuality(id) or (byFood(id) and true) end
+local function onList(id)
+  if ns.KeepItem(id) then return false end -- (Darkmoon turn-in items, scrolls... stay)
+  return DB.items[id] or byQuality(id) or (byFood(id) and true)
+end
 Del.OnList = function(id) return DB and onList(id) and true or false end
 -- why an item goes, in words (for lists and tooltips)
 function Del.Reason(id)
