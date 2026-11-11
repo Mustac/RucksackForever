@@ -23,7 +23,7 @@ Rucksack comes with all its parts, but only loads the ones you turn on in **Sett
 - **Delete below level:** Off, Auto, or a level (5 to 55): old food you've outgrown goes when your bags fill up.
 - Warriors and rogues: delete all water as soon as you get it (set per character).
 - **Buff food:** tick "Eat buff food when the buff is missing" and it's eaten first whenever you're not Well Fed. A big "don't move" alert counts down while you eat, and tells you when you're Well Fed and can move (you can drag it anywhere).
-- **Buff food in one click:** a small "Buff" strip on top of the eat button (green when on, red when off), and a tick on the Pocket's food, switch it on or off. **Remind me when I'm not Well Fed:** a big alert (untick under it to stop it), or off.
+- **Buff food in one click:** a small "Buff" strip on top of the eat button (green when on, red when off), and a tick on the Pocket's food, switch it on or off. **Remind me when I'm not Well Fed:** a big alert (untick under it to turn buff food off), or off.
 - Set any food to "Use this first" or "Never use this".
 - Three macros shared by all your characters, kept up to date: **EatDrink**, **Eat** and **Drink**. Drag them onto your bars straight from the Rations page; **Create macros** makes any that are missing.
 - Right-click the eat button: the Rations page.

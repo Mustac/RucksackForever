@@ -41,7 +41,7 @@ ns.GUIDE = {
     "",
     Y .. "The list" .. R .. ": all food and water in your bags. Click one to set " .. Y .. "Use this first" .. R .. " (always picked before the rest, never deleted) or " .. Y .. "Never use this" .. R .. ".",
     Y .. "Eat buff food when the buff is missing" .. R .. ": food that gives a buff (Well Fed) is normally kept. Ticked, the eat button uses it first whenever you're not Well Fed, then goes back to plain food. The " .. Y .. "Buff" .. R .. " tick on top of the eat button (and on the Pocket's food) switches it on or off too.",
-    Y .. "Buff" .. R .. " on top of the eat button: green when buff food is on, red when it's off; click it to switch. " .. Y .. "Remind me when I'm not Well Fed" .. R .. " (this character): " .. Y .. "Alert" .. R .. " (big text; untick under it to stop it) or " .. Y .. "Off" .. R .. ". Never in a fight, while eating, or without buff food in your bags.",
+    Y .. "Buff" .. R .. " on top of the eat button: green when buff food is on, red when it's off; click it to switch. " .. Y .. "Remind me when I'm not Well Fed" .. R .. " (this character): " .. Y .. "Alert" .. R .. " (big text; untick under it to turn buff food off) or " .. Y .. "Off" .. R .. ". Never in a fight, while eating, or without buff food in your bags.",
     Y .. "Alert me while I eat for the buff" .. R .. ": while you eat buff food, the middle of the screen says \"don't move\" with a 10-second countdown, then \"Well Fed! You can move now.\" " .. Y .. "Move the alert" .. R .. " lets you drag it anywhere.",
     G .. "Never eaten: buff food (unless the box above is ticked), food above your level, and anything on your Clean-up list." .. R,
   }, "\n") },

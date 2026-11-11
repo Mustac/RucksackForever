@@ -215,6 +215,7 @@ local btn = CreateFrame("Button", "EatDrinkButton", UIParent, "SecureActionButto
 -- (9 Nov) two small icons side by side: the next food first, the next water second, each with how
 -- many you have; one click (or the key) eats and drinks what you need
 local SLOT = 28
+local ONE_W = 52 -- (the one-slot button: Food only / Water only)
 local LABEL_H = 12 -- (9 Nov) "Food" and "Drink" written over their icons
 btn:SetSize(SLOT * 2 + 14, SLOT + 8 + LABEL_H)
 btn:SetFrameStrata("MEDIUM")
@@ -391,11 +392,12 @@ local function arrange()
     btn.drink:ClearAllPoints()
     btn.drink:SetPoint("BOTTOMLEFT", SLOT + 10 + GAP + 5, 4)
   elseif only then
-    btn:SetWidth(SLOT + 10)
+    -- (1.7.6: a little wider, so "[tick] Buff" fits on top; the slot sits in the middle)
+    btn:SetWidth(ONE_W)
     showSlot(btn.food, only == btn.food)
     showSlot(btn.drink, only == btn.drink)
     only:ClearAllPoints()
-    only:SetPoint("BOTTOMLEFT", 5, 4)
+    only:SetPoint("BOTTOM", 0, 4)
   else
     btn:SetWidth(SLOT * 2 + 14)
     showSlot(btn.food, true)
@@ -807,9 +809,12 @@ end
 -- (1.7.5) a strip on top of the eat button: [tick] Buff · No Well Fed / Well Fed. The tick switches
 -- buff food on or off; the words are the "On the button" reminder.
 local bar = CreateFrame("Button", "RucksackBuffBar", btn, "BackdropTemplate")
-bar:SetHeight(17)
-bar:SetPoint("BOTTOMLEFT", btn, "TOPLEFT", 0, -1)
-bar:SetPoint("BOTTOMRIGHT", btn, "TOPRIGHT", 0, -1)
+bar:SetSize(ONE_W, 17)
+bar:SetPoint("BOTTOM", btn, "TOP", 0, -1)
+-- (exactly as wide as the eat button: it sits on top of it)
+local function fitBar() bar:SetWidth(math.max(ONE_W, btn:GetWidth() or 0)) end
+btn:HookScript("OnSizeChanged", fitBar)
+fitBar()
 bar:SetFrameLevel(btn:GetFrameLevel() + 10)
 if bar.SetBackdrop then
   bar:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 10,
@@ -865,9 +870,11 @@ ra.stop:SetSize(18, 18)
 ra.stop:SetPoint("TOP", ra.text, "BOTTOM", -78, -6)
 ra.stop.label = ra.stop:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
 ra.stop.label:SetPoint("LEFT", ra.stop, "RIGHT", 2, 0)
-ra.stop.label:SetText("untick to stop this reminder")
+ra.stop.label:SetText("untick to turn buff food off")
 ra.stop:SetHitRectInsets(0, -150, 0, 0)
-ra.stop:SetScript("OnClick", function(self) if not self:GetChecked() then Eat.SetRemindMode("off") end end)
+-- (1.7.6 fix) the tick is buff food itself: unticking it turns buff food off (Settings and the Buff
+-- strip follow); tick Buff again and the alert comes back
+ra.stop:SetScript("OnClick", function(self) Eat.SetBuffFood(self:GetChecked() and true or false) end)
 ra:SetScript("OnDragStart", function(self) self:StartMoving() end)
 ra:SetScript("OnDragStop", function(self)
   self:StopMovingOrSizing()
@@ -889,7 +896,7 @@ function Eat.Remind()
   -- the Alert
   local need = id and fed == false and stillEating() ~= true and not (state == "eating") and DB.enabled ~= false
   ra:SetShown((need and mode == "alert") and true or false)
-  ra.stop:SetChecked(true)
+  ra.stop:SetChecked(DB.buffFood and true or false)
 end
 Eat.WellFedNow = function() return Eat.FoodBuffState() end
 
@@ -902,6 +909,11 @@ remindEv:SetScript("OnEvent", function(_, e)
 end)
 C_Timer.NewTicker(1, function() if DB and not InCombatLockdown() then Eat.Remind() end end)
 table.insert(ns.onLogin, function()
+  -- (1.7.6 fix) characters that unticked the old alert (it set the reminder Off): back on, once
+  if ns.char and not ns.char.remindFix176 then
+    if ns.char.buffRemind == "off" then ns.char.buffRemind = "alert" end
+    ns.char.remindFix176 = true
+  end
   local pos = ns.char and ns.char.remindPos
   if pos then ra:ClearAllPoints() ra:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) end
   Eat.Remind()

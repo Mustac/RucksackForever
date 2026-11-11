@@ -1,3 +1,12 @@
+# Rucksack 1.7.7
+
+### Changed
+- The one-slot eat button (Food only, Water only) is a little wider, and the Buff strip sits neatly on top of it.
+
+### Fixed
+- The tick under the "No Well Fed" alert now turns buff food off (Settings and the Buff strip follow), and the alert comes back when you tick Buff again. Before, it switched the reminder off for good. Characters that lost the alert this way get it back.
+- "Remind me" on the Rations page can be changed while buff food is off.
+
 # Rucksack 1.7.6
 
 ### Changed

@@ -90,7 +90,7 @@ do
   y = y - 26
   local rl = Text(p, 20, y - 3, "GameFontHighlightSmall")
   rl:SetText("Remind me when I'm not Well Fed")
-  HoverLabel(p, rl, "Remind me", "When buff food is on and you're not Well Fed (with buff food in your bags, out of a fight):\n|cffffd100Alert|r: big text on screen; untick under it to stop it.\n(\"Buff\" on top of the eat button is |cff66dd66green|r when buff food is on, |cffff6060red|r when it's off.)\nSet per character.")
+  HoverLabel(p, rl, "Remind me", "When buff food is on and you're not Well Fed (with buff food in your bags, out of a fight):\n|cffffd100Alert|r: big text on screen; untick under it to turn buff food off.\n(\"Buff\" on top of the eat button is |cff66dd66green|r when buff food is on, |cffff6060red|r when it's off.)\nSet per character.")
   local RM = { { "off", "Off" }, { "alert", "Alert" } }
   local rBtns = {}
   local rx = 230
@@ -106,7 +106,7 @@ do
     local hl = b:CreateTexture(nil, "HIGHLIGHT")
     hl:SetPoint("TOPLEFT", 3, -3) hl:SetPoint("BOTTOMRIGHT", -3, 3)
     hl:SetColorTexture(1, 1, 1, 0.08)
-    b:SetScript("OnClick", function() if E().buffFood then ns.Eat.SetRemindMode(o[1]) end end)
+    b:SetScript("OnClick", function() ns.Eat.SetRemindMode(o[1]) end)
     rBtns[#rBtns + 1] = { b = b, v = o[1] }
   end
   p.updates[#p.updates + 1] = function()
