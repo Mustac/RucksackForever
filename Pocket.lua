@@ -167,10 +167,22 @@ local function build()
   end
   -- food and water
   if ns.Has("eat") and ns.eat and ns.eat.enabled ~= false then
+    -- (1.7.4) with buff food on: Well Fed or not
+    local buffOn = ns.eat.buffFood and true or false
+    local fed = buffOn and ns.Eat.FoodBuffState and ns.Eat.FoodBuffState()
+    local bstate = buffOn and (fed == true and "|cff66dd66Well Fed|r" or fed == false and "|cffff6060no buff|r" or nil) or nil
     M.food = S.food and { icon = ns.GetIcon(S.food), on = true, name = ns.NameOf(S.food), value = "|cffffd100x" .. S.foodCount .. "|r",
       short = "|cffffd100" .. S.foodCount .. "|r", caption = "food · " .. ns.NameOf(S.food), word = "food", label = "Food",
       text = ns.NameOf(S.food) .. DIM .. " x" .. S.foodCount .. "|r" }
       or { icon = Q, on = false, name = DIM .. "No food|r", value = "", short = DIM .. "0|r", caption = "food · none", label = "Food", text = DIM .. "none|r" }
+    M.food.tick, M.food.buffOn = true, buffOn
+    if bstate then
+      M.food.value = bstate .. "  " .. (M.food.value or "")
+      M.food.caption = (fed == false and "no buff · " or "Well Fed · ") .. (S.food and ns.NameOf(S.food) or "")
+      M.food.word = fed == false and "|cffff9b9bno buff|r" or "|cff66dd66fed|r"
+      M.food.text = (M.food.text or "") .. "  " .. bstate
+      if fed == false then M.food.edge = "red" end
+    end
     M.water = S.drink and { icon = ns.GetIcon(S.drink), on = true, name = ns.NameOf(S.drink), value = "|cffffd100x" .. S.drinkCount .. "|r",
       short = "|cffffd100" .. S.drinkCount .. "|r", caption = "water · " .. ns.NameOf(S.drink), word = "water", label = "Water",
       text = ns.NameOf(S.drink) .. DIM .. " x" .. S.drinkCount .. "|r" }
@@ -321,6 +333,20 @@ local function Item(i)
   b.cap = b:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
   b.cap:SetJustifyH("LEFT")
   b.cap:SetWordWrap(false)
+  -- (1.7.4) the buff food tick (food only)
+  b.tick = CreateFrame("CheckButton", nil, b, "UICheckButtonTemplate")
+  b.tick:SetSize(14, 14)
+  b.tick:SetPoint("CENTER", b.frame, "TOPLEFT", 1, -1)
+  b.tick:SetFrameLevel(b:GetFrameLevel() + 5)
+  b.tick:SetScript("OnClick", function(self) if ns.Eat and ns.Eat.SetBuffFood then ns.Eat.SetBuffFood(self:GetChecked()) end end)
+  b.tick:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:AddLine("Buff food: " .. ((ns.eat and ns.eat.buffFood) and "|cff66dd66on|r" or "|cff999999off|r"))
+    GameTooltip:AddLine("Ticked: while you're not Well Fed, the eat button eats your buff food first.", 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  b.tick:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  b.tick:Hide()
   b.trash = b:CreateTexture(nil, "OVERLAY")
   b.trash:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
   b.trash:SetSize(12, 12)
@@ -355,6 +381,7 @@ local function reset(b)
   b.value:SetJustifyH("RIGHT")
   b.bg:SetColorTexture(0, 0, 0, 0)
   b.trash:Hide()
+  b.tick:Hide()
   b.cap:SetJustifyH("LEFT")
   for _, k in ipairs({ "edge", "frame", "icon", "name", "sub", "value", "big", "cap", "barBg", "bar" }) do
     b[k]:Hide()
@@ -581,7 +608,19 @@ local function draw()
   local fn = STYLE[style()] or STYLE.rows
   local ok, w, h, used = pcall(fn, keys)
   if not ok then geterrorhandler()(w) w, h, used = 236, 30, 0 end
-  for i = 1, used or #keys do if items[i] then items[i]:Show() end end
+  for i = 1, used or #keys do
+    local b = items[i]
+    if b then
+      b:Show()
+      local m = M[b.key]
+      if m and m.tick and b.frame:IsShown() then
+        b.tick:ClearAllPoints()
+        b.tick:SetPoint("CENTER", b.frame, "TOPLEFT", 1, -1)
+        b.tick:SetChecked(m.buffOn)
+        b.tick:Show()
+      end
+    end
+  end
   f:SetSize(w, h)
 end
 function Pocket.Update()

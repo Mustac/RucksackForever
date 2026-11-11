@@ -1,3 +1,14 @@
+# Rucksack 1.7.5
+
+### New
+- **Buff food on or off in one click:** a small tick on the eat button, and on the Pocket's food. The Pocket shows "no buff" (red) or "Well Fed" (green) while buff food is on.
+- **Remind me when I'm not Well Fed** (Rations page, per character): Alert (big text, untick under it to stop it), Text (a line under the eat button), Icon (your buff food next to the eat button: click it to eat) or Off. Never in a fight, while you eat, or without buff food in your bags.
+
+### Changed
+- **Eat button choice:** Food and water, Food only, Water only and Separate are four buttons side by side; the one in use is lit.
+- The sidebar no longer says "shown" or "hidden": every tool in it is on. Each tool's page still has its "Show button" box.
+- Clearer words: Home says "2 can go · first: ..." and the Clean-up page explains the rules (white gear you can't wear or that's worse than yours; profession tools stay).
+
 # Rucksack 1.7.4
 
 ### New

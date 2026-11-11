@@ -893,7 +893,7 @@ do
     { "Deletes", "the food and water Rations has Clean-up delete" },
   })
   local delCard = Card(340, "del", "|cffff5555Clean-up|r", {
-    { "Waiting", "stacks on your list in your bags, and the next one" },
+    { "Can go", "how many items in your bags can be thrown away when they fill up, and which goes first" },
     { "At a vendor", "what a vendor would pay you right now" },
     { "Sold so far", "gold Rucksack has made you by selling" },
     { "Deleted so far", "items Clean-up has deleted" },
@@ -1011,8 +1011,8 @@ do
     if not ns.Has("del") then notLoaded(delCard, 4) end
     if ns.Has("del") then
     delCard.state:SetText(D.enabled and "|cff66dd66on|r" or "|cff999999off|r")
-    delCard:Set(1, S.nextDel and (S.nextDel.icon or ns.GetIcon(S.nextDel.id)) or "Interface\\Icons\\INV_Misc_Bag_10_Red", "Waiting",
-      S.waitStacks > 0 and (S.waitStacks .. (S.waitStacks == 1 and " stack" or " stacks") .. (S.nextDel and ("  ·  next: " .. ns.NameOf(S.nextDel.id)) or "")) or "|cff999999nothing|r")
+    delCard:Set(1, S.nextDel and (S.nextDel.icon or ns.GetIcon(S.nextDel.id)) or "Interface\\Icons\\INV_Misc_Bag_10_Red", "Can go",
+      S.waitStacks > 0 and (S.waitStacks .. " can go" .. (S.nextDel and ("  ·  first: " .. ns.NameOf(S.nextDel.id)) or "")) or "|cff999999nothing|r")
     delCard:Set(2, "Interface\\Icons\\INV_Misc_Coin_02", "At a vendor", S.sellCount > 0 and (ns.Sell.Money(S.sellValue) .. "  (" .. S.sellCount .. " items)")
       or ((D.sellGrey or D.sellList) and "|cff999999nothing to sell|r" or "|cff999999selling is off|r"))
     delCard:Set(3, "Interface\\Icons\\INV_Misc_Coin_01", "Sold so far", ns.Sell.Money(D.soldGold or 0))
@@ -1155,11 +1155,7 @@ local function buildSide()
       r:SetPoint("TOPLEFT", 6, -6 - (n - 1) * 36)
       r:SetPoint("RIGHT", -6, 0)
     end
-    if shown and r.tool.on then
-      -- (1.7.3) whether its button is on your screen
-      local on = r.tool.on()
-      r.tag:SetText(on and "|cff66dd66shown|r" or "|cff999999hidden|r")
-    end
+    r.tag:SetText("") -- (1.7.5: no "shown / hidden" here; being in the list means it's on)
   end
 end
 

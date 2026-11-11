@@ -62,7 +62,7 @@ do
   -- (10 Nov) buff food (Well Fed) while the buff is missing
   local buffBox = p:Add(Check(p, 0, y, "Eat buff food when the buff is missing",
     "Food that gives a buff (Well Fed and similar) is normally never eaten. Ticked: while you're not Well Fed, the eat button picks your buff food first. Once the buff is up, it goes back to plain food until the buff wears off.\n\nBuffs are checked outside fights only (you can't eat in one anyway).",
-    function() return E().buffFood end, function(v) E().buffFood = v and true or false changed() end))
+    function() return E().buffFood end, function(v) ns.Eat.SetBuffFood(v) end))
   p.updates[#p.updates + 1] = function()
     local note = ""
     if E().buffFood then
@@ -86,6 +86,39 @@ do
     self:SetText(moving and "Lock it here" or "Move the alert")
   end)
   tip(moveBtn, "Move the alert", "Shows the alert so you can drag it where you like. Click again to lock it there (closing Rucksack locks it too).")
+  -- (1.7.4) how you're reminded when you're not Well Fed (this character)
+  y = y - 26
+  local rl = Text(p, 20, y - 3, "GameFontHighlightSmall")
+  rl:SetText("Remind me when I'm not Well Fed")
+  HoverLabel(p, rl, "Remind me", "When buff food is on and you're not Well Fed (with buff food in your bags, out of a fight):\n|cffffd100Alert|r: big text on screen; untick under it to stop it.\n|cffffd100Text|r: a line under the eat button.\n|cffffd100Icon|r: your buff food next to the eat button; click it to eat.\nRight-click the Text or Icon to stop the reminder. Set per character.")
+  local RM = { { "off", "Off" }, { "alert", "Alert" }, { "text", "Text" }, { "icon", "Icon" } }
+  local rBtns = {}
+  local rx = 230
+  for _, o in ipairs(RM) do
+    local b = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
+    b:SetSize(62, 20)
+    b:SetPoint("TOPLEFT", rx, y)
+    rx = rx + 65
+    b:SetBackdrop(ns.SLOT_BACKDROP)
+    b.label = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    b.label:SetPoint("CENTER")
+    b.label:SetText(o[2])
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetPoint("TOPLEFT", 3, -3) hl:SetPoint("BOTTOMRIGHT", -3, 3)
+    hl:SetColorTexture(1, 1, 1, 0.08)
+    b:SetScript("OnClick", function() if E().buffFood then ns.Eat.SetRemindMode(o[1]) end end)
+    rBtns[#rBtns + 1] = { b = b, v = o[1] }
+  end
+  p.updates[#p.updates + 1] = function()
+    local on = E().buffFood and true or false
+    rl:SetFontObject(on and "GameFontHighlightSmall" or "GameFontDisableSmall")
+    for _, e in ipairs(rBtns) do
+      local lit = e.v == ns.Eat.RemindMode()
+      e.b:SetBackdropColor(lit and 0.32 or 0.06, lit and 0.24 or 0.06, lit and 0.02 or 0.06, 0.95)
+      e.b:SetBackdropBorderColor(lit and on and 1 or 0.3, lit and on and 0.82 or 0.3, lit and on and 0 or 0.3)
+      e.b.label:SetFontObject(on and "GameFontHighlightSmall" or "GameFontDisableSmall")
+    end
+  end
   -- (10 Nov) the alert only goes with buff food: greyed out while that's off
   p.updates[#p.updates + 1] = function()
     local on = E().buffFood and true or false
@@ -168,28 +201,43 @@ do
   local ul = useRow:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
   ul:SetPoint("LEFT", 4, 0)
   ul:SetText("Eat button")
-  HoverLabel(useRow, ul, "Eat button", "What the eat button on your screen does. Click the button on the right to go through the choices:\n|cffffd100Food and water|r: one click eats and drinks.\n|cffffd100Food only|r / |cffffd100Water only|r: just that one.\n|cffffd100Separate|r: two buttons side by side, click the food to eat or the water to drink.")
-  local ub = CreateFrame("Button", nil, useRow, "UIPanelButtonTemplate")
-  ub:SetSize(200, 22)
-  ub:SetPoint("LEFT", 240, 0)
-  local function useText()
-    for _, o in ipairs(USE) do if o[1] == useNow() then return o[2] end end
-    return USE[1][2]
+  HoverLabel(useRow, ul, "Eat button", "What the eat button on your screen does. Click one of the four:\n|cffffd100Food and water|r: one click eats and drinks.\n|cffffd100Food only|r / |cffffd100Water only|r: just that one.\n|cffffd100Separate|r: two buttons side by side, click the food to eat or the water to drink.")
+  -- (1.7.4) the four choices side by side; the one in use is lit gold
+  local UTIPS = { both = "One click eats and drinks.", food = "One click eats (food only).", drink = "One click drinks (water only).",
+    split = "Two buttons next to each other: click the food to eat, the water to drink." }
+  local uBtns = {}
+  local ux = 130
+  for _, o in ipairs(USE) do
+    local b = CreateFrame("Button", nil, useRow, ns.BACKDROP_TMPL)
+    b:SetSize(o[1] == "both" and 120 or 96, 22)
+    b:SetPoint("LEFT", ux, 0)
+    ux = ux + b:GetWidth() + 4
+    b:SetBackdrop(ns.SLOT_BACKDROP)
+    b.label = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    b.label:SetPoint("CENTER")
+    b.label:SetText(o[2])
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetPoint("TOPLEFT", 3, -3) hl:SetPoint("BOTTOMRIGHT", -3, 3)
+    hl:SetColorTexture(1, 1, 1, 0.08)
+    b:SetScript("OnClick", function()
+      if E().enabled == false then return end
+      if o[1] == "split" then E().split, E().use = true, "both" else E().split, E().use = false, o[1] end
+      ns.Eat.Update(false)
+      ns.Changed()
+    end)
+    tip(b, o[2], UTIPS[o[1]] .. "\n(In a fight it changes after the fight.)")
+    uBtns[#uBtns + 1] = { b = b, v = o[1] }
   end
-  ub:SetScript("OnClick", function()
-    local i = 1
-    for k, o in ipairs(USE) do if o[1] == useNow() then i = k end end
-    local v = USE[i % #USE + 1][1]
-    if v == "split" then E().split, E().use = true, "both" else E().split, E().use = false, v end
-    ub:SetText(useText())
-    ns.Eat.Update(false)
-  end)
-  tip(ub, "Eat button", "Food and water: one click eats and drinks.\nFood only / Water only: just that one.\nSeparate: two buttons, food and water.\nClick to change. (In a fight it changes after the fight.)")
+  useRow:SetSize(ux, 24)
   useRow.Update = function()
-    ub:SetText(useText())
     local on = E().enabled ~= false
-    ub:SetEnabled(on)
     ul:SetFontObject(on and "GameFontHighlight" or "GameFontDisable")
+    for _, e in ipairs(uBtns) do
+      local lit = e.v == useNow()
+      e.b:SetBackdropColor(lit and 0.32 or 0.06, lit and 0.24 or 0.06, lit and 0.02 or 0.06, 0.95)
+      e.b:SetBackdropBorderColor(lit and 1 or 0.3, lit and 0.82 or 0.3, lit and 0 or 0.3)
+      e.b.label:SetFontObject(on and "GameFontHighlightSmall" or "GameFontDisableSmall")
+    end
   end
   p:Add(useRow)
   y = y - 34

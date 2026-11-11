@@ -334,7 +334,7 @@ btn:SetScript("OnEnter", function(self)
   line("Next water", self.drinkID)
   local use = DB.use or "both"
   GameTooltip:AddLine(use == "food" and "Click: eat." or use == "drink" and "Click: drink." or "Click: eat and drink.", 0.7, 0.7, 0.7)
-  GameTooltip:AddLine("Right-click: the Rations page.  Shift-drag to move.", 0.7, 0.7, 0.7, true)
+  GameTooltip:AddLine("The tick (top left): buff food on or off.  Right-click: the Rations page.  Shift-drag to move.", 0.7, 0.7, 0.7, true)
   GameTooltip:Show()
 end)
 btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -765,4 +765,191 @@ table.insert(ns.onLoad, function()
     alert:ClearAllPoints()
     alert:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
   end
+end)
+
+---------------------------------------------------------------------------
+-- (1.7.4) Buff food: switch it on or off from the eat button and the Pocket, and a reminder when
+-- you're not Well Fed (per character): Off, Alert (big text, with a tick to stop it), Text (a line
+-- under the eat button) or Icon (the buff food, greyed with a red mark: click it to eat).
+-- Never in a fight, never while you're eating, never without buff food in your bags.
+---------------------------------------------------------------------------
+-- your best buff food in your bags (the one the eat button would pick), or nil
+function Eat.BuffFoodID()
+  local best, bestHealth
+  for id, f in pairs(Eat.found) do
+    if f.buff and not f.never and not f.tooLow and not f.deleting and (ns.GetCount(id) or 0) > 0 then
+      if not best or (f.health or 0) > bestHealth then best, bestHealth = id, f.health or 0 end
+    end
+  end
+  return best
+end
+function Eat.SetBuffFood(on)
+  DB.buffFood = on and true or false
+  Eat.randomFood = nil
+  Print(DB.buffFood and "buff food |cff66dd66on|r: while you're not Well Fed, the eat button eats your buff food first."
+    or "buff food |cff999999off|r: buff food is left alone.")
+  Eat.Update(false)
+  if Eat.Remind then Eat.Remind() end
+  ns.Changed()
+end
+function Eat.RemindMode() return (ns.char and ns.char.buffRemind) or "icon" end
+function Eat.SetRemindMode(m)
+  if ns.char then ns.char.buffRemind = m end
+  if m == "off" then Print("Buff food reminder off. Turn it back on on the Rations page (Remind me).") end
+  if Eat.Remind then Eat.Remind() end
+  ns.Changed()
+end
+
+-- the tick on the eat button: buff food on or off
+local tick = CreateFrame("CheckButton", "RucksackBuffTick", btn, "UICheckButtonTemplate")
+tick:SetSize(18, 18)
+tick:SetPoint("CENTER", btn, "TOPLEFT", 3, -3)
+tick:SetFrameLevel(btn:GetFrameLevel() + 10)
+tick:SetHitRectInsets(0, 0, 0, 0)
+tick:SetScript("OnClick", function(self) Eat.SetBuffFood(self:GetChecked()) end)
+tick:SetScript("OnEnter", function(self)
+  GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+  GameTooltip:AddLine("Buff food: " .. (DB.buffFood and "|cff66dd66on|r" or "|cff999999off|r"))
+  GameTooltip:AddLine("Ticked: while you're not Well Fed, the eat button eats your buff food first.", 1, 1, 1, true)
+  local id = Eat.BuffFoodID()
+  GameTooltip:AddLine(id and ("Buff food in your bags: " .. ns.NameOf(id)) or "No buff food in your bags.", 0.7, 0.7, 0.7, true)
+  GameTooltip:Show()
+end)
+tick:SetScript("OnLeave", function() GameTooltip:Hide() end)
+Eat.Tick = tick
+
+-- Alert: big text, a tick under it to stop the reminder; drag to move
+local ra = CreateFrame("Frame", "RucksackBuffReminder", UIParent)
+ra:SetSize(420, 62)
+ra:SetPoint("CENTER", UIParent, "CENTER", 0, 200)
+ra:SetFrameStrata("HIGH")
+ra:SetClampedToScreen(true)
+ra:SetMovable(true)
+ra:EnableMouse(true)
+ra:RegisterForDrag("LeftButton")
+ra:Hide()
+ra.text = ra:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+ra.text:SetPoint("TOP", 0, -4)
+ra.text:SetText("No Well Fed: eat buff food")
+ra.text:SetTextColor(1, 0.82, 0)
+ra.stop = CreateFrame("CheckButton", nil, ra, "UICheckButtonTemplate")
+ra.stop:SetSize(18, 18)
+ra.stop:SetPoint("TOP", ra.text, "BOTTOM", -78, -6)
+ra.stop.label = ra.stop:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+ra.stop.label:SetPoint("LEFT", ra.stop, "RIGHT", 2, 0)
+ra.stop.label:SetText("untick to stop this reminder")
+ra.stop:SetHitRectInsets(0, -150, 0, 0)
+ra.stop:SetScript("OnClick", function(self) if not self:GetChecked() then Eat.SetRemindMode("off") end end)
+ra:SetScript("OnDragStart", function(self) self:StartMoving() end)
+ra:SetScript("OnDragStop", function(self)
+  self:StopMovingOrSizing()
+  local p, _, rp, x, y = self:GetPoint()
+  ns.char.remindPos = { p, rp, x, y }
+end)
+
+-- Text: one line under the eat button
+local rt = CreateFrame("Button", nil, UIParent)
+rt:SetSize(140, 16)
+rt:SetFrameStrata("MEDIUM")
+rt:RegisterForClicks("RightButtonUp")
+rt.text = rt:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+rt.text:SetPoint("CENTER")
+rt.text:SetText("|cffff8080No Well Fed|r")
+rt:SetScript("OnClick", function() Eat.SetRemindMode("off") end)
+rt:SetScript("OnEnter", function(self)
+  GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+  GameTooltip:AddLine("You're not Well Fed")
+  GameTooltip:AddLine("Click the eat button to eat your buff food. Right-click here: stop this reminder.", 1, 1, 1, true)
+  GameTooltip:Show()
+end)
+rt:SetScript("OnLeave", function() GameTooltip:Hide() end)
+rt:Hide()
+
+-- Icon: the buff food, greyed with a red mark; click to eat it (a secure button: set out of combat)
+local ri = CreateFrame("Button", "RucksackBuffIcon", UIParent, "SecureActionButtonTemplate, BackdropTemplate")
+ri:SetSize(38, 38)
+ri:SetFrameStrata("MEDIUM")
+ri:RegisterForClicks("AnyDown")
+ri:SetAttribute("type", "item")
+ri:SetAttribute("type2", "none")
+if ri.SetBackdrop then
+  ri:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+  ri:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
+  ri:SetBackdropBorderColor(0.85, 0.25, 0.25, 1)
+end
+ri.icon = ri:CreateTexture(nil, "ARTWORK")
+ri.icon:SetPoint("TOPLEFT", 2, -2)
+ri.icon:SetPoint("BOTTOMRIGHT", -2, 2)
+ri.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+ri.icon:SetDesaturated(true)
+ri.mark = ri:CreateTexture(nil, "OVERLAY")
+ri.mark:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
+ri.mark:SetSize(16, 16)
+ri.mark:SetPoint("BOTTOMRIGHT", 5, -5)
+local rhl = ri:CreateTexture(nil, "HIGHLIGHT")
+rhl:SetAllPoints(ri.icon)
+rhl:SetColorTexture(1, 1, 1, 0.2)
+ri:HookScript("PostClick", function(_, mouse) if mouse == "RightButton" then Eat.SetRemindMode("off") end end)
+ri:SetScript("OnEnter", function(self)
+  GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+  GameTooltip:AddLine("You're not Well Fed")
+  local id = self.itemID
+  GameTooltip:AddLine(id and ("Click: eat " .. ns.NameOf(id) .. ". Stay seated for the buff.") or "No buff food in your bags.", 1, 1, 1, true)
+  GameTooltip:AddLine("Right-click: stop this reminder.", 0.7, 0.7, 0.7)
+  GameTooltip:Show()
+end)
+ri:SetScript("OnLeave", function() GameTooltip:Hide() end)
+ri:Hide()
+
+-- where the Text and Icon go: by the eat button, or the middle of the screen when it's hidden
+local function place()
+  rt:ClearAllPoints()
+  ri:ClearAllPoints()
+  if btn:IsShown() then
+    rt:SetPoint("TOP", btn, "BOTTOM", 0, -2)
+    ri:SetPoint("LEFT", btn, "RIGHT", 6, 0)
+  else
+    rt:SetPoint("CENTER", UIParent, "CENTER", 0, 160)
+    ri:SetPoint("CENTER", UIParent, "CENTER", 0, 160)
+  end
+end
+
+function Eat.Remind()
+  if not DB then return end
+  tick:SetChecked(DB.buffFood and true or false)
+  tick:SetShown(btn:IsShown() and DB.enabled ~= false)
+  if InCombatLockdown() then
+    ra:Hide() rt:Hide() -- (the icon is secure: hidden when the fight starts, below)
+    return
+  end
+  local id = DB.buffFood and Eat.BuffFoodID()
+  local need = id and Eat.FoodBuffState() == false and stillEating() ~= true and not (state == "eating") and DB.enabled ~= false
+  local mode = Eat.RemindMode()
+  place()
+  ra:SetShown((need and mode == "alert") and true or false)
+  ra.stop:SetChecked(true)
+  rt:SetShown((need and mode == "text") and true or false)
+  if need and mode == "icon" then
+    ri.itemID = id
+    ri:SetAttribute("item", "item:" .. id)
+    ri.icon:SetTexture(ns.GetIcon(id))
+    ri:Show()
+  else
+    ri:Hide()
+  end
+end
+Eat.WellFedNow = function() return Eat.FoodBuffState() end
+
+local remindEv = CreateFrame("Frame")
+remindEv:RegisterEvent("PLAYER_REGEN_DISABLED")
+remindEv:RegisterEvent("PLAYER_REGEN_ENABLED")
+remindEv:SetScript("OnEvent", function(_, e)
+  if e == "PLAYER_REGEN_DISABLED" then ri:Hide() ra:Hide() rt:Hide() -- (still allowed: the fight starts after this)
+  else C_Timer.After(0.5, function() Eat.Remind() end) end
+end)
+C_Timer.NewTicker(1, function() if DB and not InCombatLockdown() then Eat.Remind() end end)
+table.insert(ns.onLogin, function()
+  local pos = ns.char and ns.char.remindPos
+  if pos then ra:ClearAllPoints() ra:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) end
+  Eat.Remind()
 end)

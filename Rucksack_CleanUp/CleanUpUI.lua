@@ -65,8 +65,8 @@ do
     lbl:SetPoint("TOPLEFT", 4, y - 4)
     lbl:SetWidth(640)
     lbl:SetJustifyH("LEFT")
-    lbl:SetText("Goes by itself: |cff9d9d9dgrey|r items, |cffffffffwhite|r weapons and armour that aren't an upgrade, and soulbound gear you can't use. Everything else only once you delete it yourself.")
-    HoverLabel(p, lbl, "What goes by itself", "Sold at a vendor, or deleted when your bags are nearly full (cheapest stack first):\n\n- grey items\n- white weapons and armour in your bags. Kept when it's an upgrade: the slot is empty, or you wear grey or white there with less armour (weapons: damage per second), and you can wear it.\n- soulbound gear of any quality your class can't use\n\nAlways kept: reagents, trade goods, food and water, potions, bags, shirts and tabards, quest items and what your quests need, items with no vendor price, Darkmoon turn-in items, unread scrolls, and anything you set to Keep.")
+    lbl:SetText("Goes by itself: |cff9d9d9dgrey|r items, |cffffffffwhite|r weapons and armour you can't wear or that are worse than what you wear, and soulbound gear you can't use. Profession tools always stay. Everything else only once you delete it yourself.")
+    HoverLabel(p, lbl, "What goes by itself", "Sold at a vendor, or deleted when your bags are nearly full (cheapest first):\n\n- grey items (grey gear that's better than what you wear stays)\n- white weapons and armour your class can't wear, or that are worse than what you wear in that slot (less armour; weapons: less damage per second). Better gear and gear for an empty slot stay.\n- soulbound gear of any quality your class can't use\n\nAlways kept: profession tools (Skinning Knife, Mining Pick, fishing poles, enchanting rods...), reagents, trade goods, recipes, food and water, potions, bags, shirts and tabards, quest items and what your quests need, items with no vendor price, Darkmoon turn-in items, unread scrolls, and anything you set to Keep.")
     y = y - 34
     local lim = p:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     lim:SetPoint("TOPLEFT", 4, y - 4)
