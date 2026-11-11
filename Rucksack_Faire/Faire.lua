@@ -135,6 +135,13 @@ function RS.FaireKeep(id)
   return id and BY_ITEM[id] and not (ns.db and ns.db.keepItems == false) and true or false
 end
 table.insert(RS.keepers, RS.FaireKeep)
+-- (1.7.4) deleting one by hand warns you
+table.insert(RS.uses, function(id)
+  local list = BY_ITEM[id]
+  if not list then return nil end
+  local t = list[1]
+  return ("Darkmoon Faire: %d give %d ticket%s (%s)"):format(t.n or 1, t.t or 1, (t.t or 1) == 1 and "" or "s", t.npc or "the Faire")
+end)
 
 -- what you could hand in right now: turn-ins, tickets
 function ns.ReadyNow()
@@ -401,7 +408,7 @@ on("PLAYER_LOGIN", function()
   ns.ScanCards()
   for _, fn in ipairs(ns.onLogin) do pcall(fn) end
   local open = ns.FaireStatus()
-  if open and ns.On() and ns.db.loginNote ~= false then Print(ns.FaireLine() .. ".  /faire to open.") end
+  if open and ns.On() and ns.db.loginNote ~= false then Print(ns.FaireLine() .. ".  /ruck to open.") end
 end)
 
 local pending = false
@@ -508,25 +515,4 @@ on("QUEST_TURNED_IN", function(q)
   refresh()
 end)
 
----------------------------------------------------------------------------
--- /faire
----------------------------------------------------------------------------
-SLASH_RUCKSACKFAIRE1 = "/faire"
-SLASH_RUCKSACKFAIRE2 = "/dmf"
-SlashCmdList.RUCKSACKFAIRE = function(msg)
-  local m = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
-  if m == "clear" then if ns.Map then ns.Map.Clear() end return end
-  if m == "track" then
-    ns.db.tracker = ns.db.tracker == false
-    if ns.PaintScreenButton then ns.PaintScreenButton() end
-    ns.Print(ns.db.tracker and "prize tracker on (pick a prize on the Prizes tab)." or "prize tracker off.")
-    return
-  end
-  if m == "button" then
-    ns.db.screenButton = not ns.db.screenButton
-    if ns.UpdateScreenButton then ns.UpdateScreenButton() end
-    ns.Print(ns.db.screenButton and "on-screen button on." or "on-screen button off (/faire button brings it back).")
-    return
-  end
-  if ns.Open then ns.Open(m ~= "" and m or nil) end
-end
+-- (1.7.4) no command of its own: /ruck opens Rucksack, the Faire is in the sidebar

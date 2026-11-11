@@ -227,6 +227,7 @@ function ns.UndoKey()
   if u.key and u.replaced then SetBinding(u.key, u.replaced) end
   SaveBindings(GetCurrentBindingSet())
   lastKeyChange = nil
+  ns.Changed()
   Print("key change undone" .. (u.key and u.replaced and (": |cffffd100" .. GetBindingText(u.key) .. "|r is " .. bindingName(u.replaced) .. " again.") or "."))
 end
 local listenEnd = CreateFrame("Frame")
@@ -268,11 +269,12 @@ local function KeyButton(parent, x, y, label, action, tipText)
     if key then SetBinding(key, action) end
     SaveBindings(GetCurrentBindingSet())
     lastKeyChange = change
+    ns.Changed()
     if key then
       Print(label .. " is now on |cffffd100" .. GetBindingText(key) .. "|r." ..
-        (change.replaced and (" (It was " .. bindingName(change.replaced) .. ": |cffffd100/ruck undokey|r puts it back.)") or ""))
+        (change.replaced and (" (It was " .. bindingName(change.replaced) .. ": the Undo button puts it back.)") or ""))
     else
-      Print(label .. " has no key now. |cffffd100/ruck undokey|r puts it back.")
+      Print(label .. " has no key now. The Undo button puts it back.")
     end
     show()
   end
@@ -316,8 +318,19 @@ local function KeyButton(parent, x, y, label, action, tipText)
     ask(combo)
   end)
   b:SetScript("OnHide", function() stop() end)
-  tip(b, label, (tipText or "") .. "\nClick, press a key, then say Yes. Nothing changes before the Yes.\nRight-click: take the key off (asks first). |cffffd100/ruck undokey|r undoes the last change.")
-  holder.Update = show
+  tip(b, label, (tipText or "") .. "\nClick, press a key, then say Yes. Nothing changes before the Yes.\nRight-click: take the key off (asks first).")
+  -- (1.7.4) Undo: shows after you change this key, puts it back the way it was
+  local undo = CreateFrame("Button", nil, holder, "UIPanelButtonTemplate")
+  undo:SetSize(64, 22)
+  undo:SetPoint("LEFT", b, "RIGHT", 6, 0)
+  undo:SetText("Undo")
+  undo:SetScript("OnClick", function() ns.UndoKey() end)
+  tip(undo, "Undo", "Puts the key back the way it was before your last change (and gives back the key it took from something else).")
+  undo:Hide()
+  holder.Update = function()
+    show()
+    undo:SetShown(lastKeyChange ~= nil and lastKeyChange.action == action)
+  end
   return holder
 end
 
@@ -534,53 +547,87 @@ do
   y = y - 34
   p:Add(KeyButton(p, 0, y, "Open Rucksack", "AUTODELETE_TOGGLE", "A key that opens and closes this window."))
   y = y - 44
-  -- (1.7.3) modules: tick the parts you want, then Apply (bottom right) does it all at once.
-  -- Unticked = not loaded at all (after a reload).
+  -- (1.7.4) modules as cards: click a card to tick it, then Apply (bottom right) does it all at once.
+  -- Always this character's own choice. Unticked = not loaded at all (after a reload).
   local pend = {}        -- key -> wanted, not applied yet
-  local pendOwn          -- "Just for this character", not applied yet (true / false / nil = unchanged)
-  local function ownNow() if pendOwn ~= nil then return pendOwn end return ns.char.ownModules and true or false end
   local function wantedNow(key)
     if pend[key] ~= nil then return pend[key] end
-    if pendOwn ~= nil and pendOwn ~= (ns.char.ownModules and true or false) then
-      -- (switching between account and character choices: show what those would be)
-      local list = pendOwn and ns.char.modules or ns.db.modules
-      if list and list[key] ~= nil then return list[key] end
-      if pendOwn and ns.db.modules and ns.db.modules[key] ~= nil then return ns.db.modules[key] end
-      return true
-    end
     return ns.ModuleWanted(key)
   end
-  local function anyPending()
-    if pendOwn ~= nil and pendOwn ~= (ns.char.ownModules and true or false) then return true end
-    for k, v in pairs(pend) do if v ~= ns.ModuleWanted(k) then return true end end
-    return false
-  end
+  local MODINFO = {
+    eat = { icon = "Interface\\Icons\\INV_Misc_Food_15",
+      tip = "One button eats your food and drinks your water, strongest first. Warns you when you're running low, and can keep a buff food going." },
+    del = { icon = "Interface\\Icons\\INV_Misc_Bag_10_Red",
+      tip = "Keeps bag slots free: deletes the junk you picked, one click at a time, and sells grey items at any vendor. Things you mark as keep are never touched." },
+    faire = { icon = (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(19182)) or "Interface\\Icons\\INV_Misc_Coin_01",
+      tip = "Every Darkmoon ticket turn-in, where to farm the parts (one click pins it on your map), Faire dates, Sayge, and a tracker for the prize you're saving for." },
+    scrolls = { icon = "Interface\\Icons\\INV_Scroll_03",
+      tip = "Mages: one click deciphers your next scroll with Comprehend Scroll, only the ones your skill allows. Turned on by itself for mages, off for everyone else." },
+  }
   local mh = Text(p, 0, y, "GameFontNormal")
   mh:SetText("Modules")
-  HoverLabel(p, mh, "Modules", "Rucksack comes with all its parts, but only loads the ones ticked here. An unticked part isn't loaded at all: no memory, no work.\n\nTick or untick what you like, then click Apply (bottom right). Parts you ticked load right away; if you unticked any, it asks once to reload.")
-  Text(p, 100, y - 1, "GameFontDisableSmall", 500):SetText("tick what you want, then Apply (bottom right)  ·  unticked parts aren't loaded at all")
+  HoverLabel(p, mh, "Modules", "Rucksack comes with all its parts, but only loads the ones ticked here. An unticked part isn't loaded at all: no memory, no work. Each character has its own choice.\n\nClick the cards you want on or off, then click Apply (bottom right). Parts you turned on load right away; if you turned any off, it asks once to reload.")
+  Text(p, 100, y - 1, "GameFontDisableSmall", 500):SetText("click a card, then Apply  ·  this character")
   y = y - 22
-  for _, m in ipairs(ns.MODULES) do
-    local cb = p:Add(Check(p, 0, y, m.name .. "  |cff999999" .. m.what .. "|r", nil,
-      function() return wantedNow(m.key) end, function(v) pend[m.key] = v ns.Changed() end))
-    local state = cb:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    state:SetPoint("LEFT", cb, "LEFT", 380, 1)
-    tip(cb, m.name, m.what .. ".\nTicked: loaded. Unticked: not loaded at all. Click Apply to make the change.")
+  local CW, CH = 330, 54
+  for i, m in ipairs(ns.MODULES) do
+    local info = MODINFO[m.key] or {}
+    local c = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
+    c:SetSize(CW, CH)
+    c:SetPoint("TOPLEFT", ((i - 1) % 2) * (CW + 10), y - math.floor((i - 1) / 2) * (CH + 8))
+    c:SetBackdrop(ns.SLOT_BACKDROP)
+    c:SetBackdropBorderColor(0.45, 0.45, 0.45)
+    ns.UI.modCards = ns.UI.modCards or {}
+    ns.UI.modCards[m.key] = c
+    local ic = c:CreateTexture(nil, "ARTWORK")
+    ic:SetSize(36, 36)
+    ic:SetPoint("LEFT", 9, 0)
+    ic:SetTexture(info.icon or ns.ICON)
+    ic:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    local nm = c:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    nm:SetPoint("TOPLEFT", ic, "TOPRIGHT", 10, -2)
+    nm:SetText(m.name)
+    local wh = c:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    wh:SetPoint("BOTTOMLEFT", ic, "BOTTOMRIGHT", 10, 2)
+    wh:SetText(m.what)
+    local box = c:CreateTexture(nil, "ARTWORK")
+    box:SetSize(24, 24)
+    box:SetPoint("TOPRIGHT", -6, -4)
+    box:SetTexture("Interface\\Buttons\\UI-CheckBox-Up")
+    local tick = c:CreateTexture(nil, "OVERLAY")
+    tick:SetAllPoints(box)
+    tick:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+    local state = c:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    state:SetPoint("BOTTOMRIGHT", -10, 8)
+    c:SetScript("OnEnter", function(self)
+      self:SetBackdropBorderColor(1, 0.82, 0)
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:AddLine(m.name)
+      GameTooltip:AddLine(info.tip or m.what, 1, 1, 1, true)
+      GameTooltip:AddLine(wantedNow(m.key) and "Click to turn it off, then Apply." or "Click to turn it on, then Apply.", 0.6, 0.6, 0.6)
+      GameTooltip:Show()
+    end)
+    c:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(0.45, 0.45, 0.45) GameTooltip:Hide() end)
+    c:SetScript("OnClick", function(self)
+      pend[m.key] = not wantedNow(m.key)
+      ns.Changed()
+      if GameTooltip:IsOwned(self) then self:GetScript("OnEnter")(self) end
+    end)
     p.updates[#p.updates + 1] = function()
       local has, want, now = ns.Has(m.key), ns.ModuleWanted(m.key), wantedNow(m.key)
-      if now ~= want or (pendOwn ~= nil and now ~= has) then
-        state:SetText(now and "|cffffd100will load (Apply)|r" or "|cffffd100won't load (Apply)|r")
+      tick:SetShown(now)
+      ic:SetDesaturated(not now)
+      nm:SetTextColor(now and 1 or 0.5, now and 0.82 or 0.5, now and 0 or 0.5)
+      c:SetBackdropColor(now and 0.1 or 0.04, now and 0.09 or 0.04, now and 0.06 or 0.04, 0.92)
+      if now ~= want then
+        state:SetText(now and "|cffffd100loads on Apply|r" or (has and "|cffffd100off after reload|r" or "|cffffd100stays off|r"))
       elseif has and want then state:SetText("|cff66dd66loaded|r")
       elseif has then state:SetText("|cffffd100off after reload|r")
       elseif want then state:SetText("|cffff8080couldn't load|r")
-      else state:SetText("|cff999999not loaded|r") end
+      else state:SetText("|cff999999off|r") end
     end
-    y = y - 24
   end
-  p:Add(Check(p, 0, y, "Just for this character  |cff999999(otherwise the same on all your characters)|r",
-    "Ticked: this character has its own module choices (say, the Faire only on your main). Click Apply to make the change.",
-    function() return ownNow() end, function(v) pendOwn = v and true or false ns.Changed() end, "GameFontHighlightSmall"))
-  y = y - 10
+  y = y - math.ceil(#ns.MODULES / 2) * (CH + 8)
   -- Apply / Cancel, bottom right of the page
   local applyBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
   applyBtn:SetSize(100, 24)
@@ -592,20 +639,13 @@ do
   cancelBtn:SetText("Cancel")
   local pendNote = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
   pendNote:SetPoint("RIGHT", cancelBtn, "LEFT", -10, 0)
-  tip(applyBtn, "Apply", "Makes your module choices happen: ticked parts load now, and if you unticked any, Rucksack asks once to reload.")
-  tip(cancelBtn, "Cancel", "Puts the module ticks back the way they are now.")
-  cancelBtn:SetScript("OnClick", function() wipe(pend) pendOwn = nil ns.Changed() end)
+  tip(applyBtn, "Apply", "Makes your module choices happen: parts you turned on load now, and if you turned any off, Rucksack asks once to reload.")
+  tip(cancelBtn, "Cancel", "Puts the module cards back the way they are now.")
+  cancelBtn:SetScript("OnClick", function() wipe(pend) ns.Changed() end)
   applyBtn:SetScript("OnClick", function()
-    -- the final choice for every module, then switch to "this character" or not
-    local final = {}
-    for _, m in ipairs(ns.MODULES) do final[m.key] = wantedNow(m.key) end
-    if pendOwn ~= nil then
-      ns.char.ownModules = pendOwn or nil
-      if pendOwn then ns.char.modules = ns.char.modules or {} end
-    end
     local loadedNow, offNames, failed = {}, {}, {}
     for _, m in ipairs(ns.MODULES) do
-      local v = final[m.key]
+      local v = wantedNow(m.key)
       ns.SetModuleWanted(m.key, v)
       if v and not ns.Has(m.key) then
         if InCombatLockdown() then failed[#failed + 1] = m.name .. " (after this fight)"
@@ -615,7 +655,7 @@ do
         offNames[#offNames + 1] = m.name
       end
     end
-    wipe(pend) pendOwn = nil
+    wipe(pend)
     if #loadedNow > 0 then Print(table.concat(loadedNow, ", ") .. (#loadedNow == 1 and " is" or " are") .. " loaded.") end
     for _, f in ipairs(failed) do Print("couldn't load " .. f .. ".") end
     if #offNames > 0 then
@@ -626,15 +666,16 @@ do
     ns.Changed()
   end)
   p.updates[#p.updates + 1] = function()
-    local any = anyPending()
-    applyBtn:SetEnabled(any)
-    cancelBtn:SetEnabled(any)
-    pendNote:SetText(any and "Module changes waiting" or "")
+    local n = 0
+    for k, v in pairs(pend) do if v ~= ns.ModuleWanted(k) then n = n + 1 end end
+    applyBtn:SetEnabled(n > 0)
+    cancelBtn:SetEnabled(n > 0)
+    pendNote:SetText(n > 0 and (n .. (n == 1 and " change" or " changes") .. " waiting") or "")
   end
   -- the Pocket
   y = y - 44
   Text(p, 0, y, "GameFontNormal"):SetText("The Pocket")
-  Text(p, 100, y - 1, "GameFontDisableSmall", 500):SetText("a small window that stays on screen  ·  /ruck pocket  ·  right-click the minimap button")
+  Text(p, 100, y - 1, "GameFontDisableSmall", 560):SetText("a small window that stays on screen  ·  right-click the Pocket for these settings")
   y = y - 22
   local O = function() return ns.db.pocket end
   local function apply() if ns.Pocket then ns.Pocket.Apply() end end
@@ -650,23 +691,126 @@ do
     function() return math.floor((O().scale or 1) * 100 + 0.5) end, function(v) O().scale = v / 100 apply() end,
     "How big the Pocket is: 100% is normal. Shift-click - or + to change it faster."))
   y = y - 32
+  -- (1.7.4) how it looks
+  do
+    local lbl = Text(p, 0, y - 3, "GameFontHighlight")
+    lbl:SetText("Style")
+    HoverLabel(p, lbl, "Style", "Rows: one short line each.\nTiles: big numbers in a grid, bag space on top, the prize as a strip.\nStrip: just icons and numbers in one bar, no title.\nLedger: text only, like a character sheet.")
+    local STIPS = { rows = "One short line each, the number on the right.", tiles = "Big numbers in a grid; bag space on top; the prize as its own strip.",
+      strip = "Icons and numbers side by side, no title. Hover for the names.", ledger = "Text only: a label on the left, its value on the right." }
+    local sBtns = {}
+    local sx = 60
+    for i, st in ipairs(ns.Pocket.STYLES) do
+      local b = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
+      b:SetSize(76, 22)
+      b:SetPoint("TOPLEFT", sx, y)
+      sx = sx + 79
+      b:SetBackdrop(ns.SLOT_BACKDROP)
+      b.label = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+      b.label:SetPoint("CENTER")
+      b.label:SetText(st[2])
+      local hl = b:CreateTexture(nil, "HIGHLIGHT")
+      hl:SetPoint("TOPLEFT", 3, -3) hl:SetPoint("BOTTOMRIGHT", -3, 3)
+      hl:SetColorTexture(1, 1, 1, 0.08)
+      b:SetScript("OnClick", function() ns.Pocket.SetStyle(st[1]) end)
+      tip(b, st[2], STIPS[st[1]])
+      sBtns[i] = { b = b, v = st[1] }
+    end
+    -- (1.7.4) Strip: across or down, and how many in each row (or column)
+    local function small(x, text, w)
+      local b = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
+      b:SetSize(w or 60, 22)
+      b:SetPoint("TOPLEFT", x, y)
+      b:SetBackdrop(ns.SLOT_BACKDROP)
+      b.label = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+      b.label:SetPoint("CENTER")
+      b.label:SetText(text)
+      local hl = b:CreateTexture(nil, "HIGHLIGHT")
+      hl:SetPoint("TOPLEFT", 3, -3) hl:SetPoint("BOTTOMRIGHT", -3, 3)
+      hl:SetColorTexture(1, 1, 1, 0.08)
+      return b
+    end
+    local across = small(392, "Across")
+    local down = small(455, "Down")
+    across:SetScript("OnClick", function() O().stripDir = "across" apply() ns.Changed() end)
+    down:SetScript("OnClick", function() O().stripDir = "down" apply() ns.Changed() end)
+    tip(across, "Across", "The icons side by side, in rows.")
+    tip(down, "Down", "The icons one under the other, in columns.")
+    local minus = small(530, "-", 22)
+    local plus = small(586, "+", 22)
+    local per = p:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    per:SetPoint("CENTER", minus, "RIGHT", 17, 0)
+    local perLabel = p:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    perLabel:SetPoint("LEFT", plus, "RIGHT", 6, 0)
+    local function setPer(d)
+      O().stripPer = math.max(1, math.min(7, (O().stripPer or 7) + d))
+      apply() ns.Changed()
+    end
+    minus:SetScript("OnClick", function() setPer(-1) end)
+    plus:SetScript("OnClick", function() setPer(1) end)
+    tip(minus, "Fewer in each row", "Wraps the Strip onto more rows (or columns).")
+    tip(plus, "More in each row", "Up to 7: everything in one row (or column).")
+    local words = small(662, "Words", 56)
+    words:SetScript("OnClick", function() O().stripWords = O().stripWords == false apply() ns.Changed() end)
+    tip(words, "Words", "A small word under each number (free, can go, vendor, prize...). Untick for a smaller Strip.")
+    local stripParts = { across, down, minus, plus, per, perLabel, words }
+    p.updates[#p.updates + 1] = function()
+      local isStrip = (O().style or "rows") == "strip"
+      for _, w in ipairs(stripParts) do w:SetShown(isStrip) end
+      local dir = O().stripDir or "across"
+      for _, e in ipairs({ { across, "across" }, { down, "down" } }) do
+        local on = e[2] == dir
+        e[1]:SetBackdropColor(on and 0.32 or 0.06, on and 0.24 or 0.06, on and 0.02 or 0.06, 0.95)
+        e[1]:SetBackdropBorderColor(on and 1 or 0.3, on and 0.82 or 0.3, on and 0 or 0.3)
+      end
+      for _, b in ipairs({ minus, plus }) do b:SetBackdropColor(0.06, 0.06, 0.06, 0.95) b:SetBackdropBorderColor(0.4, 0.4, 0.4) end
+      per:SetText(O().stripPer or 7)
+      perLabel:SetText(dir == "down" and "per column" or "per row")
+      local w = O().stripWords ~= false
+      words:SetBackdropColor(w and 0.32 or 0.06, w and 0.24 or 0.06, w and 0.02 or 0.06, 0.95)
+      words:SetBackdropBorderColor(w and 1 or 0.3, w and 0.82 or 0.3, w and 0 or 0.3)
+    end
+    p.updates[#p.updates + 1] = function()
+      for _, e in ipairs(sBtns) do
+        local on = e.v == (O().style or "rows")
+        e.b:SetBackdropColor(on and 0.32 or 0.06, on and 0.24 or 0.06, on and 0.02 or 0.06, 0.95)
+        e.b:SetBackdropBorderColor(on and 1 or 0.3, on and 0.82 or 0.3, on and 0 or 0.3)
+      end
+    end
+  end
+  y = y - 32
   local POCKET_TIPS = {
     bags = "Free bag slots out of all you have, with a bar that fills up as your bags do.",
     sell = "What a vendor would pay you right now for what Rucksack sells (hover the line for the list).",
     food = "The food the eat button uses next, and how many you have.",
     water = "The water the eat button uses next, and how many you have.",
-    del = "How many stacks are waiting to be deleted, and which one goes next.",
+    del = "Which item Clean-up deletes next, and how many are waiting.",
     faire = "Your Darkmoon tickets, or the prize you track (37/50). Only while the Faire tool is on.",
     scrolls = "Undeciphered mage scrolls in your bags, and how many you can read now.",
   }
   local linesLabel = Text(p, 0, y, "GameFontHighlight")
   linesLabel:SetText("Lines")
   HoverLabel(p, linesLabel, "Lines", "Which lines the Pocket shows. Untick the ones you don't need.")
-  -- (four to a row, so they stay inside the page)
-  for i, l in ipairs(ns.Pocket.LINES) do
-    local col, row = (i - 1) % 4, math.floor((i - 1) / 4)
-    p:Add(Check(p, 60 + col * 140, y + 5 - row * 24, l.name, POCKET_TIPS[l.key],
-      function() return O().lines[l.key] ~= false end, function(v) O().lines[l.key] = v apply() end, "GameFontHighlightSmall"))
+  -- (four to a row, so they stay inside the page; 1.7.4: only lines of loaded modules, no gaps)
+  local NEEDS = { food = "eat", water = "eat", sell = "del", del = "del", faire = "faire", scrolls = "scrolls" }
+  local lineBoxes = {}
+  for _, l in ipairs(ns.Pocket.LINES) do
+    lineBoxes[#lineBoxes + 1] = { key = l.key, cb = p:Add(Check(p, 60, y + 5, l.name, POCKET_TIPS[l.key],
+      function() return O().lines[l.key] ~= false end, function(v) O().lines[l.key] = v apply() end, "GameFontHighlightSmall")) }
+  end
+  local linesY = y + 5
+  p.updates[#p.updates + 1] = function()
+    local n = 0
+    for _, e in ipairs(lineBoxes) do
+      local on = not NEEDS[e.key] or ns.Has(NEEDS[e.key])
+      e.cb:SetShown(on)
+      if on then
+        local col, row = n % 4, math.floor(n / 4)
+        e.cb:ClearAllPoints()
+        e.cb:SetPoint("TOPLEFT", 60 + col * 140, linesY - row * 24)
+        n = n + 1
+      end
+    end
   end
 end
 
@@ -830,7 +974,7 @@ do
   local notes = Text(p, 0, -420, "GameFontHighlightSmall", 670)
   notes:SetSpacing(4)
   p:Add(Check(p, 0, -500, "Show the Pocket  |cffaaaaaa(a small window with these numbers, always on screen)|r",
-    "Bag space, what a vendor would pay, your next food and water, and what's waiting to be deleted. Drag it where you like; its options are in Settings. Also: /ruck pocket.",
+    "Bag space, what a vendor would pay, your next food and water, and what's waiting to be deleted. Drag it where you like; its options are in Settings. Right-click the minimap button to show or hide it.",
     function() return ns.db.pocket and ns.db.pocket.shown end, function(v) if ns.Pocket then ns.Pocket.SetShown(v) end end))
   p.updates[#p.updates + 1] = function()
     local S = ns.Summary()
@@ -995,22 +1139,26 @@ for i, t in ipairs(TOOLS) do
   r.tool = t
   sideRows[i] = r
 end
+ns.UI.sideRows = sideRows
 local function buildSide()
   local kind = (current or ""):match("^(%a+):")
   local lit = kind == "food" and "eat" or (kind == "del" or kind == "delq") and "del" or current
+  local n = 0
   for _, r in ipairs(sideRows) do
     r.sel:SetShown(r.tool.key == lit)
-    if r.tool.on and not ns.Has(r.tool.key) then
-      -- (1.7) a module that isn't loaded
-      r.tag:SetText("|cff666666not loaded|r")
-      r.icon:SetDesaturated(true)
-      r.text:SetTextColor(0.5, 0.5, 0.5)
-    elseif r.tool.on then
-      -- (1.7.3) whether its button is on your screen; the tool itself is on (it's loaded)
+    -- (1.7.4) a module that isn't loaded isn't in the list at all; the rest close up
+    local shown = not r.tool.on or ns.Has(r.tool.key)
+    r:SetShown(shown)
+    if shown and not r.tool.bottom then
+      n = n + 1
+      r:ClearAllPoints()
+      r:SetPoint("TOPLEFT", 6, -6 - (n - 1) * 36)
+      r:SetPoint("RIGHT", -6, 0)
+    end
+    if shown and r.tool.on then
+      -- (1.7.3) whether its button is on your screen
       local on = r.tool.on()
       r.tag:SetText(on and "|cff66dd66shown|r" or "|cff999999hidden|r")
-      r.icon:SetDesaturated(false)
-      r.text:SetTextColor(1, 0.82, 0)
     end
   end
 end
@@ -1034,7 +1182,7 @@ local function showPage()
   elseif kind == "delq" then
     local n = tonumber(id)
     ns.del.keep[n] = (not ns.del.keep[n]) or nil
-    Print(ns.NameOf(n) .. (ns.del.keep[n] and " will be kept." or " goes again with its quality."))
+    Print(ns.NameOf(n) .. (ns.del.keep[n] and " will be kept." or " can go again by the rules."))
     current = "del"
     p = pages.del
   else

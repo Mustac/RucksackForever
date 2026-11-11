@@ -90,10 +90,11 @@ local function soulbound(bag, slot)
   return false
 end
 
+Sell.Soulbound = soulbound
 -- sold as gear this character can't use: the reason, or nil
 function Sell.CantUse(bag, slot, id, quality)
   if not DB or not DB.sellGear then return nil end
-  if not quality or quality < 1 or quality > 3 then return nil end -- (grey goes anyway; epic never)
+  if not quality or quality < 1 then return nil end -- (grey goes anyway; 1.7.4: any quality, if bound)
   local why = Sell.CantUseType(id)
   if why and soulbound(bag, slot) then return why end
   return nil
@@ -113,7 +114,7 @@ function Sell.Items()
         price = price or 0
         if price > 0 then
           local grey = DB.sellGrey and quality == 0
-          local listed = DB.sellList and ns.Del.OnList(id) and (DB.items[id] or (quality or 0) < 3)
+          local listed = DB.sellList and ns.Del.OnList(id, bag, slot) and (DB.items[id] or (quality or 0) < 3 or ns.Del.ByRule(id, bag, slot))
           local gear = not grey and not listed and Sell.CantUse(bag, slot, id, quality)
           if grey or listed or gear then
             local g = byID[id]
@@ -207,7 +208,18 @@ table.insert(ns.onLoad, function()
   DB = ns.del
   if DB.sellGrey == nil then DB.sellGrey = false end
   if DB.sellGear == nil then DB.sellGear = true end -- (10 Nov) gear this character can't use
-  if ns.char then ns.char.sellArmor = ns.char.sellArmor or {} end
+  if ns.char then
+    ns.char.sellArmor = ns.char.sellArmor or {}
+    -- (1.7.4) once per character: the armour types its class can never wear count as "can't use"
+    -- (only when nothing was picked by hand yet)
+    if not ns.char.sellArmorDefault then
+      if not next(ns.char.sellArmor) then
+        local NEVER = { MAGE = { 2, 3, 4 }, PRIEST = { 2, 3, 4 }, WARLOCK = { 2, 3, 4 }, ROGUE = { 3, 4 }, DRUID = { 3, 4 }, HUNTER = { 4 }, SHAMAN = { 4 } }
+        for _, t in ipairs(NEVER[myClass()] or {}) do ns.char.sellArmor[t] = true end
+      end
+      ns.char.sellArmorDefault = true
+    end
+  end
   -- (10 Nov) selling your Clean-up items is the default: they'd be deleted anyway, a vendor pays
   -- for them, and a sale can be bought back. Switched on once for saves from before this change.
   if not DB.sellListDefault then DB.sellList, DB.sellListDefault = true, true end

@@ -59,40 +59,56 @@ do
     "Shift-click - or + to change it by 5."))
   y = y - 28
   local QCOL = { [0] = "|cff9d9d9d", [1] = "|cffffffff", [2] = "|cff1eff00", [3] = "|cff0070dd", [4] = "|cffa335ee" }
+  -- (1.7.4) what goes by itself (fixed rules), and the delete limit
   do
-    local lbl = p:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    local lbl = p:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     lbl:SetPoint("TOPLEFT", 4, y - 4)
-    lbl:SetText("Also delete everything up to")
-    HoverLabel(p, lbl, "Also delete everything up to", "Besides the items on your list, Clean-up can delete every item of a low quality: grey (junk), white (common) or green (uncommon), and everything below it. Off: only your list.\n\nNever deleted: items you set to Keep (in the list below), and amounts your quests still need. Like your list, they only go when your bags are nearly full.")
-    local qBtns = {}
-    local qx = 200
-    for i, q in ipairs(ns.Del.QUALITIES or {}) do
+    lbl:SetWidth(640)
+    lbl:SetJustifyH("LEFT")
+    lbl:SetText("Goes by itself: |cff9d9d9dgrey|r items, |cffffffffwhite|r weapons and armour that aren't an upgrade, and soulbound gear you can't use. Everything else only once you delete it yourself.")
+    HoverLabel(p, lbl, "What goes by itself", "Sold at a vendor, or deleted when your bags are nearly full (cheapest stack first):\n\n- grey items\n- white weapons and armour in your bags. Kept when it's an upgrade: the slot is empty, or you wear grey or white there with less armour (weapons: damage per second), and you can wear it.\n- soulbound gear of any quality your class can't use\n\nAlways kept: reagents, trade goods, food and water, potions, bags, shirts and tabards, quest items and what your quests need, items with no vendor price, Darkmoon turn-in items, unread scrolls, and anything you set to Keep.")
+    y = y - 34
+    local lim = p:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    lim:SetPoint("TOPLEFT", 4, y - 4)
+    lim:SetText("Don't delete anything worth more than")
+    HoverLabel(p, lim, "Delete limit", "Clean-up never deletes a stack worth more than this at a vendor. When the next one is, it stops and tells you; click the trash button to choose (Delete it, Keep it, Not now). It goes on by itself once you free up a bag slot.\n\nSelling at a vendor isn't limited.")
+    local LIMITS = { { false, "No limit" }, { 1000, "10s" }, { 5000, "50s" }, { 10000, "1g" }, { 50000, "5g" }, { 100000, "10g" } }
+    local lBtns = {}
+    local lx = 270
+    for i, l in ipairs(LIMITS) do
       local b = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
-      b:SetSize(q[1] == nil and 46 or 72, 22)
-      b:SetPoint("TOPLEFT", qx, y)
-      qx = qx + b:GetWidth() + 3
+      b:SetSize(l[1] and 46 or 68, 22)
+      b:SetPoint("TOPLEFT", lx, y)
+      lx = lx + b:GetWidth() + 3
       b:SetBackdrop(ns.SLOT_BACKDROP)
       b.label = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
       b.label:SetPoint("CENTER")
-      b.label:SetText((q[1] and QCOL[q[1]] or "") .. q[2] .. (q[1] and "|r" or ""))
+      b.label:SetText(l[2])
       local hl = b:CreateTexture(nil, "HIGHLIGHT")
       hl:SetPoint("TOPLEFT", 3, -3) hl:SetPoint("BOTTOMRIGHT", -3, 3)
       hl:SetColorTexture(1, 1, 1, 0.08)
-      b:SetScript("OnClick", function() D().upTo = q[1] ns.Del.Refresh() end)
-      tip(b, q[1] == nil and "Off" or ("Up to " .. q[2]), q[1] == nil and "Only the items on your Always delete list."
-        or ("Every " .. (q[1] == 0 and "grey (trash)" or q[1] == 1 and "grey and white" or "grey, white and green")
-          .. " item goes too, like your list: when your bags are nearly full, cheapest stack first.\n\n"
-          .. "Never: items with no vendor price, quest and key items" .. (q[1] >= 1 and ", food and drink, potions, reagents, trade goods and bags" or "")
-          .. ". Click Keep on an item in the list below to keep it."))
-      qBtns[i] = { b = b, v = q[1] }
+      b:SetScript("OnClick", function() D().maxValue = l[1] or nil ns.Del.Refresh() end)
+      tip(b, l[1] and ("Up to " .. l[2]) or "No limit", l[1] and ("A stack worth more than " .. l[2] .. " isn't deleted: Clean-up waits and asks you.") or "Clean-up deletes the cheapest stack, whatever it's worth.")
+      lBtns[i] = { b = b, v = l[1] or nil }
     end
+    local waitFs = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    waitFs:SetPoint("TOPLEFT", 4, y - 30)
+    local choose = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    choose:SetSize(80, 20)
+    choose:SetPoint("LEFT", waitFs, "RIGHT", 8, 0)
+    choose:SetText("Choose")
+    choose:SetScript("OnClick", function() ns.Del.ShowBlocked() end)
     p.updates[#p.updates + 1] = function()
-      for _, e in ipairs(qBtns) do
-        local on = e.v == D().upTo
+      for _, e in ipairs(lBtns) do
+        local on = e.v == D().maxValue
         e.b:SetBackdropColor(on and 0.32 or 0.06, on and 0.24 or 0.06, on and 0.02 or 0.06, 0.95)
         e.b:SetBackdropBorderColor(on and 1 or 0.3, on and 0.82 or 0.3, on and 0 or 0.3)
       end
+      local b = ns.Del.Blocked and ns.Del.Blocked()
+      waitFs:SetText(b and ("Waiting: " .. (b.link or ns.NameOf(b.id)) .. " (" .. ns.Sell.Money(b.value) .. ") is over your limit.") or "")
+      choose:SetShown(b and true or false)
     end
+    y = y - 24
   end
   y = y - 28
   Text(p, 0, y + 2, "GameFontDisableSmall", 560):SetText("To delete the next item with one click, drag the |cffffd100RuckDelete|r macro onto your bars (Esc > Macros > General tab).")
@@ -111,8 +127,11 @@ do
     local id, link = ns.CursorItem()
     if not id then return end
     ClearCursor()
-    ns.Del.Add(id, link)
-    Print((link or ns.NameOf(id)) .. " added: it will always be deleted.")
+    if ns.Del.Add(id, link) then
+      Print((link or ns.NameOf(id)) .. " added: it will always be deleted.")
+    else
+      Print("grey items are already on the list: " .. (link or ns.NameOf(id)) .. " goes by itself.")
+    end
   end
   drop:SetScript("OnReceiveDrag", addFromCursor)
   drop:SetScript("OnClick", addFromCursor)
@@ -121,6 +140,7 @@ do
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:AddLine("Add an item to your list")
     GameTooltip:AddLine("Pick an item up from your bags and drop it here (or click here while holding it). It goes on your list without being deleted now, and is deleted from then on when your bags are nearly full.", 1, 1, 1, true)
+    GameTooltip:AddLine("Grey items don't need it: they're on the list already and go by themselves.", 0.62, 0.62, 0.62, true)
     GameTooltip:Show()
   end)
   drop:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(0.6, 0.6, 0.6) GameTooltip:Hide() end)
@@ -269,7 +289,7 @@ do
     local n = 0
     for id, v in pairs(D().items) do
       local q = ns.QualityOf(id, type(v) == "string" and v or nil)
-      if not (q == 0 and D().upTo ~= nil) then n = n + 1 end
+      if q ~= 0 then n = n + 1 end
     end
     info:SetText(D().enabled and ("%d on your list,  %d deleted so far,  %d free bag slots"):format(n, D().deleted or 0, ns.Del.FreeSlots())
       or "|cff999999Turned off: nothing is deleted or sold.|r")
@@ -309,7 +329,7 @@ do
       local score = fuzzyScore(searchQuery, nm, id)
       -- (10 Nov) trash goes by the quality rule anyway: grey items show under "By rule", and
       -- "My list" is what you put there yourself, white and better
-      local greyRule = q == 0 and D().upTo ~= nil
+      local greyRule = q == 0
       if score and passesFilters(true, false, count, q) then
         local fl = { always = not greyRule, quality = greyRule, count = count }
         local colored = l or ((q and QCOL[q] and (QCOL[q] .. "[" .. nm .. "]|r")) or nm)
@@ -350,7 +370,7 @@ do
             q = q or ns.QualityOf(id, link)
             local kept = D().keep[id]
             local why = ns.Del.Reason(id)
-            if (why and not D().items[id]) or (kept and ((D().upTo and q and q <= D().upTo) or (ns.Eat and ns.Eat.found[id]))) then
+            if (why and not D().items[id]) or (kept and ((q and q <= 1) or (ns.Eat and ns.Eat.found[id]))) then
               seenID[id] = true
               local nm = ns.NameOf(id, link)
               local count = ns.GetCount(id) or 0

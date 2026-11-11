@@ -225,7 +225,7 @@ btn:SetAttribute("useOnKeyDown", true) -- (the keybind and the mouse act on the 
 btn:RegisterForDrag("LeftButton")
 btn:SetAttribute("type", "macro")
 btn:SetAttribute("shift-type1", "none") -- (Shift + click is for moving it: eats nothing)
-btn:SetAttribute("type2", "none") -- (right-click: does nothing; the Pocket's right-click opens Settings)
+btn:SetAttribute("type2", "none") -- (right-click eats nothing: it opens the Rations page, below)
 btn:SetBackdrop(ns.SLOT_BACKDROP)
 btn:SetBackdropColor(0, 0, 0, 0.7)
 btn:SetBackdropBorderColor(0.55, 0.55, 0.55) -- (plain: no green or blue, 9 Nov)
@@ -256,7 +256,7 @@ hl:SetPoint("BOTTOMRIGHT", -3, 3)
 hl:SetColorTexture(1, 1, 1, 0.15)
 btn:Hide()
 btn:HookScript("PostClick", function(_, mouse)
-  if mouse == "RightButton" then return end
+  if mouse == "RightButton" then Rucksack_Open("eat") return end -- (1.7.4)
   Eat.randomFood, Eat.randomDrink = nil, nil -- (Random: something else next time)
 end)
 btn:SetScript("OnDragStart", function(self)
@@ -300,7 +300,8 @@ local function half(name, left, kind)
   b:SetScript("OnDragStart", function() btn:GetScript("OnDragStart")(btn) end)
   b:SetScript("OnDragStop", function() btn:GetScript("OnDragStop")(btn) end)
   b:HookScript("PostClick", function(_, mouse)
-    if mouse ~= "RightButton" then Eat.randomFood, Eat.randomDrink = nil, nil end
+    if mouse == "RightButton" then Rucksack_Open("eat") return end -- (1.7.4)
+    Eat.randomFood, Eat.randomDrink = nil, nil
   end)
   b:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
@@ -308,7 +309,7 @@ local function half(name, left, kind)
     if id and GameTooltip.SetItemByID then GameTooltip:SetItemByID(id)
     else GameTooltip:AddLine(kind == "food" and "No plain food in your bags" or "No plain water in your bags") end
     GameTooltip:AddLine(kind == "food" and "Click: eat (food only)." or "Click: drink (water only).", 0.7, 0.7, 0.7)
-    GameTooltip:AddLine("Shift-drag to move.  Eat button choices: /rations.", 0.7, 0.7, 0.7)
+    GameTooltip:AddLine("Right-click: the Rations page.  Shift-drag to move.", 0.7, 0.7, 0.7)
     GameTooltip:Show()
   end)
   b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -333,7 +334,7 @@ btn:SetScript("OnEnter", function(self)
   line("Next water", self.drinkID)
   local use = DB.use or "both"
   GameTooltip:AddLine(use == "food" and "Click: eat." or use == "drink" and "Click: drink." or "Click: eat and drink.", 0.7, 0.7, 0.7)
-  GameTooltip:AddLine("Shift-drag to move. Eat button choices: /rations.", 0.7, 0.7, 0.7, true)
+  GameTooltip:AddLine("Right-click: the Rations page.  Shift-drag to move.", 0.7, 0.7, 0.7, true)
   GameTooltip:Show()
 end)
 btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -468,6 +469,18 @@ local function hasGlobal(name)
   for i = 1, nAcc or 0 do if GetMacroInfo(i) == name then return true end end
   return false
 end
+Eat.HasMacro = hasGlobal
+-- (1.7.4) the Create macros button: makes the ones that are missing (shared, General tab)
+function Eat.CreateMacros()
+  if InCombatLockdown() then Print("macros can't be made in combat: try again after the fight.") return end
+  local missing = 0
+  for _, name in ipairs(MACROS) do if not hasGlobal(name) then missing = missing + 1 end end
+  if missing == 0 then Print("all three macros are already there (/macro, General tab).") return end
+  DB.macro = true
+  wipe(lastBodies)
+  Eat.Update(true)
+  ns.Changed()
+end
 -- texts = { both, food only, water only }; first = the item the EatDrink macro shows;
 -- ids = { food, water } for the other two
 function Eat.UpdateMacros(texts, first, ids, loud, noCreate)
@@ -508,7 +521,7 @@ function Eat.Update(loud)
     foodBtn:SetAttribute("type", nil)
     drinkBtn:SetAttribute("type", nil)
     btn:Hide()
-    local off = "/run print(\"Rucksack: Rations is turned off (/rations)\")"
+    local off = "/run print(\"Rucksack: Rations is turned off (/ruck, Settings)\")"
     if DB.macro ~= false then Eat.UpdateMacros({ off, off, off }, nil, nil, false, true) end
     Eat.Pick()
     ns.Changed()
@@ -607,31 +620,12 @@ C_Timer.NewTicker(1, function()
   if Eat.WantFood() ~= Eat.wantF or Eat.WantDrink() ~= Eat.wantD then Eat.Update(false) end
 end)
 
--- /ed why: what the button sees right now
-local function why()
-  local h, hm = UnitHealth("player"), UnitHealthMax("player")
-  local p, pm = UnitPower("player", 0), UnitPowerMax("player", 0)
-  local function show(v) if issecret(v) then return "|cffff6060hidden|r" end return tostring(v) end
-  Print(("health %s / %s, mana %s / %s"):format(show(h), show(hm), show(p), show(pm)))
-  Print("one click uses: " .. (DB.use == "food" and "food only" or DB.use == "drink" and "water only" or "food and water"))
-  Print(("eats now: %s, drinks now: %s"):format(Eat.WantFood() and "yes" or "no", Eat.WantDrink() and "yes" or "no"))
-  local m = btn:GetAttribute("macrotext")
-  Print("the button does: " .. ((m and m ~= "") and m:gsub("\n", "  |  ") or "nothing"))
-end
-
--- /rations (/eatdrink): Rucksack on the Rations page; /rations icon: hide or show the button
-SLASH_RUCKSACKEAT1 = "/rations"
-SLASH_RUCKSACKEAT2 = "/eatdrink"
-SlashCmdList.RUCKSACKEAT = function(msg)
-  if (msg or ""):lower() == "why" then why() return end
-  if (msg or ""):lower() == "icon" then
-    if InCombatLockdown() then Print("after the fight, please.") return end
-    Eat.SetShown(DB.showIcon == false)
-    Print(DB.showIcon and "eat button shown. Shift-drag to move it." or "eat button hidden. /rations icon to show it.")
-    return
-  end
-  Rucksack_Open("eat")
-end
+-- (1.7.4) deleting your next food or water by hand warns you
+table.insert(ns.uses, function(id)
+  if id == Eat.food then return "Rations: your next food" end
+  if id == Eat.drink then return "Rations: your next water" end
+end)
+-- (1.7.4) no command of its own: /ruck opens Rucksack, Rations is in the sidebar
 
 ---------------------------------------------------------------------------
 -- (10 Nov) The eating alert: while you eat buff food (and aren't Well Fed yet), big text in the

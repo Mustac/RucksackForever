@@ -1,3 +1,25 @@
+# Rucksack 1.7.4
+
+### New
+- **Pocket styles:** pick Rows, Tiles, Strip or Ledger in Settings. Strip can go across or down, with how many in each row or column, and a word under each number. Right-click the Pocket for its settings (no more buttons on it).
+- **Delete limit:** Clean-up never deletes anything worth more than your limit (1g to start). It stops, tells you, and lets you choose: Delete it, Keep it or Not now. It goes on by itself once you free a bag slot.
+- **Warning before deleting something useful:** when you delete an item by hand that a quest needs, a Darkmoon turn-in, an unread scroll, your next food or water, a profession tool, or anything rare or better, it tells you what it's for and asks once more.
+- **Create macros** on the Rations page: makes any missing EatDrink, Eat or Drink macro, and you can drag them straight onto your bars from there.
+- Right-click the eat button or the scroll button: opens its page.
+
+### Changed
+- **What Clean-up throws out by itself:** grey items; white weapons and armour your class can't wear or that are worse than what you wear; and soulbound gear of any quality your class can't use. The "delete everything up to" quality choice is gone.
+- **Profession tools** (Skinning Knife, Mining Pick, fishing poles, enchanting rods...) are never deleted or sold.
+- **The trash button** shows your free slots against your setting, the first item to go and what it's worth. It's red only when it really deletes on your next key press. Hover it for everything that can go. Clicking it, or the RuckDelete macro, throws the first one away now; the macro shows that item too.
+- Grey items can't be added to the list by hand: they're on it already.
+- **Settings > Modules** are cards now. Module choices are per character, and Scrolls turns itself on for mages and off for everyone else.
+- Modules that aren't loaded no longer show in the sidebar or in the Pocket's line choices.
+- Only `/ruck` and `/rucksack` now; everything else is in the window.
+- The Clean-up on/off switch on the Pocket is gone: turn Clean-up off in Settings > Modules.
+
+### Fixed
+- The Pocket's prize line updates as soon as you pick a prize (it needed a reload).
+
 # Rucksack 1.7.3
 
 ### Changed

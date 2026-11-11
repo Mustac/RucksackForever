@@ -160,6 +160,11 @@ function S.Summary()
   return total, readable, list[1] and list[1].ok and list[1] or nil, list
 end
 
+-- (1.7.4) deleting one by hand warns you
+table.insert(ns.uses, function(id)
+  local name = ns.GetInfo(id) or (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id))
+  if S.IsUndeciphered(name) then return "Scrolls: an unread scroll (Comprehend Scroll)" end
+end)
 -- Clean-up keeps undeciphered scrolls (they're worth almost nothing, so they'd go first)
 table.insert(ns.keepers, function(id)
   if DB and DB.keep == false then return false end
@@ -193,6 +198,8 @@ local hl = btn:CreateTexture(nil, "HIGHLIGHT")
 hl:SetAllPoints(btn.icon)
 hl:SetColorTexture(1, 1, 1, 0.15)
 btn:SetAttribute("type", "macro")
+btn:SetAttribute("type2", "none") -- (1.7.4: right-click reads nothing; it opens the Scrolls page)
+btn:HookScript("PostClick", function(_, mouse) if mouse == "RightButton" then Rucksack_Open("scrolls") end end)
 btn:SetScript("OnDragStart", function(self) if IsShiftKeyDown() and not InCombatLockdown() then self:StartMoving() end end)
 btn:SetScript("OnDragStop", function(self)
   self:StopMovingOrSizing()
@@ -214,7 +221,7 @@ btn:SetScript("OnEnter", function(self)
     GameTooltip:AddLine("No undeciphered scrolls in your bags.", 0.7, 0.7, 0.7)
   end
   if InCombatLockdown() then GameTooltip:AddLine("Not in combat: a failed read turns you into a sheep.", 1, 0.5, 0.5, true) end
-  GameTooltip:AddLine("Shift-drag: move.", 0.6, 0.6, 0.6)
+  GameTooltip:AddLine("Right-click: the Scrolls page.  Shift-drag: move.", 0.6, 0.6, 0.6)
   GameTooltip:Show()
 end)
 btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -300,7 +307,4 @@ table.insert(ns.onLogin, function()
   S.Update()
 end)
 
--- /scrolls: the Scrolls page
-SLASH_RUCKSACKSCROLLS1 = "/scrolls"
-SLASH_RUCKSACKSCROLLS2 = "/decipher"
-SlashCmdList.RUCKSACKSCROLLS = function() Rucksack_Open("scrolls") end
+-- (1.7.4) no command of its own: /ruck opens Rucksack, Scrolls is in the sidebar

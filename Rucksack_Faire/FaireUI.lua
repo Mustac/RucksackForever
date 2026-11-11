@@ -461,6 +461,7 @@ for i, p in ipairs(D.PRIZES) do
     ns.char.goalReached = nil
     ns.Refresh()
     if ns.PaintScreenButton then ns.PaintScreenButton() end
+    RS.Changed() -- (1.7.4) the Pocket and Home show the new prize right away
   end)
   t:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -615,7 +616,7 @@ c6:SetPoint("TOPLEFT", 0, -308)
 local c7 = check(F, "Prize tracker on screen", function() return ns.db.tracker ~= false end, function(v)
   ns.db.tracker = v
   if ns.PaintScreenButton then ns.PaintScreenButton() end
-end, "When you track a prize (Prizes tab), the on-screen button shows its icon, your tickets out of what it costs, and a bar. /faire track turns it on or off.")
+end, "When you track a prize (Prizes tab), the on-screen button shows its icon, your tickets out of what it costs, and a bar.")
 c7:SetPoint("TOPLEFT", 0, -334)
 
 local function drawFaire()

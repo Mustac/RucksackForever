@@ -47,22 +47,34 @@ function ns.Module(key, addon, init)
   end)
 end
 
--- (1.7) which modules to load: ticked in Settings > Modules. Account-wide, or this character's own.
+-- (1.7.4) which modules to load: ticked in Settings > Modules, always per character.
+-- New: everything on, except Scrolls, which is on for mages only.
 function ns.ModuleWanted(key)
-  local c = ns.char
-  if c and c.ownModules and c.modules and c.modules[key] ~= nil then return c.modules[key] end
-  local m = ns.db and ns.db.modules
-  if m and m[key] ~= nil then return m[key] end
-  return true -- (new: everything on)
+  local mods = ns.char and ns.char.modules
+  if mods and mods[key] ~= nil then return mods[key] end
+  if key == "scrolls" then
+    local _, class = UnitClass("player")
+    return class == "MAGE"
+  end
+  return true
 end
 function ns.SetModuleWanted(key, on)
-  if ns.char and ns.char.ownModules then
-    ns.char.modules = ns.char.modules or {}
-    ns.char.modules[key] = on and true or false
-  else
-    ns.db.modules = ns.db.modules or {}
-    ns.db.modules[key] = on and true or false
+  ns.char.modules = ns.char.modules or {}
+  ns.char.modules[key] = on and true or false
+end
+-- (1.7.4) once per character: take over the old choices (this character's own, or the account's),
+-- and decide Scrolls by class
+local function moduleChoicesOnce()
+  local c = ns.char
+  if c.modulesPerChar then return end
+  local src = (c.ownModules and c.modules) or (ns.db and ns.db.modules) or {}
+  local mods = {}
+  for _, m in ipairs(ns.MODULES) do
+    if m.key ~= "scrolls" and src[m.key] ~= nil then mods[m.key] = src[m.key] and true or false end
   end
+  local _, class = UnitClass("player")
+  if class then mods.scrolls = (class == "MAGE") end
+  c.modules, c.ownModules, c.modulesPerChar = mods, nil, true
 end
 -- load a module now; returns true, or false and why ("DISABLED" = unticked in the game's AddOns list)
 local loadAddOn = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
@@ -173,6 +185,22 @@ function ns.KeepItem(id)
   return false
 end
 
+-- (1.7.4) what an item is used for, in words, so deleting it by hand warns you first. Each module
+-- adds a function(id, link) to ns.uses that returns a line (or nil); a module that isn't loaded
+-- adds nothing.
+ns.uses = {}
+function ns.UsedFor(id, link)
+  local out = {}
+  if not id then return out end
+  for _, fn in ipairs(ns.uses) do
+    local ok, line = pcall(fn, id, link)
+    if ok and type(line) == "string" then out[#out + 1] = line end
+  end
+  local q = select(3, ns.GetInfo(link or id))
+  if q and q >= 3 then out[#out + 1] = "a rare or better item" end
+  return out
+end
+
 function ns.CursorItem()
   local t, id, link = GetCursorInfo()
   if t == "item" and id then return id, link end
@@ -230,6 +258,7 @@ ev:SetScript("OnEvent", function(self, event, arg1)
     -- (the core's own; each module runs its own when it loads, see ns.Module)
     for _, fn in ipairs(ns.onLoad) do fn() end
     self:UnregisterEvent("ADDON_LOADED")
+    moduleChoicesOnce()
     -- (1.7) now load the ticked modules
     for _, m in ipairs(ns.MODULES) do
       if ns.ModuleWanted(m.key) then ns.LoadModule(m) end
@@ -241,25 +270,10 @@ ev:SetScript("OnEvent", function(self, event, arg1)
   end
 end)
 
--- /ruck opens the window; /adel on AutoDelete, /eatdrink on EatDrink
+-- (1.7.4) the only commands: /ruck and /rucksack open and close the window (anything after them is ignored)
 SLASH_RUCKSACK1 = "/ruck"
 SLASH_RUCKSACK2 = "/rucksack"
-SlashCmdList.RUCKSACK = function(msg)
-  local m = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
-  if m == "minimap" then
-    ns.db.minimapHidden = not ns.db.minimapHidden or nil
-    ns.UpdateMinimapButton()
-    return
-  end
-  if m == "undokey" then if ns.UndoKey then ns.UndoKey() end return end
-  if m == "del" or m == "delete" or m == "cleanup" or m == "clean" then Rucksack_Open("del") return end
-  if m == "eat" or m == "drink" or m == "rations" then Rucksack_Open("eat") return end
-  if m == "pocket" then if ns.Pocket then ns.Pocket.Toggle() end return end
-  if m == "settings" then Rucksack_Open("general") return end
-  if m == "faire" or m == "dmf" or m == "darkmoon" then Rucksack_Open("faire") return end
-  if m == "" then Rucksack_Toggle() return end
-  ns.Print("|cffffd100/ruck|r opens the window.  |cffffd100/rations|r, |cffffd100/cleanup|r, |cffffd100/faire|r: those pages.  |cffffd100/ruck pocket|r: the small info window.  |cffffd100/ruck minimap|r: the minimap button.")
-end
+SlashCmdList.RUCKSACK = function() Rucksack_Toggle() end
 
 BINDING_HEADER_RUCKSACK = "Rucksack"
 BINDING_NAME_AUTODELETE_NOW = "Clean-up: delete the next item"

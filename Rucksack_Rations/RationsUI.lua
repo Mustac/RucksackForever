@@ -100,9 +100,62 @@ do
     moveBtn:SetText("Move the alert")
   end
   y = y - 30
-  -- (10 Nov) no key buttons here any more: the macros go on your bars
-  Text(p, 0, y, "GameFontDisableSmall", 560):SetText("On your bars: drag the |cffffd100EatDrink|r, |cffffd100Eat|r or |cffffd100Drink|r macro there (Esc > Macros > General tab).")
-  y = y - 24
+  -- (1.7.4) the macros: drag one onto your bars from here; Create macros makes the missing ones
+  do
+    local DOES = { EatDrink = "Same as the eat button: eats and drinks (or what the Eat button choice says).",
+      Eat = "Eats your best food (food only).", Drink = "Drinks your best water (water only)." }
+    local mIcons = {}
+    for i, name in ipairs(ns.Eat.MACROS) do
+      local b = CreateFrame("Button", nil, p)
+      b:SetSize(24, 24)
+      b:SetPoint("TOPLEFT", (i - 1) * 118, y + 2)
+      b.tex = b:CreateTexture(nil, "ARTWORK")
+      b.tex:SetAllPoints()
+      b.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+      local hl = b:CreateTexture(nil, "HIGHLIGHT")
+      hl:SetAllPoints()
+      hl:SetColorTexture(1, 1, 1, 0.2)
+      b.name = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+      b.name:SetPoint("TOPLEFT", b, "TOPRIGHT", 5, 0)
+      b.name:SetText(name)
+      b.state = b:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+      b.state:SetPoint("BOTTOMLEFT", b, "BOTTOMRIGHT", 5, 0)
+      b:RegisterForDrag("LeftButton")
+      local function pick() if ns.Eat.HasMacro(name) and not InCombatLockdown() then PickupMacro(name) end end
+      b:SetScript("OnDragStart", pick)
+      b:SetScript("OnClick", pick)
+      b:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(name)
+        GameTooltip:AddLine(DOES[name], 1, 1, 1, true)
+        GameTooltip:AddLine(ns.Eat.HasMacro(name) and "Drag it onto an action bar." or "Missing: click Create macros.", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+      end)
+      b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      mIcons[i] = { b = b, name = name }
+    end
+    local create = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    create:SetSize(130, 22)
+    create:SetPoint("TOPLEFT", 360, y + 1)
+    create:SetScript("OnClick", function() ns.Eat.CreateMacros() end)
+    tip(create, "Create macros", "Makes the EatDrink, Eat and Drink macros that are missing (shared by all your characters, /macro General tab). The ones you have are left as they are.")
+    p.updates[#p.updates + 1] = function()
+      local missing = 0
+      for _, e in ipairs(mIcons) do
+        local has = ns.Eat.HasMacro(e.name)
+        if not has then missing = missing + 1 end
+        local icon
+        if has and GetMacroIndexByName then icon = select(2, GetMacroInfo(GetMacroIndexByName(e.name))) end
+        e.b.tex:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+        e.b.tex:SetDesaturated(not has)
+        e.b.state:SetText(has and "|cff66dd66ready|r  |cff888888drag me|r" or "|cff999999missing|r")
+      end
+      local fight = InCombatLockdown()
+      create:SetText(missing == 0 and "All made" or fight and "After combat" or "Create macros")
+      create:SetEnabled(missing > 0 and not fight)
+    end
+  end
+  y = y - 32
   -- (9 Nov) what one click uses: food, water or both, every time. (The "below N% health / mana"
   -- settings are gone: this server hides your current health and mana from addons.)
   -- (10 Nov) and "Separate": food and water as two buttons side by side (the Eat and drink key

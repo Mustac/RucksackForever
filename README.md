@@ -12,7 +12,7 @@ Everything is in one window (`/ruck`), with a small on-screen Pocket that shows 
 
 ## Modules: only load what you use
 
-Rucksack comes with all its parts, but only loads the ones you tick in **Settings > Modules**: Rations, Clean-up, Darkmoon Faire and Scrolls. An unticked part isn't loaded at all, so it uses no memory and does nothing. Tick or untick what you want and press Apply: new ones load right away, and ones you turned off stop after a reload. The "Show button" box on each tool's page only hides or shows that tool's button on screen. Tick "Just for this character" to choose per character.
+Rucksack comes with all its parts, but only loads the ones you turn on in **Settings > Modules**: Rations, Clean-up, Darkmoon Faire and Scrolls. Each is a card: click the ones you want, then **Apply**. New ones load right away; ones you turned off stop after a reload, and then they use no memory and do nothing. Each character has its own choice, and **Scrolls turns itself on for mages only**. The "Show button" box on each tool's page only hides or shows that tool's button on screen.
 
 ## Rations: eat and drink with one click
 
@@ -24,21 +24,21 @@ Rucksack comes with all its parts, but only loads the ones you tick in **Setting
 - Warriors and rogues: delete all water as soon as you get it (set per character).
 - **Buff food:** tick "Eat buff food when the buff is missing" and it's eaten first whenever you're not Well Fed. A big "don't move" alert counts down while you eat, and tells you when you're Well Fed and can move (you can drag it anywhere).
 - Set any food to "Use this first" or "Never use this".
-- Three macros shared by all your characters, kept up to date: **EatDrink**, **Eat** and **Drink**. Drag them onto your bars.
+- Three macros shared by all your characters, kept up to date: **EatDrink**, **Eat** and **Drink**. Drag them onto your bars straight from the Rations page; **Create macros** makes any that are missing.
+- Right-click the eat button: the Rations page.
 
 ## Clean-up: delete or sell what you don't need
 
 **Clean-up is like a little bag helper.** You pick how many free slots you always want to keep, say 4. As soon as you drop below that, it throws out your **cheapest junk first**, the stuff worth the least, until you're back to 4 free slots. No more "Inventory is full" in the middle of a dungeon.
 
-Grey trash goes by itself. Anything else only goes if you told it to: click **Always** when you delete something once, and Clean-up remembers it. Passing a vendor? It **sells** the junk for gold instead. And it never touches what your quests still need: if a quest wants 8 wolf pelts, it keeps 8.
+What goes by itself: **grey items**, **white weapons and armour** your class can't wear or that are worse than what you wear in that slot, and **soulbound gear** of any quality your class can't use. Better gear, gear for an empty slot and **profession tools** (Skinning Knife, Mining Pick, fishing poles, enchanting rods...) always stay. Anything else only goes if you told it to: click **Always** when you delete something once. Passing a vendor? It **sells** the junk for gold instead. And it never touches what your quests still need: if a quest wants 8 wolf pelts, it keeps 8.
 
-- The game's delete box gets an **Always** button: the item goes on your list and is deleted from then on.
-- Grey trash goes by itself. Choose a quality to also delete white or green items.
-- **Keep empty slots:** deletes only when you drop below the free slots you want to keep, the cheapest stack first.
-- **RuckDelete** macro: one click on your bars deletes the next waiting item.
+- **Keep empty slots:** deletes only when you drop below the free slots you want to keep, the cheapest first.
+- **Delete limit:** never deletes anything worth more than your limit (1g to start). It stops, tells you, and lets you choose: Delete it, Keep it or Not now.
+- **The trash button:** shows your free slots against your setting, the first item to go and what it's worth; red when it really deletes on your next key press. Hover it for everything that can go. The **RuckDelete** macro does the same and shows the same item.
+- **Deleting by hand:** the game's delete box gets an **Always** button. If the item is used for something (a quest, a Darkmoon turn-in, an unread scroll, your next food or water, a profession tool, or it's rare or better) it tells you what for and asks once more.
 - Keeps exactly what your current quests still need, never more. Quest starters are kept.
-- **At a vendor:** sells your Clean-up items and grey items for gold instead of deleting them (hold Shift to skip).
-- **Gear you can't use:** soulbound weapons your class can never use (and shields and relics that aren't for your class) are sold at a vendor, never deleted. Tick Cloth, Leather, Mail or Plate to also sell armor types this character never wears.
+- **At a vendor:** sells your Clean-up items and junk for gold instead of deleting them (hold Shift to skip).
 - Search your list, see what's in your bags, and a history of the last 100 items deleted.
 
 ## Darkmoon Faire: tickets, turn-ins and prizes
@@ -57,19 +57,12 @@ Grey trash goes by itself. Anything else only goes if you told it to: click **Al
 ## Home, Pocket and Guide
 
 - **Home:** bag space, your next food and water, what's waiting to go, and what a vendor would pay right now.
-- **Pocket:** a small window that stays on screen with the same numbers, plus a Clean-up on/off switch. Tick which lines it shows: Bags, Vendor, Food, Water, Cheapest item.
+- **Pocket:** a small window that stays on screen with the same numbers and your Darkmoon prize. Four styles: **Rows**, **Tiles**, **Strip** (just icons and numbers, across or down) and **Ledger** (text only). Right-click it for its settings.
 - **Guide:** every feature explained in the game. Hover any option for a short tip.
 
 ## Commands
 
-- `/ruck` or `/rucksack`: open the window
-- `/rations`: the Rations page
-- `/cleanup`: the Clean-up page
-- `/ruck pocket`: show or hide the Pocket
-- `/ruck settings`: settings
-- `/ruck minimap`: show or hide the minimap button
-- `/faire` or `/dmf`: the Darkmoon Faire page
-- `/scrolls` or `/decipher`: the Scrolls page
+- `/ruck` or `/rucksack`: open the window. Everything else is in there.
 
 ## Install
 
