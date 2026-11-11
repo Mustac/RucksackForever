@@ -15,3 +15,4 @@ manual-changelog:
 ignore:
   - README.md
   - CHANGELOG.md
+  - screenshots
