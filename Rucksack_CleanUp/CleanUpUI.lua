@@ -111,8 +111,6 @@ do
     y = y - 24
   end
   y = y - 28
-  Text(p, 0, y + 2, "GameFontDisableSmall", 560):SetText("To delete the next item with one click, drag the |cffffd100RuckDelete|r macro onto your bars (Esc > Macros > General tab).")
-  y = y - 24
   local drop = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
   drop:SetHeight(28)
   drop:SetPoint("TOPLEFT", 0, y)

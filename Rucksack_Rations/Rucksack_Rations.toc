@@ -2,7 +2,7 @@
 ## Title: |cffc8a165Ruck|r|cffffd100sack|r: |cff66dd66Rations|r
 ## Notes: Part of Rucksack: eat and drink with one click (the eat button, food rules, EatDrink macros). Turn it on or off in Rucksack's Settings > Modules.
 ## Author: Marijan
-## Version: 1.7.5
+## Version: 1.7.6
 ## Dependencies: Rucksack
 ## LoadOnDemand: 1
 ## SavedVariables: RucksackEatDB

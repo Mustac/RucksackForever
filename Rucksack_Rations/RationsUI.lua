@@ -90,15 +90,15 @@ do
   y = y - 26
   local rl = Text(p, 20, y - 3, "GameFontHighlightSmall")
   rl:SetText("Remind me when I'm not Well Fed")
-  HoverLabel(p, rl, "Remind me", "When buff food is on and you're not Well Fed (with buff food in your bags, out of a fight):\n|cffffd100Alert|r: big text on screen; untick under it to stop it.\n|cffffd100Text|r: a line under the eat button.\n|cffffd100Icon|r: your buff food next to the eat button; click it to eat.\nRight-click the Text or Icon to stop the reminder. Set per character.")
-  local RM = { { "off", "Off" }, { "alert", "Alert" }, { "text", "Text" }, { "icon", "Icon" } }
+  HoverLabel(p, rl, "Remind me", "When buff food is on and you're not Well Fed (with buff food in your bags, out of a fight):\n|cffffd100Alert|r: big text on screen; untick under it to stop it.\n(\"Buff\" on top of the eat button is |cff66dd66green|r when buff food is on, |cffff6060red|r when it's off.)\nSet per character.")
+  local RM = { { "off", "Off" }, { "alert", "Alert" } }
   local rBtns = {}
   local rx = 230
   for _, o in ipairs(RM) do
     local b = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
     b:SetSize(62, 20)
     b:SetPoint("TOPLEFT", rx, y)
-    rx = rx + 65
+    rx = rx + b:GetWidth() + 3
     b:SetBackdrop(ns.SLOT_BACKDROP)
     b.label = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     b.label:SetPoint("CENTER")

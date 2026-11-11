@@ -1,3 +1,10 @@
+# Rucksack 1.7.6
+
+### Changed
+- **Buff on the eat button:** a small "Buff" strip on top of the eat button, with a tick to switch buff food on or off. Green when it's on, red when it's off. (Replaces the tick in the corner.)
+- **Remind me when I'm not Well Fed:** now Off or Alert. The side icon and the text under the button are gone.
+- The Clean-up page no longer shows the RuckDelete macro hint.
+
 # Rucksack 1.7.5
 
 ### New
