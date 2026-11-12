@@ -2,7 +2,7 @@
 ## Title: |cffc8a165Ruck|r|cffffd100sack|r: |cffff5555Clean-up|r
 ## Notes: Part of Rucksack: delete or sell what you don't need (Always box, keep empty slots, vendor selling, RuckDelete). Turn it on or off in Rucksack's Settings > Modules.
 ## Author: Marijan
-## Version: 1.8.0
+## Version: 1.8.1
 ## Dependencies: Rucksack
 ## LoadOnDemand: 1
 ## SavedVariables: RucksackDeleteDB

@@ -1,3 +1,8 @@
+# Rucksack 1.8.1
+
+### Fixed
+- **A cooking recipe was taken for food.** Its tooltip shows the dish it teaches ("Restores ... health ... while eating"), so the eat button and the EatDrink macro could pick the recipe (and use it, learning it), Clean-up could throw an old one away as "food below your level", and Bags put it under Food and water. Now only real food and water count; recipes stay recipes.
+
 # Rucksack 1.8.0
 
 ### New

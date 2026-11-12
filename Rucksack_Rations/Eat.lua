@@ -60,6 +60,13 @@ local function readItem(bag, slot)
 end
 
 local function minLevelOf(id) return select(5, ns.GetInfo(id)) end
+-- food and water are Consumables (class 0); recipes (9) and everything else are not
+local function isConsumable(id)
+  local f = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+  local classID = f and select(6, f(id))
+  if classID == nil then classID = select(12, ns.GetInfo(id)) end
+  return classID == nil or classID == 0
+end
 
 -- (10 Nov) food and water come in level tiers (the level the game asks for to eat it)
 local TIERS = { 1, 5, 15, 25, 35, 45, 55, 65, 75 }
@@ -141,7 +148,9 @@ function Eat.Pick()
   for bag = 0, ns.NUM_BAGS + 1 do
     for slot = 1, (ns.GetNumSlots(bag) or 0) do
       local id, _, link = ns.SlotInfo(bag, slot)
-      if id and not found[id] then
+      -- (only Consumables: a cooking recipe's tooltip shows the dish it teaches, "Restores ... health
+      -- ... while eating", but it isn't food)
+      if id and not found[id] and isConsumable(id) then
         local health, mana, conjured, buff = readItem(bag, slot)
         if health then
           local minLevel = minLevelOf(id)
