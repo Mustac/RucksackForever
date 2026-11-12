@@ -563,25 +563,115 @@ do
       tip = "Every Darkmoon ticket turn-in, where to farm the parts (one click pins it on your map), Faire dates, Sayge, and a tracker for the prize you're saving for." },
     scrolls = { icon = "Interface\\Icons\\INV_Scroll_03",
       tip = "Mages: one click deciphers your next scroll with Comprehend Scroll, only the ones your skill allows. Turned on by itself for mages, off for everyone else." },
+    bags = { icon = "Interface\\Icons\\INV_Misc_Bag_08",
+      tip = "One bag window instead of the game's bags: items in groups (weapons, armour, food, your own groups...), a Junk group, your bank and your other characters. Pick an item up and drop it on a group to put it there. Opens on B. Off to start: turn it off again if you use another bag addon." },
   }
   local mh = Text(p, 0, y, "GameFontNormal")
   mh:SetText("Modules")
-  HoverLabel(p, mh, "Modules", "Rucksack comes with all its parts, but only loads the ones ticked here. An unticked part isn't loaded at all: no memory, no work. Each character has its own choice.\n\nClick the cards you want on or off, then click Apply (bottom right). Parts you turned on load right away; if you turned any off, it asks once to reload.")
-  Text(p, 100, y - 1, "GameFontDisableSmall", 500):SetText("click a card, then Apply  ·  this character")
+  HoverLabel(p, mh, "Modules", "Rucksack comes with all its parts, but only loads the ones you pick here. A part that's off isn't loaded at all: no memory, no work. Each character has its own choice.\n\nClean-up is a choice of three: off, Clean-up only, or Clean-up + Bags (Rucksack's bag window with your junk in it). The cards below are on or off.\n\nThen click Apply (bottom right). Parts you turned on load right away; if you turned any off, it asks once to reload (the game can't unload a part while it runs).")
+  Text(p, 100, y - 1, "GameFontDisableSmall", 500):SetText("pick what you want, then Apply  ·  this character")
   y = y - 22
-  local CW, CH = 330, 54
-  for i, m in ipairs(ns.MODULES) do
+  -- (1.8) Clean-up: one choice of three. Off, Clean-up only, or Clean-up + Bags (Rucksack's bag window
+  -- with your junk in it); both use the same junk list and settings. (Under the hood: two modules.)
+  -- 10px padding all round, 8px between the buttons; the long text is in each button's tooltip.
+  do
+    local c = CreateFrame("Frame", nil, p, ns.BACKDROP_TMPL)
+    c:SetSize(670, 56)
+    c:SetPoint("TOPLEFT", 0, y)
+    c:SetBackdrop(ns.SLOT_BACKDROP)
+    c:SetBackdropBorderColor(0.45, 0.45, 0.45)
+    local ic = c:CreateTexture(nil, "ARTWORK")
+    ic:SetSize(30, 30)
+    ic:SetPoint("LEFT", 10, 0)
+    ic:SetTexture("Interface\\Icons\\INV_Misc_Bag_10_Red")
+    ic:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    local nm = c:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    nm:SetPoint("TOPLEFT", ic, "TOPRIGHT", 10, -2)
+    nm:SetText("Clean-up")
+    local state = c:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    state:SetPoint("BOTTOMLEFT", ic, "BOTTOMRIGHT", 10, 2)
+    state:SetWidth(110)
+    state:SetJustifyH("LEFT")
+    state:SetWordWrap(false)
+    local function choiceNow()
+      if wantedNow("bags") then return "bags" end
+      return wantedNow("del") and "clean" or "off"
+    end
+    local OPTS = {
+      { "off", "Off", "your items are left alone",
+        "Neither Clean-up nor the bag window is loaded. Your junk list and settings are kept for when you turn it on again." },
+      { "clean", "Clean-up only", "sells junk · the game's bags",
+        "Keeps bag slots free: sells junk at vendors and throws the cheapest away when your bags fill up. Your bags stay the game's own, or another bag addon's." },
+      { "bags", "Clean-up + Bags", "with one bag window",
+        "Clean-up, plus one bag window instead of the game's bags (opens on B): items in groups, your bags on top, and a Junk group: drop an item on it to make it junk.\n\nSame junk list and settings as Clean-up only, so switching loses nothing." },
+    }
+    local X0, BW, BG = 178, 155, 8
+    local btns = {}
+    for i, o in ipairs(OPTS) do
+      local b = CreateFrame("Button", nil, c, ns.BACKDROP_TMPL)
+      b:SetSize(BW, 36)
+      b:SetPoint("LEFT", X0 + (i - 1) * (BW + BG), 0)
+      b:SetBackdrop(ns.SLOT_BACKDROP)
+      b.title = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+      b.title:SetPoint("TOPLEFT", 8, -6)
+      b.title:SetText(o[2])
+      b.sub = b:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+      b.sub:SetPoint("BOTTOMLEFT", 8, 6)
+      b.sub:SetWidth(BW - 16)
+      b.sub:SetJustifyH("LEFT")
+      b.sub:SetWordWrap(false)
+      b.sub:SetText(o[3])
+      local hl = b:CreateTexture(nil, "HIGHLIGHT")
+      hl:SetPoint("TOPLEFT", 3, -3) hl:SetPoint("BOTTOMRIGHT", -3, 3)
+      hl:SetColorTexture(1, 1, 1, 0.07)
+      b:SetScript("OnClick", function()
+        pend.del = o[1] ~= "off"
+        pend.bags = o[1] == "bags"
+        ns.Changed()
+      end)
+      tip(b, o[2], o[4])
+      btns[#btns + 1] = { b = b, v = o[1] }
+      ns.UI.itemChoice = ns.UI.itemChoice or {}
+      ns.UI.itemChoice[o[1]] = b
+    end
+    p.updates[#p.updates + 1] = function()
+      local now = choiceNow()
+      for _, e in ipairs(btns) do
+        local on = e.v == now
+        e.b:SetBackdropColor(on and 0.32 or 0.05, on and 0.24 or 0.05, on and 0.02 or 0.05, 0.95)
+        e.b:SetBackdropBorderColor(on and 1 or 0.3, on and 0.82 or 0.3, on and 0 or 0.3)
+        e.b.title:SetTextColor(on and 1 or 0.9, on and 0.82 or 0.9, on and 0 or 0.9)
+      end
+      ic:SetDesaturated(now == "off")
+      nm:SetTextColor(now ~= "off" and 1 or 0.5, now ~= "off" and 0.82 or 0.5, now ~= "off" and 0 or 0.5)
+      c:SetBackdropColor(now ~= "off" and 0.1 or 0.04, now ~= "off" and 0.09 or 0.04, now ~= "off" and 0.06 or 0.04, 0.92)
+      local hasD, hasB = ns.Has("del"), ns.Has("bags")
+      local live = hasB and "bags" or hasD and "clean" or "off"
+      if now == live then
+        state:SetText(live == "off" and "|cff999999off|r" or "|cff66dd66loaded|r")
+      elseif (hasB and now ~= "bags") or (hasD and now == "off") then
+        state:SetText("|cffffd100after a reload|r")
+      else
+        state:SetText("|cffffd100loads on Apply|r")
+      end
+    end
+    y = y - 62
+  end
+  local CW, CH = 330, 44
+  local CARDS = {}
+  for _, m in ipairs(ns.MODULES) do if m.key ~= "del" and m.key ~= "bags" then CARDS[#CARDS + 1] = m end end
+  for i, m in ipairs(CARDS) do
     local info = MODINFO[m.key] or {}
     local c = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
     c:SetSize(CW, CH)
-    c:SetPoint("TOPLEFT", ((i - 1) % 2) * (CW + 10), y - math.floor((i - 1) / 2) * (CH + 8))
+    c:SetPoint("TOPLEFT", ((i - 1) % 2) * (CW + 10), y - math.floor((i - 1) / 2) * (CH + 6))
     c:SetBackdrop(ns.SLOT_BACKDROP)
     c:SetBackdropBorderColor(0.45, 0.45, 0.45)
     ns.UI.modCards = ns.UI.modCards or {}
     ns.UI.modCards[m.key] = c
     local ic = c:CreateTexture(nil, "ARTWORK")
-    ic:SetSize(36, 36)
-    ic:SetPoint("LEFT", 9, 0)
+    ic:SetSize(30, 30)
+    ic:SetPoint("LEFT", 8, 0)
     ic:SetTexture(info.icon or ns.ICON)
     ic:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     local nm = c:CreateFontString(nil, "ARTWORK", "GameFontNormal")
@@ -627,7 +717,7 @@ do
       else state:SetText("|cff999999off|r") end
     end
   end
-  y = y - math.ceil(#ns.MODULES / 2) * (CH + 8)
+  y = y - math.ceil(#CARDS / 2) * (CH + 6)
   -- Apply / Cancel, bottom right of the page
   local applyBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
   applyBtn:SetSize(100, 24)
@@ -666,14 +756,19 @@ do
     ns.Changed()
   end)
   p.updates[#p.updates + 1] = function()
-    local n = 0
-    for k, v in pairs(pend) do if v ~= ns.ModuleWanted(k) then n = n + 1 end end
+    local n, items = 0, false
+    for k, v in pairs(pend) do
+      if v ~= ns.ModuleWanted(k) then
+        if k == "del" or k == "bags" then items = true else n = n + 1 end
+      end
+    end
+    if items then n = n + 1 end -- (Clean-up and Bags are one choice)
     applyBtn:SetEnabled(n > 0)
     cancelBtn:SetEnabled(n > 0)
     pendNote:SetText(n > 0 and (n .. (n == 1 and " change" or " changes") .. " waiting") or "")
   end
   -- the Pocket
-  y = y - 44
+  y = y - 20
   Text(p, 0, y, "GameFontNormal"):SetText("The Pocket")
   Text(p, 100, y - 1, "GameFontDisableSmall", 560):SetText("a small window that stays on screen  ·  right-click the Pocket for these settings")
   y = y - 22
@@ -1135,14 +1230,39 @@ for i, t in ipairs(TOOLS) do
   r.text:SetText(t.name)
   r.tag = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   r.tag:SetPoint("RIGHT", -6, 0)
-  r:SetScript("OnClick", function() Rucksack_Open(t.key) end)
+  -- (1.8) Clean-up opens on the tab you had last (Clean-up or Bags)
+  r:SetScript("OnClick", function() Rucksack_Open(t.key == "del" and "clean" or t.key) end)
   r.tool = t
   sideRows[i] = r
 end
 ns.UI.sideRows = sideRows
+
+-- (1.8) with Clean-up + Bags, the Clean-up page has two tabs on top: Clean-up | Bags
+local cleanTabs, CLEAN_TABS = {}, { { "del", "Clean-up" }, { "bags", "Bags" } }
+for i, t in ipairs(CLEAN_TABS) do
+  local b = CreateFrame("Button", nil, right)
+  b:SetSize(100, 22)
+  b:SetPoint("TOPLEFT", 12 + (i - 1) * 104, -12)
+  b.bg = b:CreateTexture(nil, "BACKGROUND")
+  b.bg:SetAllPoints()
+  b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  b.text:SetPoint("CENTER")
+  b.text:SetText(t[2])
+  local hl = b:CreateTexture(nil, "HIGHLIGHT")
+  hl:SetAllPoints()
+  hl:SetColorTexture(1, 1, 1, 0.08)
+  b:SetScript("OnClick", function() Rucksack_Open(t[1]) end)
+  b:Hide()
+  cleanTabs[t[1]] = b
+end
+ns.UI.cleanTabs = cleanTabs
+local function lastCleanTab()
+  local db = ns.Bags and ns.Bags.db
+  return ns.Has("bags") and db and db.lastTab == "bags" and "bags" or "del"
+end
 local function buildSide()
   local kind = (current or ""):match("^(%a+):")
-  local lit = kind == "food" and "eat" or (kind == "del" or kind == "delq") and "del" or current
+  local lit = kind == "food" and "eat" or (kind == "del" or kind == "delq" or current == "bags") and "del" or current
   local n = 0
   for _, r in ipairs(sideRows) do
     r.sel:SetShown(r.tool.key == lit)
@@ -1184,6 +1304,25 @@ local function showPage()
   else
     p = pages[current] or pages.home
   end
+  -- the Clean-up | Bags tabs (only with Clean-up + Bags loaded)
+  local tabbed = ns.Has("bags") and ns.Has("del") and (p == pages.del or p == pages.bags)
+  for k, b in pairs(cleanTabs) do
+    local on = (k == "del" and p == pages.del) or (k == "bags" and p == pages.bags)
+    b:SetShown(tabbed and true or false)
+    b.bg:SetColorTexture(on and 0.42 or 0.16, on and 0.3 or 0.13, on and 0.55 or 0.2, 1)
+    b.text:SetTextColor(on and 1 or 0.75, on and 0.82 or 0.75, on and 0 or 0.75)
+  end
+  if tabbed then
+    local db = ns.Bags and ns.Bags.db
+    if db then db.lastTab = p == pages.bags and "bags" or "del" end
+  end
+  for _, pg in ipairs({ pages.del, pages.bags }) do
+    if pg then
+      pg:ClearAllPoints()
+      pg:SetPoint("TOPLEFT", 12, tabbed and -42 or -12)
+      pg:SetPoint("BOTTOMRIGHT", -12, 12)
+    end
+  end
   for _, fn in ipairs(p.updates) do fn() end
   p:Show()
 end
@@ -1196,6 +1335,9 @@ end
 table.insert(ns.listeners, refresh)
 
 function Rucksack_Open(key, section)
+  if key == "clean" then key = lastCleanTab() end
+  -- (the Bags page lives under Clean-up: without the bag window loaded it's the Clean-up page)
+  if key == "bags" and not ns.Has("bags") then key = "del" end
   current = key or current or "home"
   if current == "guide" and pages.guide then pages.guide.jumpTo = section end
   if not f:IsShown() then

@@ -1,3 +1,19 @@
+# Rucksack 1.8.0
+
+### New
+- **Bags module:** one bag window instead of the game's bags (B, the bag buttons, vendors, mail, the auction house, trades). Turn it on in Settings > Modules: on the **Clean-up** card, pick **Clean-up + Bags**.
+- **Groups:** Weapons, Armour, Food and water, Potions, Trade goods, Quest, Everything else and Junk, each on its own row (or **Packed** side by side). Drag a group by its name: it lifts, the others slide out of the way, and it settles where you let go.
+- **Put an item in a group:** pick it up, and every group gets a green **+** at its end (Junk a red one). Drop it there and all its stacks go in that group from now on.
+- **Your own groups:** the green + in the bags row makes one (or drop an item on it). Right-click a group's name to rename it, change its colour or delete it.
+- **One bag:** no groups, everything sorted by kind, quality or name, with Junk as a fixed group at the bottom.
+- **The bags row:** hover Rucksack in the bag's corner and click the arrow. It slides open with your four bags and the reagent bag (free slots, swap a bag by dropping one on it), Hidden, New group, Delete group and a **padlock** that locks the layout.
+- **Hidden:** the eye opens a small bag next to yours. Pull items into it (tools, your Hearthstone...) and the bag stops showing them. It suggests the profession tools you carry.
+- **Your bank and your other characters:** open in their own window, faded, as they were when last seen. At a banker your bank opens by itself, live. Item tooltips say where else you have an item: "Also: Bank 12 · Zyxon 5".
+- New items, every empty slot, BoE and "open" tags, Tidy, merged or separate stacks, search.
+
+### Changed
+- Settings > Modules: the **Clean-up** card is a choice of three: Off, Clean-up only, or Clean-up + Bags. With Bags on, the Clean-up page has **Clean-up | Bags** tabs.
+
 # Rucksack 1.7.7
 
 ### Changed

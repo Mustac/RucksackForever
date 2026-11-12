@@ -476,6 +476,17 @@ function Del.Add(id, link)
   Refresh()
   return true
 end
+-- (1.8) keep it: off your list, and the rules leave it alone too
+function Del.Keep(id)
+  DB.keep[id] = true
+  DB.items[id], DB.now[id] = nil, nil
+  Refresh()
+end
+-- 1 = junk (your list or the rules), nil = not junk
+function Del.JunkKind(id, bag, slot)
+  if not DB or ns.KeepItem(id) then return nil end
+  return onList(id, bag, slot) and 1 or nil
+end
 function Del.Remove(id)
   DB.items[id], DB.now[id] = nil, nil
   Refresh()
@@ -866,6 +877,7 @@ table.insert(ns.onLoad, function()
   DB.items = DB.items or {}
   DB.now = DB.now or {}
   DB.keep = DB.keep or {}
+  DB.once = nil -- (1.8 test builds had "junk once"; gone again)
   DB.meta = DB.meta or {}
   for id, v in pairs(DB.items) do
     RecordMeta(id, type(v) == "string" and v or nil, 0, false)
