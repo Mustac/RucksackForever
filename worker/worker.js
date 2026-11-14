@@ -10,6 +10,8 @@ const REPO = "Mustac/rucksack-feedback";
 const ORIGIN = "https://mustac.github.io";
 const PER_HOUR = 5;           // reports one address may send in an hour
 const WRONG_PER_HOUR = 10;    // wrong passphrases one address may try in an hour
+const PER_DAY = 40;           // reports from everyone together in 24 hours: a flood stops here
+const MAX_LINKS = 3;          // web addresses allowed in one report
 const sent = new Map(), wrong = new Map(); // (kept while this worker instance lives: a brake, not a wall)
 
 function reply(body, status, origin) {
@@ -82,9 +84,20 @@ export default {
     const what = clean(data.what, 4000), report = clean(data.report, 8000), name = clean(data.name, 60);
     const kind = data.kind === "idea" ? "idea" : "bug";
     if (what.length < 10) return reply({ error: "Write a few words about what happened first." }, 400, origin);
+    // (filled in and sent within a few seconds of opening the page: a script, not a person)
+    if (!(Number(data.spent) >= 4000)) return reply({ ok: true }, 200, origin);
+    if (((what + " " + report).match(/https?:\/\//gi) || []).length > MAX_LINKS) return reply({ error: "Too many links. Take some out and send it again." }, 400, origin);
     const times = recent(sent, ip);
     if (times.length >= PER_HOUR) return reply({ error: "That's a lot of reports in one hour. Try again later." }, 429, origin);
     times.push(Date.now());
+    // (what came in over the last 24 hours, read from the repository itself, so it holds however the worker restarts)
+    const since = new Date(Date.now() - 86400000).toISOString();
+    const seen = await github(env, "/issues?state=all&per_page=100&sort=created&direction=desc&since=" + encodeURIComponent(since));
+    if (seen.ok) {
+      const day = (await seen.json()).filter((i) => !i.pull_request && i.created_at >= since);
+      if (day.some((i) => (i.body || "").indexOf(what) >= 0)) return reply({ ok: true }, 200, origin); // (the same text again: once is enough)
+      if (day.length >= PER_DAY) return reply({ error: "A lot of reports came in today. Try again tomorrow." }, 429, origin);
+    }
     const title = "[" + kind + "] " + what.split("\n")[0].slice(0, 80);
     const body = "**What happened**\n\n" + what + "\n\n**Report from the game**\n\n```\n" + (report || "(none)").replace(/```/g, "'''") + "\n```\n\n" +
       "Sent from the website" + (name ? " by " + name.replace(/[@#\[\]<>]/g, "") : "") + ".";
