@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rucksack Forever: bags, food and junk taken care of</title>
+<meta name="description" content="A World of Warcraft Forever addon: one bag window, one-click eating, junk sold or cleared, and restocking at vendors.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+<a class="brand" href="./"><span>Ruck</span><span>sack</span></a>
+<nav><a href="./" class="on">Home</a><a href="report.html">Report a bug</a><a href="feedback.html">Feedback</a></nav>
+</div></header>
+<main class="wrap">
+<h1>Tired of full bags and digging for food?</h1>
+<p class="lead">Rucksack takes care of the chores every adventurer repeats all day. Made for World of Warcraft Forever.</p>
+<div class="row"><a class="btn" id="dl" href="https://www.curseforge.com/wow/addons/rucksack-forever">Get it on CurseForge</a><a class="btn quiet" href="https://github.com/Mustac/RucksackForever/releases/latest">Download the zip</a></div>
+<h2>What it does</h2>
+<div class="grid">
+<div class="card"><h3>Bags</h3><p>One bag window with your items in groups, your own groups too, a Hidden bag, and your bank and other characters a click away.</p></div>
+<div class="card"><h3>Restock</h3><p>Say how much water, food or arrows to carry. A vendor that sells it tops you up, and it never spends below the gold you keep.</p></div>
+<div class="card"><h3>Clean-up</h3><p>Keeps a few bag slots free. Junk is sold at the next vendor or the cheapest goes first; quest items stay.</p></div>
+<div class="card"><h3>Rations</h3><p>Picks the right food and water and eats and drinks with one click.</p></div>
+<div class="card"><h3>Darkmoon Faire</h3><p>Your tickets, where to get every turn-in item, and the prize you are saving for.</p></div>
+<div class="card"><h3>Scrolls</h3><p>Mages decipher their scrolls with one click.</p></div>
+</div>
+<p>Every part is a module: tick the ones you want in Settings, and the rest are not loaded at all. Open Rucksack with <code>/ruck</code>.</p>
+<h2>How it looks</h2>
+<div class="shots">
+<img src="https://raw.githubusercontent.com/Mustac/RucksackForever/main/screenshots/1-home.jpg" alt="Rucksack's Home page: bag space, next meal and what is waiting to go" loading="lazy">
+<img src="https://raw.githubusercontent.com/Mustac/RucksackForever/main/screenshots/2-cleanup.jpg" alt="The Clean-up page with its list of items" loading="lazy">
+<img src="https://raw.githubusercontent.com/Mustac/RucksackForever/main/screenshots/6-rations-buff.jpg" alt="The Rations button with food and water" loading="lazy">
+<img src="https://raw.githubusercontent.com/Mustac/RucksackForever/main/screenshots/5-pocket.jpg" alt="The Pocket: a small window that stays on screen" loading="lazy">
+</div>
+<h2>What's new</h2>
+<p id="news" class="hint">Loading the latest release notes.</p>
+<h2>Found a bug, or have an idea?</h2>
+<p>Anyone can send a report, no account needed. In the game, the <b>Report a bug</b> button at the top of Rucksack gives you a ready-made report to paste.</p>
+<div class="row"><a class="btn" href="report.html">Report a bug</a><a class="btn quiet" href="feedback.html">See what others reported</a></div>
+<script src="config.js"></script>
+<script>
+fetch("https://api.github.com/repos/" + RUCKSACK.repo + "/releases/latest").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+  var el = document.getElementById("news");
+  if (!d) { el.textContent = "See the changelog on GitHub."; return; }
+  el.textContent = "";
+  var h = document.createElement("div"); h.className = "item";
+  var t = document.createElement("h3"); t.textContent = d.name || d.tag_name; h.appendChild(t);
+  var m = document.createElement("div"); m.className = "meta"; m.textContent = new Date(d.published_at).toLocaleDateString(); h.appendChild(m);
+  var p = document.createElement("pre"); p.textContent = (d.body || "").slice(0, 3000); h.appendChild(p);
+  el.appendChild(h);
+}).catch(function () { document.getElementById("news").textContent = "See the changelog on GitHub."; });
+</script>
+</main>
+<footer><div class="wrap">Rucksack Forever is a free addon for World of Warcraft Forever, made by Marijan. <a href="https://github.com/Mustac/RucksackForever">Source on GitHub</a></div></footer>
+</body></html>

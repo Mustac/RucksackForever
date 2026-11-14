@@ -17,3 +17,5 @@ ignore:
   - README.md
   - CHANGELOG.md
   - screenshots
+  - docs
+  - worker

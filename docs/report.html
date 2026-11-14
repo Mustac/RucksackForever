@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report a bug: Rucksack Forever</title>
+<meta name="description" content="Send a bug report or an idea for Rucksack. No account needed.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+<a class="brand" href="./"><span>Ruck</span><span>sack</span></a>
+<nav><a href="./">Home</a><a href="report.html" class="on">Report a bug</a><a href="feedback.html">Feedback</a></nav>
+</div></header>
+<main class="wrap">
+<h1>Report a bug or send an idea</h1>
+<p class="lead">No account needed. Reports are public: everyone can read them on the Feedback page, so leave out anything private.</p>
+<div id="setup" class="note bad" hidden>The report form isn't switched on yet. Until it is, you can <a id="gh" href="#">report on GitHub</a> (needs a GitHub account).</div>
+<form id="form" novalidate>
+<label for="what">What happened?</label>
+<p class="hint">What you did, what you expected, and what you got instead.</p>
+<textarea id="what" maxlength="4000" required></textarea>
+<label for="report">Report from the game</label>
+<p class="hint">In the game: open Rucksack, click Report a bug, click in the lower box, press Ctrl+C, and paste it here. A copied Lua error is welcome too.</p>
+<textarea id="report" class="mono" maxlength="8000" placeholder="Rucksack 1.8.2, game 1.60.1 (70938), interface 16001"></textarea>
+<label for="name">Your name</label>
+<p class="hint">Optional. A character name is fine.</p>
+<input type="text" id="name" maxlength="60">
+<div class="hp" aria-hidden="true"><label for="website">Leave this empty</label><input type="text" id="website" tabindex="-1" autocomplete="off"></div>
+<div id="msg" class="note" hidden role="status"></div>
+<div class="row"><button class="btn" id="send" type="submit">Send report</button></div>
+</form>
+<script src="config.js"></script>
+<script>
+(function () {
+  var form = document.getElementById("form"), msg = document.getElementById("msg"), send = document.getElementById("send");
+  function say(text, kind) { msg.hidden = false; msg.className = "note " + (kind || ""); msg.textContent = text; }
+  if (!RUCKSACK.relay) {
+    document.getElementById("setup").hidden = false;
+    document.getElementById("gh").href = "https://github.com/" + RUCKSACK.repo + "/issues/new";
+    send.disabled = true;
+  }
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (!RUCKSACK.relay) return;
+    var what = document.getElementById("what").value.trim();
+    if (what.length < 10) { say("Write a few words about what happened first.", "bad"); document.getElementById("what").focus(); return; }
+    send.disabled = true; say("Sending.");
+    fetch(RUCKSACK.relay, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+      what: what, report: document.getElementById("report").value, name: document.getElementById("name").value, website: document.getElementById("website").value }) })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (r) {
+        if (r.ok) { form.reset(); say("Thanks, your report is in. It shows on the Feedback page in a minute.", "good"); }
+        else { say(r.d && r.d.error ? r.d.error : "That didn't go through. Try again in a moment.", "bad"); }
+        send.disabled = false;
+      })
+      .catch(function () { say("Couldn't reach the report service. Check your connection and try again.", "bad"); send.disabled = false; });
+  });
+})();
+</script>
+</main>
+<footer><div class="wrap">Rucksack Forever is a free addon for World of Warcraft Forever, made by Marijan. <a href="https://github.com/Mustac/RucksackForever">Source on GitHub</a></div></footer>
+</body></html>

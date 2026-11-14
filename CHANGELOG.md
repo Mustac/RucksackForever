@@ -1,3 +1,9 @@
+# Rucksack 1.8.3
+
+### New
+- **Website and Report a bug:** two buttons at the top of the Rucksack window. Each gives you a link to copy (the game doesn't let addons open a browser). Report a bug also gives a ready-made report to paste: your Rucksack and game version, the modules that are on, and the last thing the game blocked.
+- **Rucksack has a website:** what it does, what's new, a report form anyone can use without an account, and a page with everyone's feedback. https://mustac.github.io/RucksackForever/
+
 # Rucksack 1.8.2
 
 ### New

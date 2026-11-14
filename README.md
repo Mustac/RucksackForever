@@ -90,6 +90,10 @@ Get it from [CurseForge](https://www.curseforge.com/wow/addons/rucksack-forever)
 
 Works alongside bag addons like Bagnon and Baganator (leave the Bags module off; Bags is its own bag).
 
+## Website and feedback
+
+[mustac.github.io/RucksackForever](https://mustac.github.io/RucksackForever/) has what Rucksack does, what's new, and a [report form](https://mustac.github.io/RucksackForever/report.html) anyone can use, no account needed. In the game, **Report a bug** at the top of the Rucksack window gives you a ready-made report to paste there. Everyone's reports are on the [Feedback page](https://mustac.github.io/RucksackForever/feedback.html).
+
 ## Support
 
 Enjoying Rucksack Forever? You can [buy me a coffee](https://buymeacoffee.com/zyxon) ☕
