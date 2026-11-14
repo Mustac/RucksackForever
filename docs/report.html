@@ -10,18 +10,18 @@
 <body>
 <header class="top"><div class="wrap">
 <a class="brand" href="./"><span>Ruck</span><span>sack</span></a>
-<nav><a href="./">Home</a><a href="report.html" class="on">Report a bug</a><a href="https://github.com/Mustac/RucksackForever/blob/main/CHANGELOG.md">What's new</a></nav>
+<nav><a href="./">Home</a><a href="report.html" class="on">Report a bug</a><a href="report.html#idea">Share an idea</a><a href="https://github.com/Mustac/RucksackForever/blob/main/CHANGELOG.md">What's new</a></nav>
 </div></header>
 <main class="wrap">
-<h1>Report a bug or send an idea</h1>
+<h1 id="h">Report a bug</h1>
 <p class="lead">No account needed. Only the developer reads your report.</p>
 <div id="setup" class="note bad" hidden>The report form isn't switched on yet. It will be soon. Until then you can <a id="gh" href="#">report on GitHub</a> (needs a GitHub account, and what you write there is public).</div>
 <form id="form" novalidate>
 <fieldset style="border:0;padding:0;margin:18px 0 0"><legend style="font-weight:600;padding:0;margin-bottom:6px">What is it?</legend>
 <label style="display:inline-flex;gap:8px;align-items:center;margin:0 18px 0 0;font-weight:400"><input type="radio" name="kind" id="kind-bug" value="bug" checked>A bug</label>
 <label style="display:inline-flex;gap:8px;align-items:center;margin:0;font-weight:400"><input type="radio" name="kind" id="kind-idea" value="idea">An idea</label></fieldset>
-<label for="what">What happened?</label>
-<p class="hint">What you did, what you expected, and what you got instead.</p>
+<label for="what" id="whatl">What happened?</label>
+<p class="hint" id="whath">What you did, what you expected, and what you got instead.</p>
 <textarea id="what" maxlength="4000" required></textarea>
 <label for="report">Report from the game</label>
 <p class="hint">In the game: open Rucksack, click Report a bug, click in the lower box, press Ctrl+C, and paste it here. A copied Lua error is welcome too.</p>
@@ -38,6 +38,18 @@
 (function () {
   var form = document.getElementById("form"), msg = document.getElementById("msg"), send = document.getElementById("send");
   function say(text, kind) { msg.hidden = false; msg.className = "note " + (kind || ""); msg.textContent = text; }
+  function mode() {
+    var idea = document.getElementById("kind-idea").checked;
+    document.getElementById("h").textContent = idea ? "Share an idea" : "Report a bug";
+    document.getElementById("whatl").textContent = idea ? "What's your idea?" : "What happened?";
+    document.getElementById("whath").textContent = idea ? "What you'd like Rucksack to do, and when it would help you." : "What you did, what you expected, and what you got instead.";
+    send.textContent = idea ? "Send idea" : "Send report";
+  }
+  function fromHash() { if (location.hash === "#idea") document.getElementById("kind-idea").checked = true; mode(); }
+  document.getElementById("kind-bug").addEventListener("change", mode);
+  document.getElementById("kind-idea").addEventListener("change", mode);
+  window.addEventListener("hashchange", fromHash);
+  fromHash();
   if (!RUCKSACK.relay) {
     document.getElementById("setup").hidden = false;
     document.getElementById("gh").href = "https://github.com/" + RUCKSACK.repo + "/issues/new";
@@ -47,13 +59,13 @@
     e.preventDefault();
     if (!RUCKSACK.relay) return;
     var what = document.getElementById("what").value.trim();
-    if (what.length < 10) { say("Write a few words about what happened first.", "bad"); document.getElementById("what").focus(); return; }
+    if (what.length < 10) { say("Write a few words first.", "bad"); document.getElementById("what").focus(); return; }
     send.disabled = true; say("Sending.");
     fetch(RUCKSACK.relay, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
       what: what, kind: document.getElementById("kind-idea").checked ? "idea" : "bug", report: document.getElementById("report").value, name: document.getElementById("name").value, website: document.getElementById("website").value }) })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (r) {
-        if (r.ok) { form.reset(); say("Thanks, your report is in.", "good"); }
+        if (r.ok) { form.reset(); mode(); say("Thanks, it's in. Only the developer reads it.", "good"); }
         else { say(r.d && r.d.error ? r.d.error : "That didn't go through. Try again in a moment.", "bad"); }
         send.disabled = false;
       })
