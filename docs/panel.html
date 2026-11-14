@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Rucksack reports</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0}
+.seg{display:inline-flex;border:1px solid var(--edge);border-radius:6px;overflow:hidden}
+.seg button{background:transparent;border:0;border-right:1px solid var(--edge);color:var(--text);padding:9px 12px;font:14px inherit;cursor:pointer}
+.seg button:last-child{border-right:0}.seg button[aria-pressed=true]{background:#3a2c0a;color:var(--gold)}
+select,input[type=search]{background:#0b0a08;border:1px solid var(--edge);border-radius:6px;color:var(--text);font:14px inherit;padding:9px 10px}
+input[type=search]{flex:1 1 180px;min-width:0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:16px 0}
+.stat{background:var(--panel);border:1px solid var(--edge);border-radius:8px;padding:10px 12px}.stat b{display:block;font-size:24px;color:var(--gold);line-height:1.2}.stat span{font-size:13px;color:var(--dim)}
+.tag.bug{color:var(--red);border-color:var(--red)}.tag.idea{color:#8fc7ff;border-color:#8fc7ff}.tag.new{color:#12100d;background:var(--gold);border-color:var(--gold)}
+.item .acts{display:flex;gap:8px;margin-top:10px}.item .acts button{font-size:14px;padding:8px 12px}
+.item.done{opacity:.72}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+<a class="brand" href="./"><span>Ruck</span><span>sack</span></a>
+<nav><a href="./">Home</a><a href="report.html">Report a bug</a></nav>
+</div></header>
+<main class="wrap">
+<h1>Reports</h1>
+<section id="gate">
+<p class="lead">This page is for the developer. Enter the passphrase to read the reports.</p>
+<form id="keyform"><label for="key">Passphrase</label><input type="password" id="key" autocomplete="current-password" style="width:100%;background:#0b0a08;border:1px solid var(--edge);border-radius:6px;color:var(--text);font:15px inherit;padding:10px 12px">
+<div class="row"><button class="btn" type="submit">Open</button></div></form>
+<div id="gatemsg" class="note bad" hidden role="status"></div>
+</section>
+<section id="panel" hidden>
+<div class="stats"><div class="stat"><b id="n-open">0</b><span>open</span></div><div class="stat"><b id="n-new">0</b><span>new since last visit</span></div><div class="stat"><b id="n-bug">0</b><span>bugs</span></div><div class="stat"><b id="n-idea">0</b><span>ideas</span></div><div class="stat"><b id="n-all">0</b><span>in total</span></div></div>
+<div class="bar">
+<div class="seg" role="group" aria-label="Status"><button type="button" data-k="state" data-v="open" aria-pressed="true">Open</button><button type="button" data-k="state" data-v="closed" aria-pressed="false">Fixed</button><button type="button" data-k="state" data-v="all" aria-pressed="false">All</button></div>
+<div class="seg" role="group" aria-label="Kind"><button type="button" data-k="kind" data-v="all" aria-pressed="true">Both</button><button type="button" data-k="kind" data-v="bug" aria-pressed="false">Bugs</button><button type="button" data-k="kind" data-v="idea" aria-pressed="false">Ideas</button></div>
+<label class="hp" for="ver">Version</label><select id="ver"><option value="">Any version</option></select>
+<label class="hp" for="mod">Module</label><select id="mod"><option value="">Any module</option></select>
+<label class="hp" for="sort">Order</label><select id="sort"><option value="new">Newest first</option><option value="old">Oldest first</option></select>
+<label class="hp" for="q">Search</label><input type="search" id="q" placeholder="Search the reports">
+</div>
+<div class="row" style="margin-top:0"><button class="btn quiet" type="button" id="reload">Reload</button><button class="btn quiet" type="button" id="lock">Lock this device</button><span id="shown" class="hint" style="margin:0"></span></div>
+<div id="msg" class="note bad" hidden role="status"></div>
+<div id="list"></div>
+</section>
+</main>
+<footer><div class="wrap">Only you can read these. The passphrase is kept on this device until you lock it.</div></footer>
+<script src="config.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var KEY = "rucksack-panel-key", SEEN = "rucksack-panel-seen";
+  var all = [], f = { state: "open", kind: "all" }, key = "", lastSeen = 0;
+  function store(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function say(node, text) { node.hidden = !text; node.textContent = text || ""; }
+  function parse(i) {
+    var m = /^\[(bug|idea)\]\s*/.exec(i.title);
+    i.kind = m ? m[1] : "bug"; i.name = m ? i.title.slice(m[0].length) : i.title;
+    var v = /Rucksack\s+(\d+\.\d+(?:\.\d+)?)/.exec(i.body); i.version = v ? v[1] : "";
+    var mo = /Modules on:\s*([^\n]*)/.exec(i.body); i.modules = mo ? mo[1].split(",").map(function (s) { return s.trim(); }).filter(Boolean) : [];
+    i.time = new Date(i.created_at).getTime(); i.fresh = i.time > lastSeen;
+    return i;
+  }
+  function call(path, opts) {
+    opts = opts || {}; opts.headers = Object.assign({ "X-Key": key }, opts.headers || {});
+    return fetch(RUCKSACK.relay.replace(/\/$/, "") + path, opts).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); });
+  }
+  function fill(sel, values, first) {
+    var keep = sel.value; sel.textContent = ""; sel.appendChild(new Option(first, ""));
+    values.forEach(function (v) { sel.appendChild(new Option(v, v)); }); sel.value = values.indexOf(keep) >= 0 ? keep : "";
+  }
+  function draw() {
+    var q = $("q").value.trim().toLowerCase(), ver = $("ver").value, mod = $("mod").value;
+    var rows = all.filter(function (i) {
+      if (f.state !== "all" && i.state !== f.state) return false;
+      if (f.kind !== "all" && i.kind !== f.kind) return false;
+      if (ver && i.version !== ver) return false;
+      if (mod && i.modules.indexOf(mod) < 0) return false;
+      if (q && (i.title + "\n" + i.body).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    rows.sort(function (a, b) { return $("sort").value === "old" ? a.time - b.time : b.time - a.time; });
+    $("n-open").textContent = all.filter(function (i) { return i.state === "open"; }).length;
+    $("n-new").textContent = all.filter(function (i) { return i.fresh; }).length;
+    $("n-bug").textContent = all.filter(function (i) { return i.kind === "bug"; }).length;
+    $("n-idea").textContent = all.filter(function (i) { return i.kind === "idea"; }).length;
+    $("n-all").textContent = all.length;
+    $("shown").textContent = rows.length + " shown";
+    var list = $("list"); list.textContent = "";
+    if (!rows.length) { list.appendChild(el("p", "hint", all.length ? "Nothing matches these filters." : "No reports yet.")); return; }
+    rows.forEach(function (i) {
+      var c = el("div", "item" + (i.state === "closed" ? " done" : ""));
+      c.appendChild(el("h3", "", i.name));
+      var m = el("div", "meta");
+      if (i.fresh) m.appendChild(el("span", "tag new", "New"));
+      m.appendChild(el("span", "tag " + i.kind, i.kind === "idea" ? "Idea" : "Bug"));
+      m.appendChild(el("span", "tag " + (i.state === "open" ? "open" : "done"), i.state === "open" ? "Open" : "Fixed"));
+      if (i.version) m.appendChild(el("span", "tag", "v" + i.version));
+      m.appendChild(el("span", "", new Date(i.created_at).toLocaleString()));
+      m.appendChild(el("span", "", "#" + i.number));
+      c.appendChild(m);
+      c.appendChild(el("pre", "", i.body.slice(0, 8000)));
+      var acts = el("div", "acts"), b = el("button", "btn quiet", i.state === "open" ? "Mark as fixed" : "Open again");
+      b.type = "button";
+      b.addEventListener("click", function () {
+        b.disabled = true;
+        call("/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ number: i.number, state: i.state === "open" ? "closed" : "open" }) })
+          .then(function (r) { if (r.ok) { i.state = i.state === "open" ? "closed" : "open"; say($("msg"), ""); draw(); } else { say($("msg"), r.d.error || "That didn't work."); b.disabled = false; } })
+          .catch(function () { say($("msg"), "Couldn't reach the report service."); b.disabled = false; });
+      });
+      acts.appendChild(b); c.appendChild(acts); list.appendChild(c);
+    });
+  }
+  function open() {
+    say($("gatemsg"), ""); 
+    return call("/list").then(function (r) {
+      if (!r.ok) { store(KEY, null); $("panel").hidden = true; $("gate").hidden = false; say($("gatemsg"), r.d.error || "That didn't work."); return; }
+      store(KEY, key);
+      lastSeen = parseInt(load(SEEN) || "0", 10) || 0;
+      all = r.d.reports.map(parse);
+      var vers = {}, mods = {};
+      all.forEach(function (i) { if (i.version) vers[i.version] = 1; i.modules.forEach(function (m) { mods[m] = 1; }); });
+      fill($("ver"), Object.keys(vers).sort().reverse(), "Any version"); fill($("mod"), Object.keys(mods).sort(), "Any module");
+      $("gate").hidden = true; $("panel").hidden = false; draw();
+      store(SEEN, String(Date.now()));
+    }).catch(function () { say($("gatemsg"), "Couldn't reach the report service. Check your connection."); });
+  }
+  if (!RUCKSACK.relay) { say($("gatemsg"), "The report service isn't set up yet."); }
+  $("keyform").addEventListener("submit", function (e) { e.preventDefault(); key = $("key").value; if (!key) { say($("gatemsg"), "Enter the passphrase first."); return; } open(); });
+  document.querySelectorAll(".seg button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      f[b.getAttribute("data-k")] = b.getAttribute("data-v");
+      b.parentNode.querySelectorAll("button").forEach(function (o) { o.setAttribute("aria-pressed", o === b ? "true" : "false"); });
+      draw();
+    });
+  });
+  ["ver", "mod", "sort"].forEach(function (id) { $(id).addEventListener("change", draw); });
+  $("q").addEventListener("input", draw);
+  $("reload").addEventListener("click", open);
+  $("lock").addEventListener("click", function () { store(KEY, null); key = ""; all = []; $("key").value = ""; $("panel").hidden = true; $("gate").hidden = false; });
+  key = load(KEY) || "";
+  if (key && RUCKSACK.relay) open();
+})();
+</script>
+</body>
+</html>

@@ -17,6 +17,9 @@
 <p class="lead">No account needed. Only the developer reads your report.</p>
 <div id="setup" class="note bad" hidden>The report form isn't switched on yet. It will be soon. Until then you can <a id="gh" href="#">report on GitHub</a> (needs a GitHub account, and what you write there is public).</div>
 <form id="form" novalidate>
+<fieldset style="border:0;padding:0;margin:18px 0 0"><legend style="font-weight:600;padding:0;margin-bottom:6px">What is it?</legend>
+<label style="display:inline-flex;gap:8px;align-items:center;margin:0 18px 0 0;font-weight:400"><input type="radio" name="kind" id="kind-bug" value="bug" checked>A bug</label>
+<label style="display:inline-flex;gap:8px;align-items:center;margin:0;font-weight:400"><input type="radio" name="kind" id="kind-idea" value="idea">An idea</label></fieldset>
 <label for="what">What happened?</label>
 <p class="hint">What you did, what you expected, and what you got instead.</p>
 <textarea id="what" maxlength="4000" required></textarea>
@@ -47,7 +50,7 @@
     if (what.length < 10) { say("Write a few words about what happened first.", "bad"); document.getElementById("what").focus(); return; }
     send.disabled = true; say("Sending.");
     fetch(RUCKSACK.relay, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-      what: what, report: document.getElementById("report").value, name: document.getElementById("name").value, website: document.getElementById("website").value }) })
+      what: what, kind: document.getElementById("kind-idea").checked ? "idea" : "bug", report: document.getElementById("report").value, name: document.getElementById("name").value, website: document.getElementById("website").value }) })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (r) {
         if (r.ok) { form.reset(); say("Thanks, your report is in.", "good"); }

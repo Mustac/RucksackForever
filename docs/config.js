@@ -1,7 +1,7 @@
 // Where the report form sends reports: the address of the relay (see worker/README.md).
-// Empty until reports are stored privately; the form then points people to GitHub instead.
+// Reports are saved where only the developer can read them. Empty = the form is off.
 window.RUCKSACK = {
-  relay: "",
+  relay: "https://rucksack-report.mustac-marijan.workers.dev/",
   repo: "Mustac/RucksackForever",
   curseforge: "https://www.curseforge.com/wow/addons/rucksack-forever"
 };
