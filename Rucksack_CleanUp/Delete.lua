@@ -602,9 +602,9 @@ local function Decide(action, button)
   -- (1.7.4) the second step: "Delete anyway" does what you picked first (Always or Yes)
   if d.warned then
     if action ~= "no" then action = d.warned end
-  elseif action ~= "no" then
+  elseif action == "always" or action == "yes" then
     -- something Rucksack knows is useful (a quest, the Faire, a scroll, your next food, rare and
-    -- better): ask once more and say what it's for
+    -- better): ask once more and say what it's for. (Only before deleting: Sell keeps the item.)
     local uses = ns.UsedFor(d.id, d.link)
     if #uses > 0 then
       d.warned = action

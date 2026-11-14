@@ -1,3 +1,8 @@
+# Rucksack 1.8.5
+
+### Fixed
+- **Sell in the delete box:** pressing Sell on a rare (blue) or other useful item asked "Do you really want to delete it?". Sell keeps the item, so it now goes straight to your Sell list. The extra question only comes before Yes or Always, which really delete.
+
 # Rucksack 1.8.4
 
 ### New
