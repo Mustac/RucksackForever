@@ -5,7 +5,9 @@
 // Secrets (set in Cloudflare, never in this file):
 //   GITHUB_TOKEN  a token that can only read and write issues in the private feedback repository
 //   ADMIN_KEY     the passphrase for the panel
-// Plain variables: REPO ("Mustac/rucksack-feedback"), ORIGIN ("https://mustac.github.io").
+// The repository is fixed below on purpose: reports must never land in a public one by a wrong setting.
+const REPO = "Mustac/rucksack-feedback";
+const ORIGIN = "https://mustac.github.io";
 const PER_HOUR = 5;           // reports one address may send in an hour
 const WRONG_PER_HOUR = 10;    // wrong passphrases one address may try in an hour
 const sent = new Map(), wrong = new Map(); // (kept while this worker instance lives: a brake, not a wall)
@@ -24,17 +26,17 @@ function same(a, b) { // (compares every character, so a wrong guess learns noth
   return d === 0;
 }
 function github(env, path, init) {
-  return fetch("https://api.github.com/repos/" + env.REPO + path, Object.assign({}, init, { headers: {
+  return fetch("https://api.github.com/repos/" + REPO + path, Object.assign({}, init, { headers: {
     "Authorization": "Bearer " + env.GITHUB_TOKEN, "Accept": "application/vnd.github+json",
     "User-Agent": "rucksack-report-relay", "Content-Type": "application/json" } }));
 }
 
 export default {
   async fetch(request, env) {
-    const origin = env.ORIGIN || "https://mustac.github.io";
+    const origin = ORIGIN;
     if (request.method === "OPTIONS") return reply({}, 200, origin);
     if ((request.headers.get("Origin") || "") !== origin) return reply({ error: "Send reports from the report page." }, 403, origin);
-    if (!env.REPO || !env.GITHUB_TOKEN) return reply({ error: "The report service isn't set up yet." }, 503, origin);
+    if (!env.GITHUB_TOKEN) return reply({ error: "The report service isn't set up yet." }, 503, origin);
     const url = new URL(request.url);
     const ip = request.headers.get("CF-Connecting-IP") || "?";
 

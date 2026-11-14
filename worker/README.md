@@ -15,8 +15,7 @@ through the relay with a passphrase. That's what lets anyone report without a Gi
 3. **Its settings.** In the worker: Settings > Variables and Secrets.
    - Secret `GITHUB_TOKEN`: the token from step 1.
    - Secret `ADMIN_KEY`: the passphrase for the panel (long, used nowhere else).
-   - Text `REPO`: `Mustac/rucksack-feedback`
-   - Text `ORIGIN`: `https://mustac.github.io`
+   (The repository and the website address are written in `worker.js` itself.)
 4. **Tell the website.** Put the worker's address (like `https://rucksack-report.NAME.workers.dev`)
    in `docs/config.js` as `relay`, and push.
 
