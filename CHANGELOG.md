@@ -1,3 +1,13 @@
+# Rucksack 1.8.4
+
+### New
+- **One bag, Free:** a new button next to Tidy in the One bag look. With Free on, nothing is sorted: every item stays in the slot you put it in, and you can drag things onto any slot. Tidy then sorts your bags once (the game's own sort) and puts half-full stacks together.
+- **A new website:** https://rucksackforever.duckdns.org. Send a bug or an idea with a screenshot, no account needed. You get a private link where you see the answer and when it's fixed, and the **Fixed and added** page shows what came from players' reports. The Website and Report a bug buttons in the game now point there.
+
+### Changed
+- **Report a bug:** the ready-made report no longer has your class and level in it (no names, nothing about your character). Each box has a **Select** button, so copying is one click and Ctrl+C.
+- Settings > Modules: shorter text on the Bags card.
+
 # Rucksack 1.8.3
 
 ### New

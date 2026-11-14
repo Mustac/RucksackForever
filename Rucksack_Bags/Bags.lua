@@ -381,6 +381,7 @@ end
 -- a view: whose (who: nil = you) and which (kind: "bags" or "bank"); live = the real thing.
 -- The bag window always shows your bags; the second window a bank or another character.
 local MAINVIEW = { kind = "bags" }
+B.MAINVIEW = MAINVIEW
 local function viewWho(v)
   local me = meKey()
   local who = v.who or me
@@ -526,10 +527,23 @@ local stackBtn = iconButton(f, 22, "merged", function() return DB and DB.merged 
     "The real stacks: 20, 20, 20, 20. Use this to split a stack or pick up an exact one.\n\nClick: Merged (one icon per item)."
 end, function() DB.merged = not DB.merged B.Changed() end)
 stackBtn:SetPoint("RIGHT", lookBtn, "LEFT", -3, 0)
-local tidyBtn = iconButton(f, 22, "tidy", "Tidy",
-  "Puts half-full stacks of the same item together (7 + 13 ore becomes one stack of 20), which frees bag slots. Not in a fight.",
+local tidyBtn = iconButton(f, 22, "tidy", "Tidy", function()
+    if DB and DB.style == "grid" and DB.free then
+      return "Sorts your bags once and puts half-full stacks together (the game's own sort: the items really move). After that they stay where they are again. Not in a fight."
+    end
+    return "Puts half-full stacks of the same item together (7 + 13 ore becomes one stack of 20), which frees bag slots. Not in a fight."
+  end,
   function() B.Tidy() end)
 tidyBtn:SetPoint("RIGHT", stackBtn, "LEFT", -3, 0)
+-- (1.8.4) One bag, two ways: Tidy (Rucksack sorts what you see and merges stacks) or Free (nothing is
+-- sorted: every item sits in its real slot, in order, and you put things where you like)
+B.freeBtn = iconButton(f, 22, "free", function() return DB and DB.free and "One bag: Free" or "One bag: Tidy" end, function()
+  return DB and DB.free and "Free: nothing is sorted. Every item stays in the slot you put it in; drag items onto any slot. The Tidy button next to this sorts them once.\n\nClick: Tidy (always sorted)."
+    or "Tidy: your bag is always shown sorted, with stacks put together.\n\nClick: Free (items stay where you put them)."
+end, function() DB.free = not DB.free B.Changed() end, "RucksackBagsFreeButton")
+B.freeBtn:SetPoint("RIGHT", tidyBtn, "LEFT", -3, 0)
+B.freeBtn:Hide()
+function B.FreeNow(v) return DB and DB.style == "grid" and DB.free and (v == nil or v == B.MAINVIEW) and true or false end
 local bankBtn = iconButton(f, 22, "bank", "Your bank", function()
   return (bankOpen and "Your bank is open: in its own window it's live, drag items between it and your bags." or
     "Opens your bank in its own window, as it was when you last opened it. At a banker it opens by itself, live.") ..
@@ -1022,7 +1036,9 @@ local function buildCells(v, text)
   end
   table.sort(items, sortItems)
   local seen = {}
-  local merge = DB.merged or not live
+  local free = B.FreeNow(v) and vLiveBags(v)
+  st.freeMode = free
+  local merge = (DB.merged and not free) or not live
   for _, e in ipairs(items) do
     byCat[e.cat] = byCat[e.cat] or {}
     local list = byCat[e.cat]
@@ -1071,7 +1087,7 @@ local function buildCells(v, text)
       local list = st.empties[kind]
       if #list > 0 then
         byCat[cat] = {}
-        if DB.emptyAll ~= false then
+        if DB.emptyAll ~= false or st.freeMode then
           for _, sl in ipairs(list) do
             table.insert(byCat[cat], { bag = sl.bag, slot = sl.slot, cat = cat, empty = true, inBags = { [sl.bag] = true } })
           end
@@ -1817,6 +1833,11 @@ local function drawTop(st)
   local oneBag = DB.style == "grid"
   setIcon(lookBtn, oneBag and "onebag" or "groups")
   setIcon(stackBtn, DB.merged and "merged" or "separate")
+  B.freeBtn:SetShown(oneBag)
+  lightUp(B.freeBtn, oneBag and DB.free)
+  stackBtn:SetAlpha(oneBag and DB.free and 0.35 or 1) -- (Free shows the real stacks)
+  bankBtn:ClearAllPoints()
+  bankBtn:SetPoint("RIGHT", oneBag and B.freeBtn or tidyBtn, "LEFT", -3, 0)
   local v2 = B.view2
   lightUp(bankBtn, v2 and v2.kind == "bank" and not v2.who and B.VIEW.frame:IsShown() or false)
   lightUp(whoBtn, v2 and v2.who and B.VIEW.frame:IsShown() or false)
@@ -1853,11 +1874,23 @@ local function drawOneBag(byCat, text, cols, W, st, canDrop)
     return sortItems(a, b)
   end)
   local by = DB.sortBy or "kind"
+  if st and st.freeMode then
+    -- Free: no sorting. Items and empty slots together, in the order of your real bag slots
+    by = "slot"
+    for _, e in ipairs(empties) do items[#items + 1] = e end
+    wipe(empties)
+    if not B.bagRank then B.bagRank = {} for i, b in ipairs(BAGS) do B.bagRank[b] = i end end
+  end
   for _, e in ipairs(items) do
     if not e.kind then local ok, k = pcall(B.Category, e.id, e.link, e.bag, e.slot, true) e.kind = ok and k or "other" end
     e.sortName = e.sortName or ns.NameOf(e.id, e.link) or ""
   end
   table.sort(items, function(a, b)
+    if by == "slot" then
+      local ra, rb = B.bagRank[a.bag or 0] or 99, B.bagRank[b.bag or 0] or 99
+      if ra ~= rb then return ra < rb end
+      return (a.slot or 0) < (b.slot or 0)
+    end
     if (a.isNew and true or false) ~= (b.isNew and true or false) then return a.isNew and true or false end
     if by == "kind" then
       local ka, kb = KIND[a.kind] or 7, KIND[b.kind] or 7
@@ -2813,6 +2846,11 @@ function B.Tidy()
   if tidying then return end
   if InCombatLockdown() then Print("not in a fight.") return end
   if CursorHasItem() then Print("put the item on your cursor down first.") return end
+  -- (One bag, Free: sort for real, once, with the game's own sort; it puts stacks together too)
+  if B.FreeNow() and C_Container.SortBags then
+    local ok = pcall(C_Container.SortBags)
+    if ok then Print("bags sorted. They stay as they are until you move things or tidy again.") return end
+  end
   tidying = 0
   tidyStep()
 end

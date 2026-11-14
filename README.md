@@ -55,7 +55,7 @@ Turn it on in Settings > Modules: tick the **Bags** card. B, the bag buttons, ve
 - **Groups:** Weapons, Armour, Food and water, Potions, Trade goods, Quest, Everything else, Junk and your own groups, each on its own row (or Packed side by side). Drag a group by its name to move it; the others slide out of the way.
 - **Put an item in a group:** pick it up and every group gets a green **+** (Junk a red one). Drop it there and all its stacks go there from now on. Drop it on its own group again to undo.
 - **Your own groups:** make one with the green + in the bags row (or drop an item on it); right-click a group's name to rename it, change its colour or delete it.
-- **One bag:** no groups, everything sorted by kind, quality or name; Junk stays at the bottom.
+- **One bag:** no groups, everything sorted by kind, quality or name; Junk stays at the bottom. Or switch it to **Free**: nothing is sorted, every item stays in the slot you put it in, and Tidy sorts them once when you want.
 - **The bags row:** hover Rucksack in the corner and click the arrow. Your four bags and the reagent bag with their free slots (drop a bag on a bag to swap), Hidden, New group, Delete group and a padlock that locks the layout.
 - **Hidden:** a small bag for things you never need to look at (Skinning Knife, Mining Pick, Hearthstone...). Pull them in and the bag stops showing them; they stay usable from there.
 - **Your bank and other characters:** in their own window, as they were when last seen; at a banker your bank is live. Item tooltips say where else you have an item.
@@ -92,7 +92,7 @@ Works alongside bag addons like Bagnon and Baganator (leave the Bags module off;
 
 ## Website and feedback
 
-[mustac.github.io/RucksackForever](https://mustac.github.io/RucksackForever/) has what Rucksack does, what's new, and a [report form](https://mustac.github.io/RucksackForever/report.html) anyone can use, no account needed. In the game, **Report a bug** at the top of the Rucksack window gives you a ready-made report to paste there. Only the developer reads the reports.
+[rucksackforever.duckdns.org](https://rucksackforever.duckdns.org/) has what Rucksack does, what's new, and a [form for bugs and ideas](https://rucksackforever.duckdns.org/report) anyone can use, no account needed. Add a screenshot if it helps. You get a private link where you see the answer and when it's fixed, and the [Fixed and added](https://rucksackforever.duckdns.org/fixed) page shows what came from players' reports. In the game, **Report a bug** at the top of the Rucksack window gives you a ready-made report to paste there. Only the developer reads the reports.
 
 ## Support
 
