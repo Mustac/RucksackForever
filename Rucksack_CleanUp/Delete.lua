@@ -161,12 +161,14 @@ end
 Del.ByFood = function(id) if DB then return byFood(id) end end
 local function onList(id, bag, slot)
   if ns.KeepItem(id) then return false end -- (Darkmoon turn-in items, scrolls... stay)
+  if DB.sell[id] then return false end -- (1.8.2 Sell: sold at a vendor, never thrown away)
   return DB.items[id] or byRule(id, bag, slot) or (byFood(id) and true)
 end
 Del.OnList = function(id, bag, slot) return DB and onList(id, bag, slot) and true or false end
 -- why an item goes, in words (for lists and tooltips)
 function Del.Reason(id)
   if not DB then return nil end
+  if DB.sell[id] then return "sell only: sold at a vendor, never thrown away" end
   if DB.items[id] then return DB.now[id] and "on your list (as soon as you get it)" or "on your list" end
   local junk = byRule(id)
   if junk then return junk end
@@ -465,13 +467,13 @@ function AutoDelete_DeleteNext() Del.Click() end
 function Del.IsGrey(id, link) return ns.QualityOf(id, link) == 0 end
 function Del.Add(id, link)
   if Del.IsGrey(id, link) then
-    DB.keep[id] = nil
+    DB.keep[id], DB.sell[id] = nil, nil
     Refresh()
     return false, "grey"
   end
   local savedLink = link or ns.LinkOf(id)
   DB.items[id] = savedLink or true
-  DB.keep[id] = nil
+  DB.keep[id], DB.sell[id] = nil, nil
   RecordMeta(id, savedLink, 0, false, "always")
   Refresh()
   return true
@@ -479,16 +481,24 @@ end
 -- (1.8) keep it: off your list, and the rules leave it alone too
 function Del.Keep(id)
   DB.keep[id] = true
-  DB.items[id], DB.now[id] = nil, nil
+  DB.items[id], DB.now[id], DB.sell[id] = nil, nil, nil
   Refresh()
 end
--- 1 = junk (your list or the rules), nil = not junk
+-- (1.8.2) Sell: sold at a vendor every time, never thrown away (not even when your bags are full)
+function Del.AddSell(id, link)
+  DB.sell[id] = link or ns.LinkOf(id) or true
+  DB.items[id], DB.now[id], DB.keep[id] = nil, nil, nil
+  Refresh()
+end
+function Del.IsSell(id) return DB and DB.sell[id] and true or false end
+-- 1 = junk (your list or the rules: sold or thrown away), 2 = sell only, nil = neither
 function Del.JunkKind(id, bag, slot)
   if not DB or ns.KeepItem(id) then return nil end
+  if DB.sell[id] then return 2 end
   return onList(id, bag, slot) and 1 or nil
 end
 function Del.Remove(id)
-  DB.items[id], DB.now[id] = nil, nil
+  DB.items[id], DB.now[id], DB.sell[id] = nil, nil, nil
   Refresh()
 end
 
@@ -514,7 +524,7 @@ keyCatcher:SetScript("OnKeyDown", function() DeleteOne() end)
 -- The Always / Yes / No dialog
 ---------------------------------------------------------------------------
 local ask = CreateFrame("Frame", "RucksackDeleteAsk", UIParent, ns.BACKDROP_TMPL)
-ask:SetSize(400, 150)
+ask:SetSize(480, 150)
 ask:SetPoint("TOP", UIParent, "TOP", 0, -135)
 ask:SetFrameStrata("FULLSCREEN_DIALOG")
 ask:SetToplevel(true)
@@ -545,7 +555,7 @@ local askHint = ask:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
 askHint:SetPoint("TOPLEFT", askText, "BOTTOMLEFT", 0, -6)
 askHint:SetPoint("RIGHT", ask, "RIGHT", -22, 0)
 askHint:SetJustifyH("LEFT")
-askHint:SetText("Always = delete now and every time you get it.")
+askHint:SetText("Always = delete now and every time you get it.  Sell = keep it, and sell it at vendors.")
 
 local askWarn = ask:CreateFontString(nil, "ARTWORK", "GameFontRedSmall")
 askWarn:SetPoint("TOPLEFT", askHint, "BOTTOMLEFT", 0, -4)
@@ -557,12 +567,23 @@ local function MakeButton(parent, text, w)
   b:SetText(text)
   return b
 end
-local btnAlways = MakeButton(ask, "Always")
+local btnSell = MakeButton(ask, "Sell", 96)
+local btnAlways = MakeButton(ask, "Always", 96)
 local btnYes = MakeButton(ask, "Yes")
 local btnNo = MakeButton(ask, "No")
-btnYes:SetPoint("BOTTOM", ask, "BOTTOM", 0, 18)
-btnAlways:SetPoint("RIGHT", btnYes, "LEFT", -10, 0)
-btnNo:SetPoint("LEFT", btnYes, "RIGHT", 10, 0)
+btnYes:SetPoint("BOTTOM", ask, "BOTTOM", 50, 18)
+btnAlways:SetPoint("RIGHT", btnYes, "LEFT", -8, 0)
+btnSell:SetPoint("RIGHT", btnAlways, "LEFT", -8, 0)
+btnNo:SetPoint("LEFT", btnYes, "RIGHT", 8, 0)
+btnSell:GetFontString():SetTextColor(1, 0.82, 0)
+btnSell:SetScript("OnEnter", function(self)
+  GameTooltip:SetOwner(self, "ANCHOR_TOP")
+  GameTooltip:AddLine("Sell, don't delete")
+  GameTooltip:AddLine("Keeps it now. From now on it's sold at every vendor, and never thrown away, not even when your bags are full.", 1, 1, 1, true)
+  GameTooltip:AddLine("Undo it on the Clean-up page (/ruck).", 0.7, 0.7, 0.7, true)
+  GameTooltip:Show()
+end)
+btnSell:SetScript("OnLeave", function() GameTooltip:Hide() end)
 btnAlways:GetFontString():SetTextColor(1, 0.35, 0.35)
 btnAlways:SetScript("OnEnter", function(self)
   GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -591,6 +612,7 @@ local function Decide(action, button)
       askHint:SetText("It's used for:\n|cffffffff- " .. table.concat(uses, "\n- ") .. "|r")
       askWarn:SetText(action == "always" and "Delete anyway also deletes it every time you get it." or "")
       btnAlways:Hide()
+      btnSell:Hide()
       btnYes:SetText("Delete anyway") btnYes:SetWidth(130)
       btnYes:GetFontString():SetTextColor(1, 0.35, 0.35)
       btnNo:SetText("No")
@@ -599,7 +621,11 @@ local function Decide(action, button)
     end
   end
   ask.decided = true
-  if action == "no" then
+  if action == "sell" then
+    ClearCursor()
+    Del.AddSell(d.id, d.link)
+    Print((d.link or ns.NameOf(d.id)) .. " won't be deleted: it's sold at the next vendor, every time you get it. (Undo it on the Clean-up page: /ruck)")
+  elseif action == "no" then
     ClearCursor()
   else
     if action == "always" then
@@ -621,6 +647,7 @@ local function Decide(action, button)
   C_Timer.After(0.3, function() Refresh() end)
 end
 btnAlways:SetScript("OnClick", function(self) Decide("always", self) end)
+btnSell:SetScript("OnClick", function(self) Decide("sell", self) end)
 btnYes:SetScript("OnClick", function(self) Decide("yes", self) end)
 btnNo:SetScript("OnClick", function(self) Decide("no", self) end)
 
@@ -703,10 +730,12 @@ local function ShowAsk(id, link, which)
   askIcon.tex:SetTexture(ns.GetIcon(id))
   askText:SetText("Do you want to destroy " .. (link or ns.NameOf(id)) .. "?")
   local grey = quality == 0
-  askHint:SetText(grey and "|cff9d9d9dGrey: already deleted by itself, no need for Always.|r" or "Always = delete now and every time you get it.")
+  askHint:SetText(grey and "|cff9d9d9dGrey: already deleted by itself, no need for Always. Sell = keep it, and sell it at vendors.|r" or
+    "Always = delete now and every time you get it.  Sell = keep it, and sell it at vendors.")
   askWarn:SetText("")
   btnAlways:SetText("Always"); btnYes:SetText("Yes"); btnNo:SetText("No")
   btnAlways:SetShown(not grey) btnYes:SetWidth(110)
+  btnSell:Show()
   btnYes:GetFontString():SetTextColor(1, 0.82, 0)
   ask:SetHeight(150)
   ask:Show()
@@ -877,6 +906,7 @@ table.insert(ns.onLoad, function()
   DB.items = DB.items or {}
   DB.now = DB.now or {}
   DB.keep = DB.keep or {}
+  DB.sell = DB.sell or {} -- (1.8.2) sold at a vendor, never thrown away
   DB.once = nil -- (1.8 test builds had "junk once"; gone again)
   DB.meta = DB.meta or {}
   for id, v in pairs(DB.items) do
@@ -911,6 +941,15 @@ table.insert(ns.onLoad, function()
     DB.toolsFreed = true
   end
   if not DB.limitSet then DB.maxValue = 10000 DB.limitSet = true end
+  -- (1.8.2) the limit is a slider now: 10s to 5g in 10s steps (a 10g limit becomes 5g)
+  if DB.maxValue then
+    if DB.maxValue > 50000 then
+      DB.maxValue = 50000
+      C_Timer.After(5, function() Print("your delete limit was 10g; the most is 5g now, so it's 5g. (Clean-up page)") end)
+    end
+    DB.maxValue = math.max(1000, math.floor(DB.maxValue / 1000 + 0.5) * 1000)
+    DB.lastLimit = DB.maxValue
+  end
   -- (9 Nov) the always-on bag icon is gone (the minimap button opens Rucksack now); the trash
   -- button still shows when something is waiting to be deleted
   if not DB.iconRemoved then DB.alwaysIcon = false DB.iconRemoved = true end

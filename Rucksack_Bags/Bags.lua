@@ -23,20 +23,73 @@ local CELL, GAP, LABEL = 37, 3, 12
 local PITCH = CELL + GAP
 local GROUP_GAP = 6
 -- your bags: the backpack, the four bag slots, and (WoW Forever) the reagent bag
-local REAGENT = Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag or 5
-local BAGS, BAR, IS_BAG = { 0, 1, 2, 3, 4, REAGENT }, { 1, 2, 3, 4, REAGENT }, {}
+-- (a reagent bag only if this game has one: in Classic-style games container 5 is the first bank bag)
+local IC = Constants and Constants.InventoryConstants
+local REAGENT = Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag
+if not (IC and (IC.NumReagentBagSlots or 0) > 0) then REAGENT = nil end
+local BAGS, BAR, IS_BAG = { 0, 1, 2, 3, 4 }, { 1, 2, 3, 4 }, {}
+if REAGENT then BAGS[#BAGS + 1] = REAGENT BAR[#BAR + 1] = REAGENT end
 for _, b in ipairs(BAGS) do IS_BAG[b] = true end
--- your bank: WoW Forever has bank tabs; older clients the bank and its bag slots
-local function bankIDs()
-  local out = {}
-  local E = Enum and Enum.BagIndex
-  if E and E.CharacterBankTab_1 then
-    for i = 1, 9 do local id = E["CharacterBankTab_" .. i] if id then out[#out + 1] = id end end
-  else
-    out[1] = BANK_CONTAINER or -1
-    local first = (NUM_BAG_SLOTS or 4) + 1
-    for i = 0, (NUM_BANKBAGSLOTS or 6) - 1 do if first + i ~= REAGENT then out[#out + 1] = first + i end end
+B.IS_BAG = IS_BAG
+-- your bank: the bank itself and its bag slots (you buy the slots and put bags in them). At a banker:
+-- only what's really there; away from it: the ones seen last.
+--  * Classic style: the bank is container -1, its bag slots come right after your bags.
+--  * WoW Forever: the bank is kept the newer way, in "bank tabs". The bank itself is the first tab
+--    (container 6, 48 slots); each bag slot you buy is the next tab (7, 8 ... 14) and is as big as
+--    the bag you put in it. Container -1 is the keyring there, not the bank.
+do
+  local EB = Enum and Enum.BagIndex
+  local tab1 = EB and EB.CharacterBankTab_1
+  local main = BANK_CONTAINER or (EB and EB.Bank)
+  local tabbed = (not main) and tab1 and C_Bank and C_Bank.FetchNumPurchasedBankTabs and true or false
+  B.BANK = { main = tabbed and tab1 or main or -1, tabbed = tabbed, type = (Enum and Enum.BankType and Enum.BankType.Character) or 0 }
+end
+local function bankBagCount()
+  if B.BANK.tabbed then
+    local ok, n = pcall(C_Bank.FetchMaxNumBankTabs, B.BANK.type)
+    n = ok and tonumber(n) or 9
+    return math.max(0, math.min(12, n - 1))
   end
+  -- (the game's bank window knows how many bag slots it has: count them; else the game's number)
+  local n = 0
+  for i = 1, 16 do
+    if _G["BankFrameBag" .. i] or (BankSlotsFrame and BankSlotsFrame["Bag" .. i]) or _G["BankSlotsFrameBag" .. i] then n = i end
+  end
+  if n == 0 and BankSlotsFrame and BankSlotsFrame.GetChildren then
+    for _, c in ipairs({ BankSlotsFrame:GetChildren() }) do
+      local nm = c.GetName and c:GetName() or ""
+      if nm:find("Bag") then n = n + 1 end
+    end
+  end
+  return math.max(n, NUM_BANKBAGSLOTS or (IC and IC.NumBankBagSlots) or 7)
+end
+local function bankBagIDs()
+  local first = (NUM_BAG_SLOTS or 4) + 1 + (REAGENT and 1 or 0)
+  if B.BANK.tabbed then first = B.BANK.main + 1 end
+  local n = bankBagCount()
+  local t = {}
+  for i = 0, n - 1 do t[#t + 1] = first + i end
+  return t
+end
+B.BankBagIDs = bankBagIDs
+local lastBank
+local function bankIDs()
+  local main = B.BANK.main
+  if B.BankOpen and B.BankOpen() then
+    local out = {}
+    local E = Enum and Enum.BagIndex
+    if not B.BANK.tabbed and (C_Container.GetContainerNumSlots(main) or 0) == 0 and E and E.CharacterBankTab_1 then
+      for i = 1, 9 do local id = E["CharacterBankTab_" .. i] if id and (C_Container.GetContainerNumSlots(id) or 0) > 0 then out[#out + 1] = id end end
+    else
+      out[1] = main
+      for _, id in ipairs(bankBagIDs()) do if (C_Container.GetContainerNumSlots(id) or 0) > 0 then out[#out + 1] = id end end
+    end
+    lastBank = out
+    return out
+  end
+  if lastBank then return lastBank end
+  local out = { main }
+  for _, id in ipairs(bankBagIDs()) do out[#out + 1] = id end
   return out
 end
 B.BankIDs = bankIDs
@@ -47,13 +100,15 @@ B.CATS = {
   { key = "armor", name = "Armour", color = { 0.42, 0.61, 0.88 } },
   { key = "food", name = "Food and water", color = { 0.88, 0.64, 0.35 } },
   { key = "consumable", name = "Potions and consumables", color = { 0.69, 0.48, 0.88 } },
+  { key = "restock", name = "Restock", color = { 0.4, 0.8, 0.85 } }, -- (1.8.2: what's on your Restock list)
   { key = "trade", name = "Trade goods", color = { 0.55, 0.7, 0.45 } },
   { key = "quest", name = "Quest", color = { 1, 0.89, 0.36 } },
   { key = "other", name = "Everything else", color = { 0.6, 0.6, 0.6 } },
-  { key = "junk", name = "Junk", color = { 0.9, 0.3, 0.3 } },
+  { key = "sell", name = "Sell", color = { 1, 0.82, 0.25 } },
   { key = "empty", name = "Empty", color = { 0.35, 0.35, 0.35 } },
   { key = "emptyR", name = "Empty · reagents only", color = { 0.3, 0.45, 0.3 } },
   { key = "emptyS", name = "Empty · special bag", color = { 0.3, 0.38, 0.45 } },
+  { key = "junk", name = "Junk", color = { 0.9, 0.3, 0.3 } }, -- (1.8.2: Junk is under everything unless you drag it)
 }
 -- colours for your own groups
 B.PALETTE = { { 0.75, 0.54, 0.94 }, { 0.37, 0.78, 0.94 }, { 0.94, 0.63, 0.31 }, { 0.91, 0.44, 0.69 },
@@ -80,13 +135,33 @@ local held -- the item on your cursor (groups get a slot to drop it on)
 -- groups you can put an item in by hand (not Empty, not New)
 local function placeable(key) return CAT[key] and key ~= "new" and not key:find("^empty") and true or false end
 B.Placeable = placeable
--- the groups in your order (DB.order: keys; groups it doesn't know yet go at the end)
-function B.Ordered()
-  local list, seen = {}, {}
-  for _, k in ipairs(DB and DB.order or {}) do
-    if CAT[k] and not seen[k] then seen[k] = true list[#list + 1] = CAT[k] end
+-- where a new group goes in a list of keys: above the Empty groups and Junk that close the list
+function B.TailStart(keys)
+  local at = #keys + 1
+  for i = #keys, 1, -1 do
+    local k = keys[i]
+    if k == "junk" or (type(k) == "string" and k:find("^empty")) then at = i else break end
   end
-  for _, c in ipairs(ALL) do if not seen[c.key] then list[#list + 1] = c end end
+  return at
+end
+-- the groups in your order (DB.order: keys; a group it doesn't know yet, like one that came with an
+-- update, goes above the Empty groups and Junk at the bottom, never under Junk)
+function B.Ordered()
+  local list, seen, keys = {}, {}, {}
+  for _, k in ipairs(DB and DB.order or {}) do
+    if CAT[k] and not seen[k] then seen[k] = true list[#list + 1] = CAT[k] keys[#keys + 1] = k end
+  end
+  if #list == 0 then
+    for _, c in ipairs(ALL) do list[#list + 1] = c end
+    return list
+  end
+  for _, c in ipairs(ALL) do
+    if not seen[c.key] then
+      local at = (c.key == "junk" or c.key:find("^empty")) and (#keys + 1) or B.TailStart(keys)
+      table.insert(list, at, c)
+      table.insert(keys, at, c.key)
+    end
+  end
   return list
 end
 -- move a group to just before another one (or to the end); redraw unless told not to
@@ -112,11 +187,7 @@ function B.NewGroup(name, id, link)
   local key = "my" .. DB.nextGroup
   local c = B.PALETTE[(DB.nextGroup - 1) % #B.PALETTE + 1]
   table.insert(DB.groups, { key = key, name = name, color = { c[1], c[2], c[3] } })
-  if DB.order then
-    local at = #DB.order + 1
-    for i, k in ipairs(DB.order) do if k == "empty" then at = i break end end
-    table.insert(DB.order, at, key)
-  end
+  if DB.order then table.insert(DB.order, B.TailStart(DB.order), key) end
   rebuild()
   if id then
     if ns.Has("del") and ns.Del and ns.Del.JunkKind and ns.Del.JunkKind(id) then ns.Del.Keep(id) end
@@ -171,9 +242,13 @@ local function junkKind(id, bag, slot)
 end
 -- where Rucksack puts an item by itself (noYours) or with your choice (DB.assign: id -> group)
 function B.Category(id, link, bag, slot, noYours)
-  if junkKind(id, bag, slot) then return "junk" end
+  local jk = junkKind(id, bag, slot)
+  if jk == 1 then return "junk" elseif jk == 2 then return "sell" end
   local yours = not noYours and DB and DB.assign and DB.assign[id]
-  if yours and placeable(yours) and yours ~= "junk" then return yours end
+  if yours and placeable(yours) and yours ~= "junk" and yours ~= "sell" then return yours end
+  -- (what's on your Restock list sits in its own group, if that group is ticked on the Bags page;
+  -- unticked, those items stay in the groups they'd be in anyway)
+  if DB and DB.cats and DB.cats.restock ~= false and B.Restock and B.Restock.Wants and DB.restock and B.Restock.Wants(id) then return "restock" end
   local _, _, _, _, _, classID = instant(id)
   local _, _, _, _, _, _, _, _, _, _, _, c2 = ns.GetInfo(link or id)
   classID = classID or c2
@@ -194,7 +269,7 @@ end
 local function catShown(key)
   if key == "new" then return DB.showNew ~= false end
   if CAT[key] and CAT[key].custom then return true end
-  return key == "junk" or key:find("^empty") or key == "other" or DB.cats[key] ~= false
+  return key == "junk" or key == "sell" or key:find("^empty") or key == "other" or DB.cats[key] ~= false
 end
 
 ---------------------------------------------------------------------------
@@ -601,6 +676,13 @@ local hiddenBtn = iconButton(barIn, 30, "hidden", "Hidden items", function()
     ". Pull an item into it and the bag stops showing it: tools, your Hearthstone, things you never need to look at."
 end, function() B.ToggleHidden() end, "RucksackBagsHiddenButton")
 hiddenBtn:SetPoint("RIGHT", newBtn, "LEFT", -8, 0)
+-- (1.8.2) Restock: the things you always want on you; a vendor that sells them tops you up (Restock.lua)
+B.restockBtn = iconButton(barIn, 30, "restock", "Restock", function()
+  return B.Restock and B.Restock.Tip and B.Restock.Tip() or "Things you always want on you, bought at vendors."
+end, function() if B.Restock and B.Restock.Toggle then B.Restock.Toggle() end end, "RucksackBagsRestockButton")
+B.restockBtn:SetPoint("RIGHT", hiddenBtn, "LEFT", -3, 0)
+B.LightUp = lightUp
+B.toolBtns = { lockBtn, trashBtn, newBtn, hiddenBtn, B.restockBtn }
 
 ---------------------------------------------------------------------------
 -- The game's item buttons: one per bag slot, under a frame that carries the bag number
@@ -631,6 +713,10 @@ local function decorate(b)
   d.dot = b:CreateTexture(nil, "OVERLAY")        -- the group (One grid)
   d.dot:SetSize(7, 7)
   d.dot:SetPoint("TOPLEFT", 2, -2)
+  d.coin = b:CreateTexture(nil, "OVERLAY")       -- sell
+  d.coin:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
+  d.coin:SetSize(12, 12)
+  d.coin:SetPoint("TOPRIGHT", -2, -2)
   d.mark = b:CreateTexture(nil, "OVERLAY")       -- junk
   d.mark:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
   d.mark:SetSize(14, 14)
@@ -658,7 +744,10 @@ local function extraTip(self)
   local e = info[self]
   if not e or not e.id or not GameTooltip:IsOwned(self) then return end
   local lines = {}
-  if e.cat == "junk" then
+  if e.cat == "sell" then
+    lines[#lines + 1] = "|cffffd100Sell:|r sold at a vendor, never thrown away."
+    lines[#lines + 1] = "|cff999999To keep it: drop it on another group's slot, or on Sell's slot again.|r"
+  elseif e.cat == "junk" then
     local why = ns.Del.Reason and ns.Del.Reason(e.id)
     lines[#lines + 1] = "|cffff6b6bJunk|r" .. (why and (": " .. why) or "") .. (e.first and "  |cffffd100first to go|r" or "")
     lines[#lines + 1] = "|cff999999To keep it: drop it on another group's slot, or on Junk's slot again.|r"
@@ -759,6 +848,10 @@ local function ghostButton(i)
   g.mark:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
   g.mark:SetSize(14, 14)
   g.mark:SetPoint("TOPRIGHT", 3, 3)
+  g.coin = g:CreateTexture(nil, "OVERLAY")
+  g.coin:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
+  g.coin:SetSize(12, 12)
+  g.coin:SetPoint("TOPRIGHT", -2, -2)
   g.dot = g:CreateTexture(nil, "OVERLAY")
   g.dot:SetSize(7, 7)
   g.dot:SetPoint("TOPLEFT", 3, -3)
@@ -786,11 +879,52 @@ local function bagKind(bag)
   return family ~= 0 and "S" or ""
 end
 -- everything in those containers; free slots by kind ("" any item, "R" reagents only, "S" a special bag)
+-- slots the game shows with a padlock (bank slots not unlocked yet): left out, they aren't yours yet
+do
+local LOCKKEYS = { "LockIcon", "Lock", "Locked", "LockedIcon", "SlotLock", "LockOverlay", "LockTexture", "lockIcon" }
+local function lockTex(r)
+  if not r or not r.IsShown or not r:IsShown() or not r.GetObjectType or r:GetObjectType() ~= "Texture" then return false end
+  local a = r.GetAtlas and r:GetAtlas()
+  if type(a) == "string" and a:lower():find("lock") then return true end
+  local t = r:GetTexture()
+  if type(t) == "string" and t:lower():find("lock") then return true end
+  local p = r.GetTextureFilePath and r:GetTextureFilePath()
+  if type(p) == "string" and p:lower():find("lock") then return true end
+  return false
+end
+local function padlocked(b)
+  if not b then return false end
+  for _, k in ipairs(LOCKKEYS) do
+    local v = rawget(b, k)
+    if type(v) == "table" and v.IsShown and v:IsShown() then return true end
+  end
+  for _, r in ipairs({ b:GetRegions() }) do if lockTex(r) then return true end end
+  for _, c in ipairs({ b:GetChildren() }) do
+    for _, r in ipairs({ c:GetRegions() }) do if lockTex(r) then return true end end
+  end
+  return false
+end
+B.Padlocked = padlocked
+-- (remembered once seen, until the next visit to the bank: a hidden button may not keep its padlock)
+local lockedSeen = {}
+function B.IsLockedSlot(bag, slot)
+  if lockedSeen[bag .. ":" .. slot] then return true end
+  local b = buttons[bag] and buttons[bag][slot]
+  if b and padlocked(b) then lockedSeen[bag .. ":" .. slot] = true return true end
+  return false
+end
+function B.ForgetLocked() wipe(lockedSeen) end
+end
+-- how many slots a container has (bank slots the game shows with a padlock are left out one by one, in readBags)
+local function numSlots(bag)
+  return C_Container.GetContainerNumSlots(bag) or 0
+end
+B.NumSlots = numSlots
 local function readBags(ids)
   local items = {}
   local st = { free = 0, total = 0, rFree = 0, rTotal = 0, empties = { [""] = {}, R = {}, S = {} }, bagFree = {}, bagSize = {} }
   for _, bag in ipairs(ids) do
-    local n = C_Container.GetContainerNumSlots(bag) or 0
+    local n = numSlots(bag)
     local kind = bagKind(bag)
     st.bagSize[bag], st.bagFree[bag] = n, 0
     for slot = 1, n do
@@ -799,6 +933,9 @@ local function readBags(ids)
         items[#items + 1] = { bag = bag, slot = slot, id = it.itemID, link = it.hyperlink, count = it.stackCount or 1,
           quality = it.quality, locked = it.isLocked, icon = it.iconFileID or ns.GetIcon(it.itemID), readable = it.isReadable,
           bound = it.isBound, open = it.hasLoot and true or nil }
+      elseif not IS_BAG[bag] and B.IsLockedSlot(bag, slot) then
+        -- (a bank slot the game shows locked: not counted, not shown)
+        st.locked = (st.locked or 0) + 1
       else
         st.bagFree[bag] = st.bagFree[bag] + 1
         table.insert(st.empties[kind], { bag = bag, slot = slot })
@@ -912,16 +1049,20 @@ local function buildCells(v, text)
     table.sort(byCat.junk, cheapest)
     for _, e in ipairs(byCat.junk) do value = value + sellPrice(e.id) * e.total end
   end
+  if byCat.sell then
+    table.sort(byCat.sell, sortItems)
+    for _, e in ipairs(byCat.sell) do value = value + sellPrice(e.id) * e.total end
+  end
   st.junkValue = value
   -- your own groups show even when empty (so you can find them)
   for _, c in ipairs(ALL) do if c.custom then byCat[c.key] = byCat[c.key] or {} end end
   -- holding an item: every group you can put it in ends in a slot to drop it on (Junk shows up for it too)
   -- (the bag window only)
   if held and not DB.locked and v == MAINVIEW then
-    if hasClean() then byCat.junk = byCat.junk or {} end
+    if hasClean() then byCat.junk = byCat.junk or {} byCat.sell = byCat.sell or {} end
     -- (One grid has no groups to drop on: there you drop it on a chip)
     for key, list in pairs(byCat) do
-      if DB.style ~= "grid" and placeable(key) and (key ~= "junk" or hasClean()) then list[#list + 1] = { drop = key, cat = key } end
+      if DB.style ~= "grid" and placeable(key) and ((key ~= "junk" and key ~= "sell") or hasClean()) then list[#list + 1] = { drop = key, cat = key } end
     end
   end
   -- empty slots (live only): every one (you can drop an item on any), or one cell with the number
@@ -966,10 +1107,28 @@ function B.PlaceIn(key, id, link)
   if DB.locked then return lockedSay() end
   DB.assign = DB.assign or {}
   B.newIDs[id] = nil
-  local isJunk = hasClean() and ns.Del.JunkKind(id)
+  local kind = hasClean() and ns.Del.JunkKind(id)
+  local isJunk = kind -- (junk or sell: out of either, it's kept)
+  if key == "sell" then
+    if not hasClean() then return end
+    if kind == 2 then -- (its own slot again: keep it)
+      ns.Del.Keep(id)
+      Print(shown(id, link) .. " is kept: it's no longer sold by itself.")
+      return B.Changed()
+    end
+    if ns.KeepItem(id) then
+      local uses = ns.UsedFor(id, link)
+      Print(shown(id, link) .. " is always kept" .. (uses[1] and (" (" .. uses[1] .. ")") or "") .. ".")
+      return
+    end
+    if DB.assign then DB.assign[id] = nil end
+    ns.Del.AddSell(id, link)
+    Print(shown(id, link) .. " is sold at every vendor from now on, and never thrown away.")
+    return B.Changed()
+  end
   if key == "junk" then
     if not hasClean() then return end
-    if isJunk then -- (its own slot again: keep it)
+    if kind == 1 then -- (its own slot again: keep it)
       ns.Del.Keep(id)
       Print(shown(id, link) .. " is kept: Clean-up leaves it alone.")
       return B.Changed()
@@ -1187,7 +1346,7 @@ local plusSlots, hoverKey = {}, nil
 local function stylePlus(b)
   local hot = hoverKey == b.key
   local junk = b.key == "junk"
-  local c = junk and { 1, 0.35, 0.3 } or { 0.35, 1, 0.35 }
+  local c = junk and { 1, 0.35, 0.3 } or b.key == "sell" and { 1, 0.82, 0.25 } or { 0.35, 1, 0.35 }
   b.plus:SetTextColor(c[1], c[2], c[3], hot and 1 or 0.6)
   for _, t in ipairs(b.dashes) do t:SetColorTexture(c[1], c[2], c[3], hot and 1 or 0.45) end
   b.bg:SetColorTexture(c[1] * 0.2, c[2] * 0.2, c[3] * 0.2, hot and 0.8 or 0.45)
@@ -1229,6 +1388,11 @@ local function plusSlot(key)
       GameTooltip:AddLine(hid and "|cff66dd66Show it again|r" or "|cff66dd66Keep it|r")
       GameTooltip:AddLine(hid and "It's hidden now: drop it here and the bag shows it again." or
         "It's junk now: drop it here and Clean-up leaves it alone (all its stacks).", 1, 1, 1, true)
+    elseif self.key == "sell" then
+      local again = held and hasClean() and ns.Del.JunkKind(held) == 2
+      GameTooltip:AddLine("|cffffd100Sell|r")
+      GameTooltip:AddLine(again and "It's on Sell now: drop it here to keep it." or
+        "Drop it here and it's sold at every vendor (all its stacks), and never thrown away, not even when your bags are full.", 1, 1, 1, true)
     elseif self.key == "junk" then
       local again = held and hasClean() and ns.Del.JunkKind(held)
       GameTooltip:AddLine("|cffff8a8aJunk|r")
@@ -1302,8 +1466,10 @@ end
 local liftBox, gapBox = box(1, 0.82, 0, 0.55), box(1, 0.82, 0, 0.12)
 local anim = CreateFrame("Frame", nil, f)
 anim:Hide()
+local function resetCursor() if ResetCursor then ResetCursor() end end
 local function finishDrag()
   drag, moving = nil, nil
+  resetCursor()
   anim:Hide()
   liftBox:Hide()
   gapBox:Hide()
@@ -1311,6 +1477,7 @@ local function finishDrag()
 end
 anim:SetScript("OnUpdate", function(self, dt)
   if not drag then self:Hide() return end
+  if not drag.released then pcall(SetCursor, "UI_MOVE_CURSOR") end
   if InCombatLockdown() then return finishDrag() end -- (the game's buttons can't move in a fight)
   local g, W = drag.g, B.curW or 400
   if not drag.released then
@@ -1438,6 +1605,7 @@ local function stopMove()
   if drag then
     local g = drag.g
     drag.released = true
+    resetCursor()
     if trashBtn:IsMouseOver() and CAT[g.key] and CAT[g.key].custom then -- (dropped on Delete group)
       for _, d in ipairs(drawn) do d.tx, d.ty = 0, 0 end
       B.AskDelete(g.key)
@@ -1456,6 +1624,7 @@ local function stopMove()
   moving = nil
   mover:Hide()
   moveLine:Hide()
+  resetCursor()
   if not key then return end
   if trashBtn:IsMouseOver() and CAT[key] and CAT[key].custom then return B.AskDelete(key) end
   if not f:IsMouseOver() then return end
@@ -1465,6 +1634,11 @@ local function stopMove()
   B.MoveGroup(key, before)
 end
 
+-- the move cursor while you can grab a group (and while you drag one)
+local function moveCursor() pcall(SetCursor, "UI_MOVE_CURSOR") end
+local function canGrab(l)
+  return not l.pane.static and not l.fixed and not DB.locked and not held and DB.style ~= "grid" and l.key and true or false
+end
 -- group names: drag to move; drop an item on one to put it there; right-click your own for its menu
 local function label(i)
   local labels = PANE.labels
@@ -1476,6 +1650,13 @@ local function label(i)
     l.text:SetPoint("LEFT", 0, 0)
     l.text:SetJustifyH("LEFT")
     l.text:SetWordWrap(false)
+    l.text:SetAlpha(0.85)
+    -- (hover: a grip next to the name and the move cursor, so you can tell it can be grabbed)
+    l.grip = l:CreateTexture(nil, "OVERLAY")
+    l.grip:SetSize(9, 11)
+    l.grip:SetTexture(ICONS .. "grip")
+    l.grip:SetVertexColor(1, 0.82, 0)
+    l.grip:Hide()
     l:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     l:RegisterForDrag("LeftButton")
     l:SetScript("OnReceiveDrag", function(self) if not self.pane.static then placeHeld(self.key) end end)
@@ -1494,10 +1675,20 @@ local function label(i)
     l:SetScript("OnEnter", function(self)
       if moving or self.pane.static then return end
       local c = CAT[self.key]
+      local grab = canGrab(self)
+      if grab then
+        self.text:SetAlpha(1)
+        self.grip:ClearAllPoints()
+        self.grip:SetPoint("LEFT", self, "LEFT", math.min((self.text:GetStringWidth() or 0) + 5, (self:GetWidth() or 100) - 10), 0)
+        self.grip:Show()
+        moveCursor()
+      end
       GameTooltip:SetOwner(self, "ANCHOR_TOP")
       GameTooltip:AddLine(c and c.name or "")
+      if grab and not held then GameTooltip:AddLine("Drag to move this group", 1, 1, 1) end
       if held and placeable(self.key) and not DB.locked then
-        GameTooltip:AddLine(self.key == "junk" and "Drop the item here to make it junk." or "Drop the item here and it goes in this group.", 0.6, 1, 0.6, true)
+        GameTooltip:AddLine(self.key == "junk" and "Drop the item here to make it junk." or self.key == "sell" and "Drop the item here: sold at vendors, never thrown away." or
+          "Drop the item here and it goes in this group.", 0.6, 1, 0.6, true)
       end
       if DB.locked then
         GameTooltip:AddLine("Locked: click the padlock to change groups.", 0.7, 0.7, 0.7, true)
@@ -1505,12 +1696,16 @@ local function label(i)
         GameTooltip:AddLine("In One bag, Junk always stays at the bottom.", 0.7, 0.7, 0.7, true)
       else
         if B.deleting and c and c.custom then GameTooltip:AddLine("Click to delete this group.", 1, 0.4, 0.4, true) end
-        GameTooltip:AddLine("Drag the name to move this group.", 0.7, 0.7, 0.7, true)
         if c and c.custom then GameTooltip:AddLine("Right-click: rename, colour, delete.", 0.7, 0.7, 0.7, true) end
       end
       GameTooltip:Show()
     end)
-    l:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    l:SetScript("OnLeave", function(self)
+      GameTooltip:Hide()
+      self.grip:Hide()
+      self.text:SetAlpha(0.85)
+      if not moving then resetCursor() end
+    end)
     labels[i] = l
   end
   return labels[i]
@@ -1553,6 +1748,7 @@ local function show(e, x, y, text, withDot)
     g.count:SetText(e.total and e.total > 1 and e.total or "")
     if g.SetBackdropBorderColor then g:SetBackdropBorderColor(qColor(e.quality)) end
     g.mark:SetShown(e.cat == "junk")
+    g.coin:SetShown(e.cat == "sell")
     local c = withDot and CAT[e.cat]
     if c then g.dot:SetColorTexture(c.color[1], c.color[2], c.color[3], 1) g.dot:Show() else g.dot:Hide() end
     g:SetAlpha(matches(e, text) and 0.6 or 0.15)
@@ -1573,6 +1769,7 @@ local function show(e, x, y, text, withDot)
     Print("Bags: a button couldn't be drawn fully (" .. tostring(err) .. "). Please tell the author.")
   end
   d.mark:SetShown(e.cat == "junk")
+  d.coin:SetShown(e.cat == "sell")
   d.arrow:SetShown(e.upgrade and true or false)
   d.quest:SetShown(e.cat == "quest" and withDot ~= true)
   if e.first then d.edge:SetVertexColor(1, 0.25, 0.25) d.edge:Show()
@@ -1638,15 +1835,23 @@ end
 local KIND = { weapon = 1, armor = 2, food = 3, consumable = 4, trade = 5, quest = 6, other = 7 }
 local EMPTY_ORDER = { empty = 1, emptyR = 2, emptyS = 3 }
 local function drawOneBag(byCat, text, cols, W, st, canDrop)
-  local items, junk, empties = {}, {}, {}
+  local items, junk, sell, empties = {}, {}, {}, {}
   for _, list in pairs(byCat) do
     for _, e in ipairs(list) do
       if e.empty then empties[#empties + 1] = e
       elseif e.drop then -- (One bag puts its own)
       elseif e.cat == "junk" then junk[#junk + 1] = e
+      elseif e.cat == "sell" then sell[#sell + 1] = e
       else items[#items + 1] = e end
     end
   end
+  table.sort(sell, sortItems)
+  table.sort(junk, function(a, b) -- (cheapest first, the first to go in front)
+    if (a.first and true or false) ~= (b.first and true or false) then return a.first and true or false end
+    local va, vb = sellPrice(a.id) * (a.total or 1), sellPrice(b.id) * (b.total or 1)
+    if va ~= vb then return va < vb end
+    return sortItems(a, b)
+  end)
   local by = DB.sortBy or "kind"
   for _, e in ipairs(items) do
     if not e.kind then local ok, k = pcall(B.Category, e.id, e.link, e.bag, e.slot, true) e.kind = ok and k or "other" end
@@ -1676,24 +1881,32 @@ local function drawOneBag(byCat, text, cols, W, st, canDrop)
   for i, e in ipairs(items) do show(e, ((i - 1) % cols) * PITCH, math.floor((i - 1) / cols) * PITCH, text) end
   local height = math.max(1, math.ceil(#items / cols)) * PITCH - GAP
   if not PANE.static then rects[#rects + 1] = { key = "keep", parent = PANE.body, x = 0, y = 0, w = W, h = height, gap = 0 } end
-  -- Junk, at the bottom (junk sorted cheapest first already)
-  local junkDrop = drop and not heldJunk and hasClean()
-  if #junk > 0 or junkDrop then
-    if junkDrop then junk[#junk + 1] = { drop = "junk", cat = "junk" } end
+  -- at the bottom: Sell, then Junk (fixed groups); holding an item, each gets its +
+  local heldKind = drop and hasClean() and ns.Del.JunkKind(held)
+  local canMark = drop and hasClean() and not (DB.hidden and DB.hidden[held])
+  local li = 0
+  local function fixedGroup(key, list, title, value)
+    local plus = canMark and heldKind ~= (key == "sell" and 2 or 1)
+    if #list == 0 and not plus then return end
+    if plus then list[#list + 1] = { drop = key, cat = key } end
     local y = height + GROUP_GAP + 2
-    local l = label(1)
-    l.key, l.fixed = "junk", true
+    li = li + 1
+    local l = label(li)
+    l.key, l.fixed = key, true
     l:SetWidth(W)
     l.text:SetWidth(W)
-    l.text:SetText("|cffff8a8aJunk|r" .. ((st.junkValue or 0) > 0 and ("   |cff8a8a8a" .. ns.Pocket.Coins(st.junkValue) .. "|r") or ""))
+    l.text:SetText(title .. (value > 0 and ("   |cff8a8a8a" .. ns.Pocket.Coins(value) .. "|r") or ""))
     addFrame(l, 1, y)
     l:Show()
-    for i, e in ipairs(junk) do show(e, ((i - 1) % cols) * PITCH, y + LABEL + math.floor((i - 1) / cols) * PITCH, text) end
-    local jh = LABEL + math.ceil(#junk / cols) * PITCH - GAP
-    if not PANE.static then rects[#rects + 1] = { key = "junk", parent = PANE.body, x = 0, y = y, w = W, h = jh, gap = 0 } end
-    height = y + jh
+    for i, e in ipairs(list) do show(e, ((i - 1) % cols) * PITCH, y + LABEL + math.floor((i - 1) / cols) * PITCH, text) end
+    local gh = LABEL + math.ceil(#list / cols) * PITCH - GAP
+    if not PANE.static then rects[#rects + 1] = { key = key, parent = PANE.body, x = 0, y = y, w = W, h = gh, gap = 0 } end
+    height = y + gh
   end
-  return height, #items + #junk
+  local function worth(list) local v = 0 for _, e in ipairs(list) do if e.id then v = v + sellPrice(e.id) * (e.total or 1) end end return v end
+  fixedGroup("sell", sell, "|cffffd100Sell|r", worth(sell))
+  fixedGroup("junk", junk, "|cffff8a8aJunk|r", worth(junk))
+  return height, #items + #junk + #sell
 end
 -- the groups (Rows or Packed), each remembered with its frames so it can be moved
 local function drawGroups(byCat, order, text, cols, W)
@@ -1707,7 +1920,7 @@ local function drawGroups(byCat, order, text, cols, W)
       total = total + n
       local name = c.name
       local col = c.custom and ("|cff%02x%02x%02x"):format(math.floor(c.color[1] * 255), math.floor(c.color[2] * 255), math.floor(c.color[3] * 255))
-        or c.key == "junk" and "|cffff8a8a" or "|cffa8946a"
+        or c.key == "junk" and "|cffff8a8a" or c.key == "sell" and "|cffffd100" or "|cffa8946a"
       if B.deleting and c.custom and not DB.locked then name = "|cffff5050x|r " .. name .. "  |cffff6b6bclick to delete|r" end
       local nameW = measure(l, col .. name .. "|r")
       local rows = math.ceil(n / cols)
@@ -1758,7 +1971,7 @@ local function drawFoot(foot, st, rec, v, W)
     foot.money:SetText(ns.Pocket.Coins(GetMoney and GetMoney() or 0))
     if clean and (st.junkValue or 0) > 0 and DB.style ~= "grid" then
       local atVendor = MerchantFrame and MerchantFrame.IsShown and MerchantFrame:IsShown()
-      foot.junk:SetText((atVendor and "|cff66dd66sells here|r " or "|cff8a8a8ajunk|r ") .. ns.Pocket.Coins(st.junkValue))
+      foot.junk:SetText((atVendor and "|cff66dd66sells here|r " or "|cff8a8a8asells for|r ") .. ns.Pocket.Coins(st.junkValue))
       local fits = (foot.free:GetStringWidth() or 0) + (foot.junk:GetStringWidth() or 0) + (foot.money:GetStringWidth() or 0) + 28 <= W
       foot.junk:SetShown(fits)
     end
@@ -1843,8 +2056,10 @@ end
 -- (a group's +, or the green + in One bag) to see it there again. Suggestions: profession tools and
 -- the Hearthstone.
 ---------------------------------------------------------------------------
+local hf, drawHidden
+do
 local HCOLS = 5
-local hf = CreateFrame("Frame", "RucksackBagsHidden", f, ns.BACKDROP_TMPL)
+hf = CreateFrame("Frame", "RucksackBagsHidden", f, ns.BACKDROP_TMPL)
 hf:SetPoint("TOPLEFT", f, "TOPRIGHT", 3, 0)
 hf:SetSize(HCOLS * PITCH - GAP + 16, 120)
 hf:EnableMouse(true)
@@ -1968,7 +2183,7 @@ local function sugButton(i)
   return b
 end
 -- the hidden items (your bags' own buttons, so they work as always), the drop place, suggestions
-local function drawHidden(text)
+function drawHidden(text)
   if not hf:IsShown() then return end
   local items = readBags(BAGS)
   local seen, list, sug, sugSeen = {}, {}, {}, {}
@@ -2021,6 +2236,7 @@ local function drawHidden(text)
   end
   hf:SetHeight(y + 8)
 end
+end
 function B.ToggleHidden()
   if not DB then return end
   if hf:IsShown() then hf:Hide() else hf:Show() end
@@ -2052,6 +2268,8 @@ function B.Draw()
   local cols = math.max(8, math.min(16, DB.cols or 10))
   local W = cols * PITCH - GAP
   B.curW = W
+  -- (a narrow bag: the tools on the right of the bags row shrink a little so they don't cover the bags)
+  for _, tb in ipairs(B.toolBtns) do tb:SetScale(W < 350 and 0.82 or 1) end
   searchHint:SetShown(text == "" and not search:HasFocus())
   wipe(used)
   wipe(dropUsed)
@@ -2111,10 +2329,32 @@ vtitle:SetWordWrap(false)
 local vclose = CreateFrame("Button", nil, vf, "UIPanelCloseButton")
 vclose:SetSize(24, 24)
 vclose:SetPoint("TOPRIGHT", -2, -4)
-local vkind = iconButton(vf, 22, "bank", function() return B.view2 and B.view2.kind == "bank" and "Showing the bank" or "Showing the bags" end,
-  function() return "Click: " .. (B.view2 and B.view2.kind == "bank" and "the bags." or "the bank.") end,
-  function() if B.view2 then B.view2.kind = B.view2.kind == "bank" and "bags" or "bank" B.DrawView() end end)
+-- (another character: switch between their bags and their bank. Your own bank: show or hide the row
+-- of the bank's bag slots)
+local vkind = iconButton(vf, 22, "bank", function()
+    if B.view2 and not B.view2.who then return "The bank's bag slots" end
+    return B.view2 and B.view2.kind == "bank" and "Showing the bank" or "Showing the bags"
+  end,
+  function()
+    if B.view2 and not B.view2.who then
+      if not (B.BankOpen and B.BankOpen()) then return "At a banker: click to show or hide the bank's bag slots." end
+      return "Click: " .. (DB and DB.bankBarOpen == false and "show" or "hide") .. " the bank's bag slots (buy slots and put bags in them there)."
+    end
+    return "Click: " .. (B.view2 and B.view2.kind == "bank" and "the bags." or "the bank.")
+  end,
+  function()
+    if not B.view2 then return end
+    if not B.view2.who then
+      if fightLock() then Print("the bank's bag slots show or hide after the fight.") return end
+      DB.bankBarOpen = DB.bankBarOpen == false
+      B.DrawView()
+      return
+    end
+    B.view2.kind = B.view2.kind == "bank" and "bags" or "bank"
+    B.DrawView()
+  end)
 vkind:SetPoint("RIGHT", vclose, "LEFT", -1, 0)
+B.viewKindBtn = vkind
 local vsearch = CreateFrame("EditBox", "RucksackBagsViewSearch", vf, "InputBoxTemplate")
 vsearch:SetHeight(18)
 vsearch:SetWidth(110)
@@ -2130,6 +2370,190 @@ vhint:SetText("Search")
 vtitle:SetPoint("RIGHT", vsearch, "LEFT", -8, 0)
 local vbody = CreateFrame("Frame", nil, vf)
 vbody:SetPoint("TOPLEFT", 8, -HEAD)
+-- your bank's bag slots (at a banker), top left like your own bag bar: drop a bag on one, click one to
+-- pick its bag up. The next slot you haven't bought: click it to buy it (it asks once).
+local bankBar = CreateFrame("Frame", nil, vf)
+bankBar:SetPoint("TOPLEFT", 8, -HEAD + 2)
+bankBar:SetSize(300, 32)
+bankBar:Hide()
+local bankBtns, buyArmed, buyAt = {}, nil, 0
+function B.BuyOff() buyArmed = nil end
+local function bought()
+  if B.BANK.tabbed then
+    -- (the first "tab" is the bank itself)
+    local ok, n = pcall(C_Bank.FetchNumPurchasedBankTabs, B.BANK.type)
+    return math.max(0, (ok and tonumber(n) or 1) - 1)
+  end
+  local n = GetNumBankSlots and GetNumBankSlots()
+  return n or 0
+end
+local function coins(c) return GetCoinTextureString and GetCoinTextureString(c) or (math.floor(c / 10000) .. "g " .. math.floor(c / 100) % 100 .. "s " .. c % 100 .. "c") end
+local function slotCost()
+  if B.BANK.tabbed then
+    local ok, d = pcall(C_Bank.FetchNextPurchasableBankTabData, B.BANK.type)
+    return ok and type(d) == "table" and tonumber(d.tabCost) or nil
+  end
+  local ok, c = pcall(GetBankSlotCost, bought())
+  return ok and c or nil
+end
+for i = 1, 12 do
+  local b = CreateFrame("Button", "RucksackBankBagSlot" .. i, bankBar, ns.BACKDROP_TMPL)
+  b:SetSize(30, 30)
+  b:SetPoint("LEFT", (i - 1) * 33, 0)
+  if b.SetBackdrop then
+    b:SetBackdrop(ns.SLOT_BACKDROP)
+    b:SetBackdropColor(0.06, 0.05, 0.04, 0.95)
+    b:SetBackdropBorderColor(0.42, 0.35, 0.21)
+  end
+  b.icon = b:CreateTexture(nil, "ARTWORK")
+  b.icon:SetPoint("TOPLEFT", 3, -3)
+  b.icon:SetPoint("BOTTOMRIGHT", -3, 3)
+  b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  b.lock = b:CreateTexture(nil, "OVERLAY")
+  b.lock:SetSize(16, 19)
+  b.lock:SetPoint("CENTER", 0, 0)
+  b.lock:SetTexture("Interface\\LFGFrame\\UI-LFG-ICON-LOCK")
+  b.lock:SetTexCoord(0, 0.71875, 0, 0.875) -- (the padlock sits in the top left of its picture)
+  b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+  b.count:SetPoint("BOTTOMRIGHT", -2, 2)
+  b.i = i
+  b:RegisterForClicks("LeftButtonUp")
+  b:RegisterForDrag("LeftButton")
+  local function fight() if InCombatLockdown() then Print("bags can't be changed in a fight.") return true end end
+  local function put() local inv = b.bag and invSlot(b.bag) if inv and b.owned and not fight() then PutItemInBag(inv) end end
+  local function take() local inv = b.bag and invSlot(b.bag) if inv and b.owned and b.has and not fight() then PickupBagFromSlot(inv) end end
+  b:SetScript("OnClick", function(self)
+    if B.Debug then B.Debug.Log("RUCKSACK bank bag slot " .. self.i .. " clicked: owned " .. tostring(self.owned) .. ", bought " .. tostring(bought()) .. ", bag " .. tostring(self.bag)) end
+    if self.owned then if CursorHasItem() then put() else take() end return end
+    if self.i ~= bought() + 1 then Print("buy the bank's bag slots in order: the first locked one next.") return end
+    local cost = slotCost()
+    local buy = PurchaseSlot or (C_Bank and C_Bank.PurchaseSlot)
+    if not buy then
+      -- (this game only lets its own bank window buy slots: open it, there's a Purchase button)
+      if B.ShowGameBank then B.ShowGameBank() end
+      return
+    end
+    if buyArmed ~= self.i or GetTime() - buyAt > 5 then
+      buyArmed, buyAt = self.i, GetTime()
+      self.count:SetText("|cffffd100Buy?|r")
+      Print("click the slot again to buy it" .. (cost and (" for " .. coins(cost)) or "") .. ".")
+      return
+    end
+    buyArmed = nil
+    self.count:SetText("")
+    if cost and GetMoney() < cost then Print("not enough money: the slot costs " .. coins(cost) .. ".") return end
+    local ok, err = pcall(buy)
+    if not ok then Print("the game didn't let Rucksack buy the slot (" .. tostring(err) .. ").") end
+  end)
+  b:SetScript("OnReceiveDrag", put)
+  b:SetScript("OnDragStart", take)
+  b:SetScript("OnEnter", function(self)
+    if self.SetBackdropBorderColor then self:SetBackdropBorderColor(1, 0.82, 0) end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    local inv = self.bag and invSlot(self.bag)
+    if self.owned and self.has and inv and GameTooltip.SetInventoryItem then
+      GameTooltip:SetInventoryItem("player", inv)
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine((self.free or 0) .. " of " .. (self.size or 0) .. " slots free", 1, 1, 1)
+      GameTooltip:AddLine("Drop another bag on it to swap. Click to pick it up.", 0.7, 0.7, 0.7, true)
+    elseif self.owned then
+      GameTooltip:AddLine("Empty bank bag slot")
+      GameTooltip:AddLine("Drop a bag here (from your bags or one you're holding).", 1, 1, 1, true)
+    elseif self.i == bought() + 1 then
+      local cost = slotCost()
+      GameTooltip:AddLine("Buy this bank bag slot")
+      if B.buySlot == self then
+        GameTooltip:AddLine((cost and ("Costs " .. coins(cost) .. ". ") or "") .. "Click: the game asks once, then it's yours. Put a bag in it after.", 1, 1, 1, true)
+      elseif PurchaseSlot or (C_Bank and C_Bank.PurchaseSlot) then
+        GameTooltip:AddLine("Costs " .. (cost and coins(cost) or "?") .. ". Click, then click again to buy it.", 1, 1, 1, true)
+      else
+        GameTooltip:AddLine((cost and ("Costs " .. coins(cost) .. ". ") or "") .. "Click: the game's own bank window comes up, buy it there with Purchase.", 1, 1, 1, true)
+      end
+    else
+      GameTooltip:AddLine("Locked bank bag slot")
+      GameTooltip:AddLine("Buy the ones before it first.", 0.7, 0.7, 0.7, true)
+    end
+    GameTooltip:Show()
+  end)
+  b:SetScript("OnLeave", function(self)
+    if self.SetBackdropBorderColor then self:SetBackdropBorderColor(self.next and 0.9 or 0.42, self.next and 0.7 or 0.35, self.next and 0.2 or 0.21) end
+    GameTooltip:Hide()
+  end)
+  b:Hide()
+  bankBtns[i] = b
+end
+-- Buying a bank bag slot. The game only lets its own Purchase button do that, so Rucksack lays an
+-- unseen button over the next slot you can buy that hands your click to the game's button (the game's
+-- own "click" action: nothing of Rucksack's runs in between, so the game trusts it). The game then
+-- asks "Do you want to purchase a bank slot?" as always.
+function B.GameBuyButton()
+  local p = BankPanel
+  if type(p) ~= "table" then return nil end
+  if p.PurchaseButton then return p.PurchaseButton end
+  local t = p.PurchasePrompt and p.PurchasePrompt.TabCostFrame
+  return t and t.PurchaseButton or nil
+end
+function B.BuyProxy()
+  if B.buyProxy then return B.buyProxy end
+  if InCombatLockdown() then return nil end
+  local target = B.GameBuyButton()
+  if not target then return nil end
+  local p = CreateFrame("Button", "RucksackBankBuy", bankBar, "SecureActionButtonTemplate")
+  p:SetSize(30, 30)
+  p:RegisterForClicks("AnyDown")
+  p:SetAttribute("useOnKeyDown", true)
+  p:SetAttribute("type", "click")
+  p:SetAttribute("clickbutton", target)
+  p:HookScript("OnEnter", function() local b = B.buySlot local fn = b and b:GetScript("OnEnter") if fn then fn(b) end end)
+  p:HookScript("OnLeave", function() local b = B.buySlot local fn = b and b:GetScript("OnLeave") if fn then fn(b) end end)
+  p:HookScript("PreClick", function()
+    if B.Debug then B.Debug.Log("RUCKSACK buy: the click goes to the game's Purchase button (bought " .. tostring(bought()) .. ")") end
+  end)
+  p:Hide()
+  B.buyProxy = p
+  return p
+end
+local function drawBankBar(st)
+  local ids = bankBagIDs()
+  local have = bought()
+  -- (the buy button: over the next slot, only at the banker and out of a fight)
+  if not InCombatLockdown() then
+    local p = B.BANK.tabbed and B.BuyProxy()
+    local nb = p and have < #ids and bankBtns[have + 1]
+    if nb then
+      p:ClearAllPoints()
+      p:SetAllPoints(nb)
+      p:SetFrameLevel((nb:GetFrameLevel() or 1) + 3)
+      p:Show()
+      B.buySlot = nb
+    else
+      if p then p:Hide() end
+      B.buySlot = nil
+    end
+  end
+  for i, b in ipairs(bankBtns) do
+    local bag = ids[i]
+    b.bag = bag
+    if not bag then b:Hide() else
+      b:Show()
+      b.owned = i <= have
+      b.next = i == have + 1
+      local inv = b.owned and invSlot(bag)
+      local tex = inv and GetInventoryItemTexture and GetInventoryItemTexture("player", inv)
+      b.has = tex and true or false
+      b.icon:SetTexture(tex or EMPTY_BAG)
+      b.icon:SetAlpha(tex and 1 or 0.5)
+      b.icon:SetShown(b.owned)
+      b.lock:SetShown(not b.owned)
+      b.lock:SetAlpha(b.next and 1 or 0.5)
+      b.free, b.size = st and st.bagFree[bag] or 0, st and st.bagSize[bag] or 0
+      if buyArmed == i and GetTime() - buyAt <= 5 then b.count:SetText("|cffffd100Buy?|r")
+      else b.count:SetText(tex and ((b.free == 0 and "|cffff5a50" or "|cffffffff") .. b.free .. "|r") or "") end
+      if b.SetBackdropBorderColor then b:SetBackdropBorderColor(b.next and 0.9 or 0.42, b.next and 0.7 or 0.35, b.next and 0.2 or 0.21) end
+    end
+  end
+  bankBar:SetWidth(#ids * 33)
+end
 local vfoot = CreateFrame("Frame", nil, vf)
 vfoot:SetHeight(16)
 vfoot.free = vfoot:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
@@ -2149,6 +2573,9 @@ end
 function B.DrawView()
   local v = B.view2
   if not DB or not v or not vf:IsShown() then return end
+  -- (your own bags: only in the bag window. Their buttons are the real ones: shown here they'd be pulled
+  -- out of the bag window and left lying over the bank)
+  if select(2, viewWho(v)) and v.kind ~= "bank" then v.kind = "bank" end
   if fightLock() then pendingDraw = true return end
   local cols = math.max(8, math.min(16, DB.cols or 10))
   local W = cols * PITCH - GAP
@@ -2160,12 +2587,23 @@ function B.DrawView()
   local seen = v.kind == "bank" and (vLiveBank(v) and "|cff66dd66open now|r" or (rec and rec.bankSeen) and ("seen " .. ago(rec.bankSeen)) or "not seen yet")
     or ("seen " .. ago(rec and rec.seen))
   vtitle:SetText(classColor(rec and rec.class or (mine and select(2, UnitClass("player")))) .. name .. " " .. v.kind .. "|r  |cff8a8a8a" .. seen .. "|r")
-  setIcon(vkind, v.kind == "bank" and "bank" or "onebag")
+  setIcon(vkind, (v.kind == "bank" and v.who) and "bank" or "onebag")
   local saveUsed = {}
   for b in pairs(used) do saveUsed[b] = true end
   wipe(used)
   whereText = name .. " " .. v.kind
+  local barH = 0
+  if vLiveBank(v) and not v.who and DB.bankBarOpen ~= false then barH = 36 bankBar:Show() else bankBar:Hide() end
+  lightUp(vkind, barH > 0)
+  vbody:ClearAllPoints()
+  vbody:SetPoint("TOPLEFT", 8, -(HEAD + barH))
   local height, total, st = drawItems(B.VIEW, v, text, cols, W)
+  if barH > 0 then drawBankBar(st) end
+  -- (new buttons get their padlock from the game a moment after they're made: look again)
+  if barH > 0 and (B.lockCheck or 0) > 0 then
+    B.lockCheck = B.lockCheck - 1
+    C_Timer.After(0.3, function() B.DrawView() end)
+  end
   hideUnused(false)
   for b in pairs(saveUsed) do used[b] = true end
   if total == 0 then
@@ -2178,7 +2616,7 @@ function B.DrawView()
     vnothing:Hide()
   end
   vbody:SetSize(W, height)
-  local y = HEAD + height + 6
+  local y = HEAD + barH + height + 6
   vfoot:ClearAllPoints()
   vfoot:SetPoint("TOPLEFT", 8, -y)
   drawFoot(vfoot, st, rec, v, W)
@@ -2188,6 +2626,8 @@ end
 -- open the second window on a view: who (nil = you), kind ("bags" or "bank")
 function B.ShowView(who, kind, auto)
   if not DB then return end
+  if who == meKey() then who = nil end
+  if not who and kind ~= "bank" then B.Open() return end
   local v = B.view2
   if v and vf:IsShown() and v.who == who and v.kind == kind and not auto then B.CloseView() return end
   B.view2 = { who = who, kind = kind }
@@ -2205,6 +2645,12 @@ end
 function B.CloseView() vf:Hide() end
 vf:SetScript("OnHide", function()
   B.viewAuto = nil
+  -- (your bank closed at a banker: the visit ends, as closing the game's bank would)
+  if bankOpen and DB and DB.replace and B.view2 and B.view2.kind == "bank" and not B.view2.who then
+    bankOpen = false
+    local close = (C_Bank and C_Bank.CloseBankFrame) or CloseBankFrame
+    if close then pcall(close) end
+  end
   if f:IsShown() and DB then lightUp(bankBtn, false) lightUp(whoBtn, false) end
 end)
 
@@ -2277,17 +2723,19 @@ f:SetScript("OnUpdate", function(_, dt)
   local key, r
   if held and not moving and not DB.locked and f:IsMouseOver() then
     r = rectUnder()
-    if r and placeable(r.key) and (r.key ~= "junk" or hasClean()) then key = r.key end
+    if r and placeable(r.key) and ((r.key ~= "junk" and r.key ~= "sell") or hasClean()) then key = r.key end
     if r and r.key == "keep" and ((hasClean() and ns.Del.JunkKind(held)) or (DB.hidden and DB.hidden[held])) then key = "keep" end
   end
   if key ~= hoverKey then
     hoverKey = key
     if key then
       local junk = key == "junk"
+      local sellK = key == "sell"
       hoverBox:ClearAllPoints()
       hoverBox:SetPoint("TOPLEFT", r.parent, "TOPLEFT", r.x - 3, -(r.y - 2))
       hoverBox:SetSize(r.w + 6, r.h + 4)
-      hoverBox:SetColorTexture(junk and 1 or 0.3, junk and 0.3 or 1, 0.3, 0.12)
+      if sellK then hoverBox:SetColorTexture(1, 0.82, 0.25, 0.12)
+      else hoverBox:SetColorTexture(junk and 1 or 0.3, junk and 0.3 or 1, 0.3, 0.12) end
       hoverBox:Show()
     else
       hoverBox:Hide()
@@ -2299,14 +2747,23 @@ end)
 ---------------------------------------------------------------------------
 -- Opening and closing: instead of the game's bags (B, the bag buttons, vendors, mail...)
 ---------------------------------------------------------------------------
+-- (1.8.2) the game's own bag sounds when the bag opens and closes (a setting)
+local function bagSound(open)
+  if not DB or DB.sound == false or not PlaySound then return end
+  local id = SOUNDKIT and (open and SOUNDKIT.IG_BACKPACK_OPEN or SOUNDKIT.IG_BACKPACK_CLOSE) or (open and 862 or 863)
+  pcall(PlaySound, id)
+end
 function B.Open()
   if not DB then return end
+  if DB.replace and B.HideGameBags then B.HideGameBags(true) end
+  if not f:IsShown() then bagSound(true) end
   f:Show()
   B.Draw()
   if not B.pinned then B.pinned = true pinTopLeft() end
 end
 function B.Close() f:Hide() end
 f:SetScript("OnHide", function()
+  bagSound(false)
   wipe(B.newIDs)
   B.hoverBag = nil
   B.deleting = false
@@ -2359,31 +2816,167 @@ function B.Tidy()
   tidying = 0
   tidyStep()
 end
-function B.Toggle() if f:IsShown() then B.Close() else B.Open() end end
-function B.IsShown() return f:IsShown() end
-local orig, hooked = {}, false
-local function takeOver()
-  if hooked then return end
-  hooked = true
-  for _, n in ipairs({ "ToggleAllBags", "OpenAllBags", "CloseAllBags", "ToggleBackpack", "OpenBackpack", "CloseBackpack", "ToggleBag" }) do orig[n] = _G[n] end
-  local function wrap(name, mine, alsoGame)
-    _G[name] = function(...)
-      if not DB or not DB.replace then if orig[name] then return orig[name](...) end return end
-      mine()
-      if alsoGame and orig[name] then return orig[name](...) end
+-- Reagents live in the reagent bag: one lying in an ordinary bag is moved there when there's room
+-- (onto a half-full stack of it first, then an empty reagent slot). One move at a time, never in a
+-- fight, never while you hold something. What counts as a reagent: the game says so, or it has been
+-- seen in the reagent bag. If the game won't take an item there, it's left alone from then on.
+B.reagentSeen, B.reagentNo = {}, {}
+function B.IsReagent(id)
+  if B.reagentNo[id] then return false end
+  if B.reagentSeen[id] then return true end
+  local ok, r = pcall(function() return (select(17, ns.GetInfo(id))) end)
+  return ok and r and true or false
+end
+function B.ReagentsHome()
+  if not DB or DB.reagentHome == false or not REAGENT then return end
+  if B.reagentWait and GetTime() - B.reagentWait < 2 then return end -- (a look is already on its way)
+  B.reagentWait = GetTime()
+  C_Timer.After(0.5, B.ReagentStep)
+end
+function B.ReagentStep()
+  B.reagentWait = nil
+  if not DB or DB.reagentHome == false or not REAGENT then return end
+  if tidying or InCombatLockdown() or CursorHasItem() or (GetCursorInfo and GetCursorInfo()) then return end
+  if SpellIsTargeting and SpellIsTargeting() then return end
+  local n = C_Container.GetContainerNumSlots(REAGENT) or 0
+  if n == 0 then return end
+  local empty, partial, busy = nil, {}, false
+  for slot = 1, n do
+    local it = C_Container.GetContainerItemInfo(REAGENT, slot)
+    if it and it.itemID then
+      B.reagentSeen[it.itemID] = true
+      if it.isLocked then
+        busy = true
+      else
+        local max = select(8, ns.GetInfo(it.hyperlink or it.itemID))
+        if max and (it.stackCount or 1) < max and not partial[it.itemID] then partial[it.itemID] = slot end
+      end
+    elseif not empty then
+      empty = slot
     end
   end
-  wrap("ToggleAllBags", B.Toggle)
-  wrap("OpenAllBags", B.Open)
-  wrap("CloseAllBags", B.Close, true) -- (the game still closes its own: bank bags)
-  wrap("ToggleBackpack", B.Toggle)
-  wrap("OpenBackpack", B.Open)
-  wrap("CloseBackpack", B.Close)
-  local toggleBag = orig.ToggleBag
-  ToggleBag = function(id, ...)
-    if DB and DB.replace and IS_BAG[id] then return B.Toggle() end
-    if toggleBag then return toggleBag(id, ...) end
+  if busy then return B.ReagentsHome() end -- (a move is still on its way)
+  if not empty and not next(partial) then return end
+  for _, bag in ipairs(BAGS) do
+    if bag ~= REAGENT then
+      for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
+        local it = C_Container.GetContainerItemInfo(bag, slot)
+        if it and it.itemID and not it.isLocked and B.IsReagent(it.itemID) then
+          local to = partial[it.itemID] or empty
+          if to then
+            local sig = bag .. ":" .. slot .. ":" .. it.itemID .. ":" .. (it.stackCount or 1) .. ">" .. to
+            if sig == B.reagentLast and GetTime() - (B.reagentLastAt or 0) < 5 then
+              -- (asked for exactly this a moment ago and nothing happened: the game won't do it)
+              B.reagentNo[it.itemID], B.reagentLast = true, nil
+            else
+              B.reagentLast, B.reagentLastAt = sig, GetTime()
+              C_Container.PickupContainerItem(bag, slot)
+              C_Container.PickupContainerItem(REAGENT, to)
+              if CursorHasItem() then
+                -- (the reagent bag wouldn't take it: back where it was, and not tried again)
+                ClearCursor()
+                B.reagentNo[it.itemID] = true
+              end
+            end
+            return B.ReagentsHome()
+          end
+        end
+      end
+    end
   end
+end
+function B.Toggle() if f:IsShown() then B.Close() else B.Open() end end
+function B.IsShown() return f:IsShown() end
+local hooked = false
+-- The game's own bank window while Rucksack does your bags: the game opens it as always (it has to
+-- think the bank is open: buying a bag slot and right-click "put it in the bank" go through it), but
+-- under a frame that is see-through and a thousandth of its size, so you never see or touch it.
+-- Rucksack never opens, shows or fills that window itself: an addon doing that makes the game stop
+-- trusting clicks on your items ("tried to call a protected function") until a /reload.
+function B.HideGameBank(on)
+  local bf = BankFrame
+  if type(bf) ~= "table" or not bf.SetParent then return false end
+  if InCombatLockdown() then return false end
+  if not B.gameBankHome then
+    local h = CreateFrame("Frame", nil, UIParent)
+    h:SetSize(1, 1)
+    h:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
+    h:SetAlpha(0)
+    h:SetScale(0.001)
+    B.gameBankHome = h
+  end
+  if on then
+    if bf:GetParent() ~= B.gameBankHome then
+      B.gameBankParent = bf:GetParent() or UIParent
+      B.gameBankStrata = bf.GetFrameStrata and bf:GetFrameStrata() or nil
+      pcall(bf.SetParent, bf, B.gameBankHome)
+    end
+  elseif B.gameBankParent then
+    pcall(bf.SetParent, bf, B.gameBankParent)
+    if B.gameBankStrata and bf.SetFrameStrata then pcall(bf.SetFrameStrata, bf, B.gameBankStrata) end
+    B.gameBankParent = nil
+  end
+  return true
+end
+-- the game's own bank window on request (if Rucksack's buy button can't be used): seen until this visit ends
+function B.ShowGameBank()
+  if not BankFrame then return end
+  if not B.HideGameBank(false) then Print("not in a fight: try again after it.") return end
+  B.gameBankOn = true
+  Print("the game's own bank window is up too until you leave the banker. Buy the bag slot there with Purchase.")
+end
+-- Your bag key and everything else that opens bags: Rucksack opens instead of the game's bags.
+-- The game's own functions (ToggleAllBags, OpenAllBags...) are left exactly as they are and Rucksack
+-- acts after them (hooksecurefunc). Replacing them, as Rucksack did before 1.8.2, made the game
+-- distrust everything its own code did after calling one: buying a bank slot and using an item at
+-- the bank failed with "tried to call a protected function". The game's bag windows still open when
+-- the game says so, but under a hidden frame, so you never see them.
+function B.HideGameBags(on)
+  if not B.gameBagsHome then B.gameBagsHome = CreateFrame("Frame") B.gameBagsHome:Hide() B.gameBagParents = {} end
+  local gameBagsHome, gameBagParents = B.gameBagsHome, B.gameBagParents
+  local list = {}
+  if ContainerFrameCombinedBags then list[#list + 1] = ContainerFrameCombinedBags end
+  for i = 1, 20 do local c = _G["ContainerFrame" .. i] if c then list[#list + 1] = c end end
+  for _, c in ipairs(list) do
+    if on then
+      if c:GetParent() ~= gameBagsHome then
+        gameBagParents[c] = c:GetParent() or UIParent
+        pcall(c.SetParent, c, gameBagsHome)
+      end
+    elseif gameBagParents[c] then
+      pcall(c.SetParent, c, gameBagParents[c])
+      gameBagParents[c] = nil
+    end
+  end
+end
+-- what the game just asked for: "toggle", true (open) or false (close). The game's functions call each
+-- other (ToggleAllBags calls OpenBackpack...), and the outer one is heard last: so within one moment
+-- every call starts again from how the bag was before the first, and the last one heard decides.
+function B.Asked(want)
+  if not DB or not DB.replace then return end
+  local now = GetTime()
+  if now ~= B.askedAt then B.askedAt, B.wasOpen = now, (f:IsShown() and true or false) end
+  local open = want
+  if want == "toggle" then open = not B.wasOpen end
+  if open then
+    if not f:IsShown() then B.Open() end
+  elseif f:IsShown() then
+    B.Close()
+  end
+end
+local function takeOver()
+  local asked = B.Asked
+  if hooked then return end
+  hooked = true
+  if DB and DB.replace then B.HideGameBank(true) B.HideGameBags(true) end
+  local function after(name, fn) if type(_G[name]) == "function" then pcall(hooksecurefunc, name, fn) end end
+  after("ToggleAllBags", function() asked("toggle") end)
+  after("OpenAllBags", function() asked(true) end)
+  after("CloseAllBags", function() asked(false) end)
+  after("ToggleBackpack", function() asked("toggle") end)
+  after("OpenBackpack", function() asked(true) end)
+  after("CloseBackpack", function() asked(false) end)
+  after("ToggleBag", function(id) if IS_BAG[id] then asked("toggle") end end)
 end
 
 ---------------------------------------------------------------------------
@@ -2397,16 +2990,25 @@ local ev = CreateFrame("Frame")
 ev:SetScript("OnEvent", function(_, e)
   if e == "BANKFRAME_OPENED" then
     bankOpen = true
+    B.ForgetLocked()
+    B.lockCheck = 2
+    if DB and DB.replace and not B.gameBankOn then B.HideGameBank(true) end
     pcall(B.SaveBank)
     if DB and DB.replace then B.ShowView(nil, "bank", true) end
   end
   if e == "BANKFRAME_CLOSED" then
     bankOpen = false
+    if B.gameBankOn then
+      B.gameBankOn = nil
+      if DB and DB.replace then B.HideGameBank(true) end
+    end
+    if B.BuyOff then B.BuyOff() end
     if B.viewAuto then B.CloseView() end
   end
   if e == "PLAYER_LOGOUT" then pcall(B.SaveBags) return end
   if e == "PLAYERBANKSLOTS_CHANGED" then pcall(B.SaveBank) end
-  if e == "PLAYER_REGEN_ENABLED" then if pendingDraw then B.Changed() end return end
+  if e == "PLAYERBANKBAGSLOTS_CHANGED" or e == "BANK_TABS_CHANGED" then B.ForgetLocked() B.lockCheck = 2 end
+  if e == "PLAYER_REGEN_ENABLED" then B.ReagentsHome() if pendingDraw then B.Changed() end return end
   if OPENERS[e] then
     if DB and DB.replace and not f:IsShown() then autoOpened = true B.Open() else B.Changed() end
   elseif CLOSERS[e] then
@@ -2416,6 +3018,7 @@ ev:SetScript("OnEvent", function(_, e)
       pcall(trackNew)
       pcall(B.SaveBags)
       if bankOpen then pcall(B.SaveBank) end
+      B.ReagentsHome()
     elseif e == "PLAYER_MONEY" then
       pcall(B.SaveBags)
     end
@@ -2435,6 +3038,18 @@ ns.Module("bags", (...), function()
   if DB.scale == nil then DB.scale = 1 end
   DB.replace = true -- (1.8: with the module on, it's always your bag; to use another bag addon, turn Bags off)
   if DB.barOpen == nil then DB.barOpen = false end -- (the bags row: opened with the arrow on Rucksack)
+  -- (1.8.2) Junk is under everything now. A saved order that still has Junk where it used to start
+  -- (just above the Empty groups) is put right once; an order where you moved Junk yourself is left.
+  if not DB.junkLast then
+    DB.junkLast = true
+    if DB.order then
+      local at
+      for i, k in ipairs(DB.order) do if k == "junk" then at = i end end
+      local old = at ~= nil
+      for i = (at or 0) + 1, #DB.order do if not tostring(DB.order[i]):find("^empty") then old = false end end
+      if old and at < #DB.order then table.remove(DB.order, at) DB.order[#DB.order + 1] = "junk" end
+    end
+  end
   if DB.sortBy == nil then DB.sortBy = "kind" end
   if DB.emptyAll == nil then DB.emptyAll = true end
   if DB.showNew == nil then DB.showNew = true end
@@ -2454,14 +3069,15 @@ ns.Module("bags", (...), function()
 end)
 table.insert(ns.onLogin, function()
   for _, e in ipairs({ "BAG_UPDATE_DELAYED", "ITEM_LOCK_CHANGED", "PLAYER_MONEY", "BAG_UPDATE_COOLDOWN", "QUEST_LOG_UPDATE",
-    "PLAYER_EQUIPMENT_CHANGED", "BAG_UPDATE", "BAG_CONTAINER_UPDATE", "PLAYERBANKSLOTS_CHANGED", "PLAYER_LOGOUT",
-    "MERCHANT_SHOW", "MERCHANT_CLOSED", "MAIL_SHOW", "MAIL_CLOSED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
+    "PLAYER_EQUIPMENT_CHANGED", "BAG_UPDATE", "BAG_CONTAINER_UPDATE", "PLAYERBANKSLOTS_CHANGED", "PLAYERBANKBAGSLOTS_CHANGED", "PLAYER_LOGOUT",
+    "MERCHANT_SHOW", "MERCHANT_CLOSED", "MAIL_SHOW", "MAIL_CLOSED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "BANK_TABS_CHANGED",
     "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "TRADE_SHOW", "TRADE_CLOSED", "PLAYER_REGEN_ENABLED" }) do
     pcall(ev.RegisterEvent, ev, e)
   end
   pcall(trackNew)
   pcall(B.SaveBags)
   takeOver()
+  B.ReagentsHome()
   -- (the Junk group shows what the trash button shows: hide that button once; "Show button" on the
   -- Clean-up page brings it back)
   if ns.del and not DB.trashHidden then
@@ -2477,3 +3093,69 @@ table.insert(ns.onLogin, function()
     end
   end
 end)
+
+-- /ruckbank: what this game says about your bank (at a banker): every container, its slots and items
+SLASH_RUCKBANK1 = "/ruckbank"
+SlashCmdList.RUCKBANK = function()
+  local function say(t) print("|cff66ddffRucksack bank:|r " .. t) end
+  local E = Enum and Enum.BagIndex
+  if E then
+    local t = {}
+    for k, v in pairs(E) do t[#t + 1] = k .. "=" .. tostring(v) end
+    table.sort(t)
+    say("game's list: " .. table.concat(t, ", "))
+  end
+  local IC = Constants and Constants.InventoryConstants
+  say(("bag slots %s, bank bag slots %s, reagent bag slots %s, bought bank bags %s, bank open %s"):format(tostring(NUM_BAG_SLOTS), tostring(NUM_BANKBAGSLOTS),
+    tostring(IC and IC.NumReagentBagSlots), tostring(GetNumBankSlots and GetNumBankSlots()), tostring(B.BankOpen and B.BankOpen())))
+  local rows = {}
+  for id = -3, 20 do
+    local n = C_Container.GetContainerNumSlots(id) or 0
+    if n > 0 then
+      local items = 0
+      for s = 1, n do local it = C_Container.GetContainerItemInfo(id, s) if it and it.itemID then items = items + 1 end end
+      local name = C_Container.GetBagName and C_Container.GetBagName(id)
+      rows[#rows + 1] = id .. ": " .. n .. " slots, " .. items .. " items" .. (name and (" (" .. name .. ")") or "")
+    end
+  end
+  say("containers: " .. (#rows > 0 and table.concat(rows, " | ") or "none"))
+  say("Rucksack uses: bags " .. table.concat(BAGS, ",") .. "  bank " .. table.concat(bankIDs(), ","))
+  say("game's numbers: bank slots " .. tostring(NUM_BANKGENERIC_SLOTS) .. ", bank bag slots counted " .. #bankBagIDs())
+  do -- every bank slot in order: I an item, . empty, L shown with a padlock, ? no button yet
+    local main0 = B.BANK.main
+    local map = {}
+    for s = 1, C_Container.GetContainerNumSlots(main0) or 0 do
+      local it = C_Container.GetContainerItemInfo(main0, s)
+      local b = buttons[main0] and buttons[main0][s]
+      map[#map + 1] = (it and it.itemID) and "I" or (not b and "?") or (B.Padlocked(b) and "L") or "."
+      if s % 8 == 0 then map[#map + 1] = " " end
+    end
+    say("bank slots: " .. table.concat(map))
+  end
+  -- what the game puts on the last bank slot (to find its padlock)
+  local main = B.BANK.main
+  local n = C_Container.GetContainerNumSlots(main) or 0
+  local b = buttons[main] and buttons[main][n]
+  if b then
+    local parts = {}
+    for k, v in pairs(b) do
+      if type(v) == "table" and v.GetObjectType and v:GetObjectType() == "Texture" and v:IsShown() then
+        parts[#parts + 1] = tostring(k) .. "=" .. tostring(v.GetAtlas and v:GetAtlas() or v:GetTexture())
+      end
+    end
+    for _, r in ipairs({ b:GetRegions() }) do
+      if r.GetObjectType and r:GetObjectType() == "Texture" and r:IsShown() then
+        parts[#parts + 1] = "region " .. tostring(r:GetDrawLayer()) .. "=" .. tostring(r.GetAtlas and r:GetAtlas() or r:GetTexture())
+      end
+    end
+    say("bank slot " .. n .. " shows: " .. table.concat(parts, ", ") .. "  padlocked: " .. tostring(B.Padlocked(b)))
+  end
+  local api = {}
+  for _, tn in ipairs({ "C_Container", "C_Bank" }) do
+    local t = _G[tn]
+    if type(t) == "table" then for k in pairs(t) do if k:find("Lock") or k:find("Purchase") or k:find("Slot") or k:find("Unlock") then api[#api + 1] = tn .. "." .. k end end end
+  end
+  for k, v in pairs(_G) do if type(v) == "function" and type(k) == "string" and k:find("Bank") and (k:find("Purchase") or k:find("Slot") or k:find("Lock")) then api[#api + 1] = k end end
+  table.sort(api)
+  say("game's bank functions: " .. table.concat(api, ", "))
+end

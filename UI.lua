@@ -546,7 +546,7 @@ do
     function(v) ns.db.minimapHidden = not v or nil ns.UpdateMinimapButton() end))
   y = y - 34
   p:Add(KeyButton(p, 0, y, "Open Rucksack", "AUTODELETE_TOGGLE", "A key that opens and closes this window."))
-  y = y - 44
+  y = y - 38
   -- (1.7.4) modules as cards: click a card to tick it, then Apply (bottom right) does it all at once.
   -- Always this character's own choice. Unticked = not loaded at all (after a reload).
   local pend = {}        -- key -> wanted, not applied yet
@@ -568,106 +568,21 @@ do
   }
   local mh = Text(p, 0, y, "GameFontNormal")
   mh:SetText("Modules")
-  HoverLabel(p, mh, "Modules", "Rucksack comes with all its parts, but only loads the ones you pick here. A part that's off isn't loaded at all: no memory, no work. Each character has its own choice.\n\nClean-up is a choice of three: off, Clean-up only, or Clean-up + Bags (Rucksack's bag window with your junk in it). The cards below are on or off.\n\nThen click Apply (bottom right). Parts you turned on load right away; if you turned any off, it asks once to reload (the game can't unload a part while it runs).")
-  Text(p, 100, y - 1, "GameFontDisableSmall", 500):SetText("pick what you want, then Apply  ·  this character")
+  HoverLabel(p, mh, "Modules", "Rucksack comes with all its parts, but only loads the ones you pick here. A part that's off isn't loaded at all: no memory, no work. Each character has its own choice.\n\nEvery card is on or off. Bags and Clean-up each work alone; with both on, your bag shows your junk.\n\nThen click Apply (bottom right). Parts you turned on load right away; if you turned any off, it asks once to reload (the game can't unload a part while it runs).")
+  Text(p, 100, y - 1, "GameFontDisableSmall", 500):SetText("tick what you want, then Apply  ·  this character")
   y = y - 22
-  -- (1.8) Clean-up: one choice of three. Off, Clean-up only, or Clean-up + Bags (Rucksack's bag window
-  -- with your junk in it); both use the same junk list and settings. (Under the hood: two modules.)
-  -- 10px padding all round, 8px between the buttons; the long text is in each button's tooltip.
-  do
-    local c = CreateFrame("Frame", nil, p, ns.BACKDROP_TMPL)
-    c:SetSize(670, 56)
-    c:SetPoint("TOPLEFT", 0, y)
-    c:SetBackdrop(ns.SLOT_BACKDROP)
-    c:SetBackdropBorderColor(0.45, 0.45, 0.45)
-    local ic = c:CreateTexture(nil, "ARTWORK")
-    ic:SetSize(30, 30)
-    ic:SetPoint("LEFT", 10, 0)
-    ic:SetTexture("Interface\\Icons\\INV_Misc_Bag_10_Red")
-    ic:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    local nm = c:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    nm:SetPoint("TOPLEFT", ic, "TOPRIGHT", 10, -2)
-    nm:SetText("Clean-up")
-    local state = c:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    state:SetPoint("BOTTOMLEFT", ic, "BOTTOMRIGHT", 10, 2)
-    state:SetWidth(110)
-    state:SetJustifyH("LEFT")
-    state:SetWordWrap(false)
-    local function choiceNow()
-      if wantedNow("bags") then return "bags" end
-      return wantedNow("del") and "clean" or "off"
-    end
-    local OPTS = {
-      { "off", "Off", "your items are left alone",
-        "Neither Clean-up nor the bag window is loaded. Your junk list and settings are kept for when you turn it on again." },
-      { "clean", "Clean-up only", "sells junk · the game's bags",
-        "Keeps bag slots free: sells junk at vendors and throws the cheapest away when your bags fill up. Your bags stay the game's own, or another bag addon's." },
-      { "bags", "Clean-up + Bags", "with one bag window",
-        "Clean-up, plus one bag window instead of the game's bags (opens on B): items in groups, your bags on top, and a Junk group: drop an item on it to make it junk.\n\nSame junk list and settings as Clean-up only, so switching loses nothing." },
-    }
-    local X0, BW, BG = 178, 155, 8
-    local btns = {}
-    for i, o in ipairs(OPTS) do
-      local b = CreateFrame("Button", nil, c, ns.BACKDROP_TMPL)
-      b:SetSize(BW, 36)
-      b:SetPoint("LEFT", X0 + (i - 1) * (BW + BG), 0)
-      b:SetBackdrop(ns.SLOT_BACKDROP)
-      b.title = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-      b.title:SetPoint("TOPLEFT", 8, -6)
-      b.title:SetText(o[2])
-      b.sub = b:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-      b.sub:SetPoint("BOTTOMLEFT", 8, 6)
-      b.sub:SetWidth(BW - 16)
-      b.sub:SetJustifyH("LEFT")
-      b.sub:SetWordWrap(false)
-      b.sub:SetText(o[3])
-      local hl = b:CreateTexture(nil, "HIGHLIGHT")
-      hl:SetPoint("TOPLEFT", 3, -3) hl:SetPoint("BOTTOMRIGHT", -3, 3)
-      hl:SetColorTexture(1, 1, 1, 0.07)
-      b:SetScript("OnClick", function()
-        pend.del = o[1] ~= "off"
-        pend.bags = o[1] == "bags"
-        ns.Changed()
-      end)
-      tip(b, o[2], o[4])
-      btns[#btns + 1] = { b = b, v = o[1] }
-      ns.UI.itemChoice = ns.UI.itemChoice or {}
-      ns.UI.itemChoice[o[1]] = b
-    end
-    p.updates[#p.updates + 1] = function()
-      local now = choiceNow()
-      for _, e in ipairs(btns) do
-        local on = e.v == now
-        e.b:SetBackdropColor(on and 0.32 or 0.05, on and 0.24 or 0.05, on and 0.02 or 0.05, 0.95)
-        e.b:SetBackdropBorderColor(on and 1 or 0.3, on and 0.82 or 0.3, on and 0 or 0.3)
-        e.b.title:SetTextColor(on and 1 or 0.9, on and 0.82 or 0.9, on and 0 or 0.9)
-      end
-      ic:SetDesaturated(now == "off")
-      nm:SetTextColor(now ~= "off" and 1 or 0.5, now ~= "off" and 0.82 or 0.5, now ~= "off" and 0 or 0.5)
-      c:SetBackdropColor(now ~= "off" and 0.1 or 0.04, now ~= "off" and 0.09 or 0.04, now ~= "off" and 0.06 or 0.04, 0.92)
-      local hasD, hasB = ns.Has("del"), ns.Has("bags")
-      local live = hasB and "bags" or hasD and "clean" or "off"
-      if now == live then
-        state:SetText(live == "off" and "|cff999999off|r" or "|cff66dd66loaded|r")
-      elseif (hasB and now ~= "bags") or (hasD and now == "off") then
-        state:SetText("|cffffd100after a reload|r")
-      else
-        state:SetText("|cffffd100loads on Apply|r")
-      end
-    end
-    y = y - 62
-  end
+  -- (1.8.2) every module is one card with a tick. Bags and Clean-up sit together in one frame: each
+  -- works alone, and the line under them says what you get (together: your junk shows in your bag).
+  -- A card you changed has a gold edge until Apply.
   local CW, CH = 330, 44
-  local CARDS = {}
-  for _, m in ipairs(ns.MODULES) do if m.key ~= "del" and m.key ~= "bags" then CARDS[#CARDS + 1] = m end end
-  for i, m in ipairs(CARDS) do
+  ns.UI.modCards = {}
+  local function moduleCard(m, parent, x, cy, w)
     local info = MODINFO[m.key] or {}
-    local c = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
-    c:SetSize(CW, CH)
-    c:SetPoint("TOPLEFT", ((i - 1) % 2) * (CW + 10), y - math.floor((i - 1) / 2) * (CH + 6))
+    local c = CreateFrame("Button", nil, parent, ns.BACKDROP_TMPL)
+    c:SetSize(w, CH)
+    c:SetPoint("TOPLEFT", x, cy)
     c:SetBackdrop(ns.SLOT_BACKDROP)
     c:SetBackdropBorderColor(0.45, 0.45, 0.45)
-    ns.UI.modCards = ns.UI.modCards or {}
     ns.UI.modCards[m.key] = c
     local ic = c:CreateTexture(nil, "ARTWORK")
     ic:SetSize(30, 30)
@@ -689,15 +604,19 @@ do
     tick:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
     local state = c:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     state:SetPoint("BOTTOMRIGHT", -10, 8)
+    c.state = state
+    local function edge(self, over)
+      if over or self.waiting then self:SetBackdropBorderColor(1, 0.82, 0) else self:SetBackdropBorderColor(0.45, 0.45, 0.45) end
+    end
     c:SetScript("OnEnter", function(self)
-      self:SetBackdropBorderColor(1, 0.82, 0)
+      edge(self, true)
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       GameTooltip:AddLine(m.name)
       GameTooltip:AddLine(info.tip or m.what, 1, 1, 1, true)
       GameTooltip:AddLine(wantedNow(m.key) and "Click to turn it off, then Apply." or "Click to turn it on, then Apply.", 0.6, 0.6, 0.6)
       GameTooltip:Show()
     end)
-    c:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(0.45, 0.45, 0.45) GameTooltip:Hide() end)
+    c:SetScript("OnLeave", function(self) edge(self, false) GameTooltip:Hide() end)
     c:SetScript("OnClick", function(self)
       pend[m.key] = not wantedNow(m.key)
       ns.Changed()
@@ -709,6 +628,8 @@ do
       ic:SetDesaturated(not now)
       nm:SetTextColor(now and 1 or 0.5, now and 0.82 or 0.5, now and 0 or 0.5)
       c:SetBackdropColor(now and 0.1 or 0.04, now and 0.09 or 0.04, now and 0.06 or 0.04, 0.92)
+      c.waiting = now ~= want
+      edge(c, GameTooltip:IsOwned(c))
       if now ~= want then
         state:SetText(now and "|cffffd100loads on Apply|r" or (has and "|cffffd100off after reload|r" or "|cffffd100stays off|r"))
       elseif has and want then state:SetText("|cff66dd66loaded|r")
@@ -716,6 +637,52 @@ do
       elseif want then state:SetText("|cffff8080couldn't load|r")
       else state:SetText("|cff999999off|r") end
     end
+    return c
+  end
+  local MOD = {}
+  for _, m in ipairs(ns.MODULES) do MOD[m.key] = m end
+  -- Bags and Clean-up: the pair
+  do
+    local PAD, BAND = 8, 30
+    local box = CreateFrame("Frame", nil, p, ns.BACKDROP_TMPL)
+    box:SetSize(2 * CW + 10, PAD + CH + 4 + BAND + PAD - 2)
+    box:SetPoint("TOPLEFT", 0, y)
+    box:SetBackdrop(ns.SLOT_BACKDROP)
+    box:SetBackdropColor(0.05, 0.045, 0.035, 0.9)
+    ns.UI.modPair = box
+    local w = (2 * CW + 10 - 2 * PAD - 8) / 2
+    moduleCard(MOD.bags, box, PAD, -PAD, w)
+    moduleCard(MOD.del, box, PAD + w + 8, -PAD, w)
+    local band = box:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    band:SetPoint("TOPLEFT", PAD + 4, -(PAD + CH + 6))
+    band:SetWidth(2 * CW + 10 - 2 * PAD - 8)
+    band:SetHeight(BAND - 4)
+    band:SetJustifyH("LEFT")
+    band:SetJustifyV("TOP")
+    band:SetWordWrap(true)
+    box.band = band
+    p.updates[#p.updates + 1] = function()
+      local b, d = wantedNow("bags"), wantedNow("del")
+      if b and d then
+        band:SetText("|cffffd100Working together.|r Your bag gets Junk and Sell groups: drop an item on Junk to mark it, and the bag shows what your junk sells for.")
+        box:SetBackdropBorderColor(0.62, 0.52, 0.3)
+      elseif b then
+        band:SetText("|cffd9a35aBags on its own.|r One bag window with your groups; nothing is sold or thrown away. Tick Clean-up too and your bag gets Junk and Sell groups.")
+        box:SetBackdropBorderColor(0.3, 0.3, 0.3)
+      elseif d then
+        band:SetText("|cffff8a8aClean-up on its own.|r It sells junk and keeps slots free, with the game's own bags or another bag addon. Tick Bags too and you manage junk right in your bag.")
+        box:SetBackdropBorderColor(0.3, 0.3, 0.3)
+      else
+        band:SetText("|cff999999Both off: your items are left alone. Your junk list and your groups are kept for when you turn them on again.|r")
+        box:SetBackdropBorderColor(0.3, 0.3, 0.3)
+      end
+    end
+    y = y - (PAD + CH + 4 + BAND + PAD - 2) - 6
+  end
+  local CARDS = {}
+  for _, m in ipairs(ns.MODULES) do if m.key ~= "del" and m.key ~= "bags" then CARDS[#CARDS + 1] = m end end
+  for i, m in ipairs(CARDS) do
+    moduleCard(m, p, ((i - 1) % 2) * (CW + 10), y - math.floor((i - 1) / 2) * (CH + 6), CW)
   end
   y = y - math.ceil(#CARDS / 2) * (CH + 6)
   -- Apply / Cancel, bottom right of the page
@@ -756,19 +723,14 @@ do
     ns.Changed()
   end)
   p.updates[#p.updates + 1] = function()
-    local n, items = 0, false
-    for k, v in pairs(pend) do
-      if v ~= ns.ModuleWanted(k) then
-        if k == "del" or k == "bags" then items = true else n = n + 1 end
-      end
-    end
-    if items then n = n + 1 end -- (Clean-up and Bags are one choice)
+    local n = 0
+    for k, v in pairs(pend) do if v ~= ns.ModuleWanted(k) then n = n + 1 end end
     applyBtn:SetEnabled(n > 0)
     cancelBtn:SetEnabled(n > 0)
     pendNote:SetText(n > 0 and (n .. (n == 1 and " change" or " changes") .. " waiting") or "")
   end
   -- the Pocket
-  y = y - 20
+  y = y - 14
   Text(p, 0, y, "GameFontNormal"):SetText("The Pocket")
   Text(p, 100, y - 1, "GameFontDisableSmall", 560):SetText("a small window that stays on screen  ·  right-click the Pocket for these settings")
   y = y - 22
@@ -1202,6 +1164,7 @@ end
 local TOOLS = {
   { key = "home", icon = ns.ICON, name = "Home" },
   { key = "eat", icon = "Interface\\Icons\\INV_Misc_Food_15", name = "Rations", on = function() return ns.eat and ns.eat.showIcon ~= false end },
+  { key = "bags", icon = "Interface\\Icons\\INV_Misc_Bag_08", name = "Bags", on = function() return ns.Bags ~= nil end },
   { key = "del", icon = "Interface\\Icons\\INV_Misc_Bag_10_Red", name = "Clean-up", on = function() return ns.del and not ns.del.hideIcon end },
   { key = "faire", icon = (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(19182)) or "Interface\\Icons\\INV_Misc_Coin_01",
     name = "Faire", on = function() return ns.Faire and ns.Faire.db and ns.Faire.db.screenButton == true end },
@@ -1230,8 +1193,7 @@ for i, t in ipairs(TOOLS) do
   r.text:SetText(t.name)
   r.tag = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   r.tag:SetPoint("RIGHT", -6, 0)
-  -- (1.8) Clean-up opens on the tab you had last (Clean-up or Bags)
-  r:SetScript("OnClick", function() Rucksack_Open(t.key == "del" and "clean" or t.key) end)
+  r:SetScript("OnClick", function() Rucksack_Open(t.key) end)
   r.tool = t
   sideRows[i] = r
 end
@@ -1256,13 +1218,11 @@ for i, t in ipairs(CLEAN_TABS) do
   cleanTabs[t[1]] = b
 end
 ns.UI.cleanTabs = cleanTabs
-local function lastCleanTab()
-  local db = ns.Bags and ns.Bags.db
-  return ns.Has("bags") and db and db.lastTab == "bags" and "bags" or "del"
-end
+-- (1.8.2) Bags has its own row in the list now: the Clean-up page has no tabs any more
+local function lastCleanTab() return "del" end
 local function buildSide()
   local kind = (current or ""):match("^(%a+):")
-  local lit = kind == "food" and "eat" or (kind == "del" or kind == "delq" or current == "bags") and "del" or current
+  local lit = kind == "food" and "eat" or (kind == "del" or kind == "delq") and "del" or current
   local n = 0
   for _, r in ipairs(sideRows) do
     r.sel:SetShown(r.tool.key == lit)
@@ -1305,7 +1265,7 @@ local function showPage()
     p = pages[current] or pages.home
   end
   -- the Clean-up | Bags tabs (only with Clean-up + Bags loaded)
-  local tabbed = ns.Has("bags") and ns.Has("del") and (p == pages.del or p == pages.bags)
+  local tabbed = false
   for k, b in pairs(cleanTabs) do
     local on = (k == "del" and p == pages.del) or (k == "bags" and p == pages.bags)
     b:SetShown(tabbed and true or false)
@@ -1336,8 +1296,6 @@ table.insert(ns.listeners, refresh)
 
 function Rucksack_Open(key, section)
   if key == "clean" then key = lastCleanTab() end
-  -- (the Bags page lives under Clean-up: without the bag window loaded it's the Clean-up page)
-  if key == "bags" and not ns.Has("bags") then key = "del" end
   current = key or current or "home"
   if current == "guide" and pages.guide then pages.guide.jumpTo = section end
   if not f:IsShown() then

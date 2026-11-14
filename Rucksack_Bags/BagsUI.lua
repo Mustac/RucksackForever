@@ -22,8 +22,15 @@ p:Add(Check(p, 0, y, "Bags row open", "The row under the bag's header: your four
   function() return D().barOpen end, function(v) if (v and true or false) ~= (D().barOpen and true or false) then B.ToggleBar() end end, "GameFontHighlightSmall"))
 p:Add(Check(p, 165, y, "Every empty slot", "On: each empty slot is shown, so you can drop an item on any of them. Off: one cell with the number of free slots (a smaller bag).",
   function() return D().emptyAll ~= false end, function(v) D().emptyAll = v and true or false B.Draw() end, "GameFontHighlightSmall"))
+p:Add(Check(p, 470, y, "Bag sounds", "The game's own sound when the bag opens and closes.",
+  function() return D().sound ~= false end, function(v) D().sound = v and true or false end, "GameFontHighlightSmall"))
 p:Add(Check(p, 330, y, "\"New\" group", "Items you just got sit in a New group at the front, with a gold frame, until you've pointed at them or closed the bag.",
   function() return D().showNew ~= false end, function(v) D().showNew = v and true or false B.Draw() end, "GameFontHighlightSmall"))
+y = y - 24
+p:Add(Check(p, 0, y, "Reagents into the reagent bag", "A reagent lying in one of your ordinary bags is moved into your reagent bag by itself when there's room there (onto a half-full stack of it first, then an empty slot). Never in a fight, never while you hold an item.",
+  function() return D().reagentHome ~= false end, function(v) D().reagentHome = v and true or false if v then B.ReagentsHome() end end, "GameFontHighlightSmall"))
+p:Add(Check(p, 330, y, "Restock by itself at vendors", "With this on, a vendor that sells something on your Restock list tops you up as soon as you open the vendor. Off: click Buy now in the Restock bag (the cart next to your bags).",
+  function() return D().restockAuto ~= false end, function(v) D().restockAuto = v and true or false end, "GameFontHighlightSmall"))
 y = y - 32
 
 -- a row of small buttons, the one in use lit gold

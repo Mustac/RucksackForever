@@ -115,6 +115,8 @@ function Sell.Items()
         if price > 0 then
           local grey = DB.sellGrey and quality == 0
           local listed = DB.sellList and ns.Del.OnList(id, bag, slot) and (DB.items[id] or (quality or 0) < 3 or ns.Del.ByRule(id, bag, slot))
+          -- (1.8.2) Sell: always sold here (never thrown away)
+          if not listed and DB.sell and DB.sell[id] and not ns.KeepItem(id) then listed = true end
           local gear = not grey and not listed and Sell.CantUse(bag, slot, id, quality)
           if grey or listed or gear then
             local g = byID[id]

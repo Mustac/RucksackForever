@@ -72,25 +72,69 @@ do
     lim:SetPoint("TOPLEFT", 4, y - 4)
     lim:SetText("Don't delete anything worth more than")
     HoverLabel(p, lim, "Delete limit", "Clean-up never deletes a stack worth more than this at a vendor. When the next one is, it stops and tells you; click the trash button to choose (Delete it, Keep it, Not now). It goes on by itself once you free up a bag slot.\n\nSelling at a vendor isn't limited.")
-    local LIMITS = { { false, "No limit" }, { 1000, "10s" }, { 5000, "50s" }, { 10000, "1g" }, { 50000, "5g" }, { 100000, "10g" } }
-    local lBtns = {}
-    local lx = 270
-    for i, l in ipairs(LIMITS) do
+    -- (1.8.2) a slider: 10s to 5g in 10s steps; - and + (and the mouse wheel) step 10s; "No limit" ticks it off
+    local STEP, MAXSTEPS = 1000, 50
+    local function setLimit(v)
+      D().maxValue = v
+      if v then D().lastLimit = v end
+      ns.Del.Refresh()
+      if p.Refresh then p:Refresh() end
+    end
+    local function stepBtn(text, dx)
       local b = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
-      b:SetSize(l[1] and 46 or 68, 22)
-      b:SetPoint("TOPLEFT", lx, y)
-      lx = lx + b:GetWidth() + 3
+      b:SetSize(20, 20)
       b:SetBackdrop(ns.SLOT_BACKDROP)
-      b.label = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-      b.label:SetPoint("CENTER")
-      b.label:SetText(l[2])
+      b:SetBackdropColor(0.06, 0.06, 0.06, 0.95)
+      b:SetBackdropBorderColor(0.4, 0.36, 0.28)
+      b.label = b:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+      b.label:SetPoint("CENTER", 0, 1)
+      b.label:SetText(text)
       local hl = b:CreateTexture(nil, "HIGHLIGHT")
       hl:SetPoint("TOPLEFT", 3, -3) hl:SetPoint("BOTTOMRIGHT", -3, 3)
-      hl:SetColorTexture(1, 1, 1, 0.08)
-      b:SetScript("OnClick", function() D().maxValue = l[1] or nil ns.Del.Refresh() end)
-      tip(b, l[1] and ("Up to " .. l[2]) or "No limit", l[1] and ("A stack worth more than " .. l[2] .. " isn't deleted: Clean-up waits and asks you.") or "Clean-up deletes the cheapest stack, whatever it's worth.")
-      lBtns[i] = { b = b, v = l[1] or nil }
+      hl:SetColorTexture(1, 1, 1, 0.1)
+      b:SetScript("OnClick", function()
+        local v = D().maxValue or D().lastLimit or 10000
+        setLimit(math.max(STEP, math.min(STEP * MAXSTEPS, v + dx * STEP)))
+      end)
+      tip(b, dx < 0 and "10s less" or "10s more", "Steps the limit by 10 silver. The mouse wheel over the slider does the same.")
+      return b
     end
+    local minus = stepBtn("-", -1)
+    minus:SetPoint("TOPLEFT", 270, y - 1)
+    local slider = CreateFrame("Slider", "RucksackDeleteLimitSlider", p, ns.BACKDROP_TMPL)
+    slider:SetOrientation("HORIZONTAL")
+    slider:SetSize(180, 14)
+    slider:SetPoint("LEFT", minus, "RIGHT", 6, 0)
+    if slider.SetBackdrop then
+      slider:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 8,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 } })
+      slider:SetBackdropColor(0.08, 0.07, 0.05, 0.95)
+      slider:SetBackdropBorderColor(0.45, 0.4, 0.3)
+    end
+    slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
+    slider:SetMinMaxValues(1, MAXSTEPS)
+    slider:SetValueStep(1)
+    if slider.SetObeyStepOnDrag then slider:SetObeyStepOnDrag(true) end
+    slider:EnableMouseWheel(true)
+    slider:SetScript("OnValueChanged", function(self, v)
+      if self.quiet then return end
+      v = math.floor(v + 0.5)
+      if D().maxValue ~= v * STEP then setLimit(v * STEP) end
+    end)
+    slider:SetScript("OnMouseWheel", function(_, delta)
+      local v = D().maxValue or D().lastLimit or 10000
+      setLimit(math.max(STEP, math.min(STEP * MAXSTEPS, v + (delta > 0 and STEP or -STEP))))
+    end)
+    tip(slider, "Delete limit", "Drag to set it: 10s to 5g, in 10s steps. A stack worth more isn't deleted: Clean-up waits and asks you.")
+    local plus = stepBtn("+", 1)
+    plus:SetPoint("LEFT", slider, "RIGHT", 6, 0)
+    local valFs = p:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    valFs:SetPoint("LEFT", plus, "RIGHT", 8, 0)
+    valFs:SetWidth(62)
+    valFs:SetJustifyH("LEFT")
+    local noLimit = p:Add(Check(p, 572, y, "No limit", "Clean-up deletes the cheapest stack, whatever it's worth. Untick to use the slider again.",
+      function() return D().maxValue == nil end,
+      function(v) setLimit(not v and (D().lastLimit or 10000) or nil) end, "GameFontHighlightSmall"))
     local waitFs = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     waitFs:SetPoint("TOPLEFT", 4, y - 30)
     local choose = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
@@ -99,11 +143,14 @@ do
     choose:SetText("Choose")
     choose:SetScript("OnClick", function() ns.Del.ShowBlocked() end)
     p.updates[#p.updates + 1] = function()
-      for _, e in ipairs(lBtns) do
-        local on = e.v == D().maxValue
-        e.b:SetBackdropColor(on and 0.32 or 0.06, on and 0.24 or 0.06, on and 0.02 or 0.06, 0.95)
-        e.b:SetBackdropBorderColor(on and 1 or 0.3, on and 0.82 or 0.3, on and 0 or 0.3)
-      end
+      local v = D().maxValue
+      slider.quiet = true
+      slider:SetValue(math.max(1, math.min(MAXSTEPS, math.floor((v or D().lastLimit or 10000) / STEP + 0.5))))
+      slider.quiet = nil
+      slider:SetAlpha(v and 1 or 0.4)
+      minus:SetAlpha(v and 1 or 0.4)
+      plus:SetAlpha(v and 1 or 0.4)
+      valFs:SetText(v and ns.Sell.Money(v) or "|cff999999none|r")
       local b = ns.Del.Blocked and ns.Del.Blocked()
       waitFs:SetText(b and ("Waiting: " .. (b.link or ns.NameOf(b.id)) .. " (" .. ns.Sell.Money(b.value) .. ") is over your limit.") or "")
       choose:SetShown(b and true or false)
@@ -143,10 +190,28 @@ do
   end)
   drop:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(0.6, 0.6, 0.6) GameTooltip:Hide() end)
 
+  -- (1.8.2) everything below the drop box sits in one frame, so it can move up when the box goes:
+  -- with Bags on you drop items on Junk or Sell in the bag, so the box isn't shown
+  local dropY = y
+  local low = CreateFrame("Frame", nil, p)
+  low:SetPoint("TOPLEFT", 0, dropY - 34)
+  low:SetPoint("BOTTOMRIGHT", 0, 0)
+  local function bagsOn() return ns.Bags and ns.ModuleWanted("bags") and true or false end
+  local lowAt
+  p.updates[#p.updates + 1] = function()
+    local on = bagsOn()
+    if on == lowAt then return end
+    lowAt = on
+    drop:SetShown(not on)
+    low:ClearAllPoints()
+    low:SetPoint("TOPLEFT", 0, on and dropY or dropY - 34)
+    low:SetPoint("BOTTOMRIGHT", 0, 0)
+  end
+
   -- Search + Filters header (search bar on the left side)
-  y = y - 34
-  TipText(p, 0, y - 3, "GameFontNormal", "Search:", "Type part of an item's name to find it in the list below. Small typos are fine: close matches are found too, best match first.")
-  local searchBox = CreateFrame("EditBox", nil, p, ns.BACKDROP_TMPL)
+  y = 0
+  TipText(low, 0, y - 3, "GameFontNormal", "Search:", "Type part of an item's name to find it in the list below. Small typos are fine: close matches are found too, best match first.")
+  local searchBox = CreateFrame("EditBox", nil, low, ns.BACKDROP_TMPL)
   searchBox:SetSize(250, 22)
   searchBox:SetPoint("TOPLEFT", 58, y)
   searchBox:SetAutoFocus(false)
@@ -190,7 +255,7 @@ do
   -- (10 Nov) what the list shows: clear names, how many each has, and one line saying what it is
   local SRC_FILTERS = {
     { "all", "Everything", 92, "Your list, and what the rules (quality, Rations) catch in your bags." },
-    { "always", "My list", 82, "The items you chose to always delete: white and better (grey trash goes by itself). Remove takes one off your list." },
+    { "always", "My list", 82, "The items you chose to always delete (white and better: grey trash goes by itself), and the ones you chose to only sell (\"sell only\": sold at a vendor, never thrown away). Remove takes one off your list." },
     { "bags", "In my bags", 96, "Items on your list or caught by the quality rule that are in your bags now: these get deleted when your bags are nearly full." },
     { "deleted", "Deleted", 82, "The last 100 items deleted, newest first: how many, when, and why." },
   }
@@ -201,7 +266,7 @@ do
     { 2, "|cff1eff00Green +|r", 70 },
   }
   local function Pill(w, h, x, py)
-    local b = CreateFrame("Button", nil, p, ns.BACKDROP_TMPL)
+    local b = CreateFrame("Button", nil, low, ns.BACKDROP_TMPL)
     b:SetSize(w, h)
     b:SetPoint("TOPLEFT", x, py)
     b:SetBackdrop(ns.SLOT_BACKDROP)
@@ -213,7 +278,7 @@ do
     return b
   end
   local srcBtns, qualBtns = {}, {}
-  TipText(p, 0, y - 4, "GameFontNormalSmall", "Show:", "Which items the list shows. Hover each button for what it means; the number is how many items it has.")
+  TipText(low, 0, y - 4, "GameFontNormalSmall", "Show:", "Which items the list shows. Hover each button for what it means; the number is how many items it has.")
   local fx = 52
   for i, sf in ipairs(SRC_FILTERS) do
     local b = Pill(sf[3], 20, fx, y)
@@ -225,7 +290,7 @@ do
     srcBtns[i] = { b = b, v = sf[1], tip = sf[4] }
   end
   y = y - 22
-  TipText(p, 0, y - 4, "GameFontNormalSmall", "Quality:", "Show only items of this quality: grey (junk), white (common), or green and better. Any: all of them.")
+  TipText(low, 0, y - 4, "GameFontNormalSmall", "Quality:", "Show only items of this quality: grey (junk), white (common), or green and better. Any: all of them.")
   local qfx = 52
   for i, qf in ipairs(QUAL_FILTERS) do
     local b = Pill(qf[3], 19, qfx, y)
@@ -234,7 +299,7 @@ do
     b:SetScript("OnClick", function() qualFilter = qf[1] if refreshList then refreshList() end end)
     qualBtns[i] = { b = b, v = qf[1] }
   end
-  local showing = Text(p, qfx + 10, y - 4, "GameFontDisableSmall", 440 - qfx)
+  local showing = Text(low, qfx + 10, y - 4, "GameFontDisableSmall", 440 - qfx)
   showing:SetWordWrap(false)
 
   -- Fuzzy match helper: returns a numeric score (>0 matches, nil does not match)
@@ -271,7 +336,7 @@ do
     return nil
   end
 
-  local list = List(p, y - 22)
+  local list = List(low, y - 22)
   refreshList = function()
     for _, e in ipairs(srcBtns) do
       local on = e.v == srcFilter
@@ -355,6 +420,41 @@ do
             end,
           },
         }
+      end
+    end
+
+    -- 1b. (1.8.2) Sell: sold at a vendor, never thrown away
+    for id, linkVal in pairs(D().sell or {}) do
+      if not seenID[id] then
+        seenID[id] = true
+        local l = (type(linkVal) == "string" and linkVal) or ns.LinkOf(id)
+        local nm = ns.NameOf(id, l)
+        local q = ns.QualityOf(id, l)
+        local count = ns.GetCount(id) or 0
+        local score = fuzzyScore(searchQuery, nm, id)
+        if score and passesFilters(true, false, count, q) then
+          local itemID = id
+          local itemLabel = l or nm
+          rowsData[#rowsData + 1] = {
+            score = score,
+            fl = { always = true, quality = false, count = count },
+            sortGroup = 1,
+            name = nm,
+            entry = {
+              key = "sell:" .. itemID,
+              icon = ns.GetIcon(itemID) or "Interface\\Icons\\INV_Misc_QuestionMark",
+              text = l or ((q and QCOL[q] and (QCOL[q] .. "[" .. nm .. "]|r")) or nm),
+              tag = "|cffffd100sell only|r  " .. (count > 0 and ("|cffffffffx" .. count .. " in bags|r") or "|cff888888none in bags|r"),
+              itemID = itemID,
+              dim = false,
+              removeLabel = "Remove",
+              onRemove = function()
+                Print(itemLabel .. " is no longer sold by itself.")
+                ns.Del.Remove(itemID)
+              end,
+            },
+          }
+        end
       end
     end
 
@@ -486,8 +586,9 @@ do
       e.b.label:SetText(e.b.name .. "  |cffaaaaaa" .. n .. "|r")
       if e.v == srcFilter then showing:SetText(e.tip) end
     end
-    local EMPTY = { all = "Nothing here yet: delete an item and click Always, or drop one in the box above.",
-      always = "Your list is empty: delete an item and click Always, or drop one in the box above.",
+    local add = bagsOn() and "or drop one on Junk or Sell in your bag." or "or drop one in the box above."
+    local EMPTY = { all = "Nothing here yet: delete an item and click Always, " .. add,
+      always = "Your list is empty: delete an item and click Always, " .. add,
       bags = "Nothing in your bags is waiting to be deleted.", deleted = "Nothing deleted yet.",
  }
     list:Set(entries, searchQuery ~= "" and ("No items matching \"" .. searchQuery .. "\".")

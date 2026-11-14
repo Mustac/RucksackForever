@@ -1,3 +1,25 @@
+# Rucksack 1.8.2
+
+### New
+- **Bags and Clean-up are two modules.** Each has its own card in Settings > Modules and works alone: Bags without Clean-up is one bag window with your groups; Clean-up without Bags sells junk with the game's own bags or another bag addon. With both on, your bag gets Junk and Sell groups and shows what your junk sells for. Bags has its own page in the list on the left.
+- **Restock:** the cart next to Hidden opens a small bag for the things you always want on you (water, food, arrows, reagents). Pull an item in and type how many to carry. A vendor that sells it tops you up, by itself or when you click **Buy now**.
+  - **Keep at least N gold:** restocking never takes you below that.
+  - **Money short:** *Some of each* buys a bit of every item in turn; *Top of list first* fills the first item, then the next. The arrows set the order.
+  - What's on the list sits in its own **Restock** group in the bag (untick it on the Bags page to leave those items where they were). Clean-up never sells or throws them away.
+- **Sell group:** drop an item on Sell and it is sold at every vendor, never thrown away.
+- **Your bank in Rucksack:** at a banker your bank opens in Rucksack's own window, with the bank's bag slots in a row at the top. Click the next locked slot to buy it (the game asks once), drop a bag on a slot to put it there. The bag icon in the corner shows or hides that row.
+- **Reagents go to the reagent bag:** a reagent lying in an ordinary bag moves into your reagent bag when there's room (a switch on the Bags page).
+- Bag sounds when the bag opens and closes (a switch on the Bags page).
+
+### Changed
+- **Junk is under everything** by default. New groups go above it. You can still drag it.
+- Settings > Modules: every module is a card with a tick; a card you changed has a gold edge until you press Apply.
+- Clean-up's value limit is a slider (10s to 5g).
+
+### Fixed
+- **"Tried to call a protected function"** when using an item or buying a bank slot with Bags on. Rucksack no longer replaces the game's bag functions; it opens your bag after them.
+- The bank showed slots that weren't there (the keyring was counted as part of the bank) and the wrong number of free slots.
+
 # Rucksack 1.8.1
 
 ### Fixed

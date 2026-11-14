@@ -14,7 +14,7 @@ Everything is in one window (`/ruck`), with a small on-screen Pocket that shows 
 
 ## Modules: only load what you use
 
-Rucksack comes with all its parts, but only loads the ones you turn on in **Settings > Modules**: Rations, Clean-up (or Clean-up + Bags), Darkmoon Faire and Scrolls. Each is a card: click the ones you want, then **Apply**. New ones load right away; ones you turned off stop after a reload, and then they use no memory and do nothing. Each character has its own choice, and **Scrolls turns itself on for mages only**. The "Show button" box on each tool's page only hides or shows that tool's button on screen.
+Rucksack comes with all its parts, but only loads the ones you turn on in **Settings > Modules**: Rations, Bags, Clean-up, Darkmoon Faire and Scrolls. Each is a card: click the ones you want, then **Apply**. Bags and Clean-up each work alone; with both on, your bag shows your junk. New ones load right away; ones you turned off stop after a reload, and then they use no memory and do nothing. Each character has its own choice, and **Scrolls turns itself on for mages only**. The "Show button" box on each tool's page only hides or shows that tool's button on screen.
 
 ## Rations: eat and drink with one click
 
@@ -44,9 +44,13 @@ What goes by itself: **grey items**, **white weapons and armour** your class can
 - **At a vendor:** sells your Clean-up items and junk for gold instead of deleting them (hold Shift to skip).
 - Search your list, see what's in your bags, and a history of the last 100 items deleted.
 
-## Bags: one bag window (with Clean-up)
+## Bags: one bag window
 
-Turn it on in Settings > Modules: on the **Clean-up** card, pick **Clean-up + Bags**. B, the bag buttons, vendors, mail and trades then open Rucksack's bag. Items work as always: click, drag, split, use.
+Turn it on in Settings > Modules: tick the **Bags** card. B, the bag buttons, vendors, mail and trades then open Rucksack's bag. Items work as always: click, drag, split, use. With Clean-up on too, the bag gets Junk and Sell groups.
+
+**Restock:** the cart next to Hidden holds the things you always want on you. Pull an item in, type how many to carry, and a vendor that sells it tops you up. It never spends below the gold you choose to keep, and when money is short it buys a bit of everything or fills the top of your list first.
+
+**Bank:** at a banker your bank opens in Rucksack, with its bag slots on top: click the next locked slot to buy it. **Reagents** lying in an ordinary bag move into your reagent bag by themselves.
 
 - **Groups:** Weapons, Armour, Food and water, Potions, Trade goods, Quest, Everything else, Junk and your own groups, each on its own row (or Packed side by side). Drag a group by its name to move it; the others slide out of the way.
 - **Put an item in a group:** pick it up and every group gets a green **+** (Junk a red one). Drop it there and all its stacks go there from now on. Drop it on its own group again to undo.
@@ -84,7 +88,7 @@ Turn it on in Settings > Modules: on the **Clean-up** card, pick **Clean-up + Ba
 
 Get it from [CurseForge](https://www.curseforge.com/wow/addons/rucksack-forever) (pick your WoW Forever install in the CurseForge app), or download the zip from [Releases](https://github.com/Mustac/RucksackForever/releases) and unpack it into `World of Warcraft\_forever_\Interface\AddOns`. The zip holds six folders: `Rucksack` and its modules `Rucksack_Rations`, `Rucksack_CleanUp`, `Rucksack_Bags`, `Rucksack_Faire` and `Rucksack_Scrolls`. Keep them all; pick what loads in Settings > Modules.
 
-Works alongside bag addons like Bagnon and Baganator (with Clean-up only; Clean-up + Bags is its own bag).
+Works alongside bag addons like Bagnon and Baganator (leave the Bags module off; Bags is its own bag).
 
 ## Support
 

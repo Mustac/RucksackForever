@@ -2,10 +2,11 @@
 ## Title: |cffc8a165Ruck|r|cffffd100sack|r: |cffd9a35aBags|r
 ## Notes: Part of Rucksack: one bag window with groups (yours too), Junk, Hidden, your bank and other characters. Turn it on or off in Rucksack's Settings > Modules.
 ## Author: Marijan
-## Version: 1.8.1
+## Version: 1.8.2
 ## Dependencies: Rucksack
 ## LoadOnDemand: 1
 ## SavedVariables: RucksackBagsDB
 
 Bags.lua
 BagsUI.lua
+Restock.lua

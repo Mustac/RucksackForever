@@ -11,10 +11,10 @@ Rucksack = ns
 -- the modules: each registers itself (key, name, folder) when it loads
 ns.MODULES = {
   { key = "eat", folder = "Rucksack_Rations", name = "Rations", what = "eat and drink with one click" },
-  { key = "del", folder = "Rucksack_CleanUp", name = "Clean-up", what = "delete or sell what you don't need" },
+  { key = "del", folder = "Rucksack_CleanUp", name = "Clean-up", what = "sells junk, keeps bag slots free" },
   { key = "faire", folder = "Rucksack_Faire", name = "Darkmoon Faire", what = "tickets, turn-ins and prizes" },
   { key = "scrolls", folder = "Rucksack_Scrolls", name = "Scrolls", what = "mages: one click deciphers a scroll" },
-  { key = "bags", folder = "Rucksack_Bags", name = "Bags", what = "one bag window, with your junk in it" },
+  { key = "bags", folder = "Rucksack_Bags", name = "Bags", what = "one bag window: groups, bank, your characters" },
 }
 ns.loaded = {}   -- key -> true once that module's files ran
 function ns.Has(key) return ns.loaded[key] and true or false end
@@ -52,8 +52,7 @@ end
 -- New: everything on, except Scrolls, which is on for mages only.
 function ns.ModuleWanted(key)
   local mods = ns.char and ns.char.modules
-  -- (1.8) Bags comes with Clean-up: with the bag on, Clean-up is on too
-  if key == "del" and mods and mods.bags then return true end
+  -- (1.8.2) Bags and Clean-up are two modules: each works alone, and together the bag shows your junk
   if mods and mods[key] ~= nil then return mods[key] end
   if key == "scrolls" then
     local _, class = UnitClass("player")
