@@ -10,12 +10,12 @@
 <body>
 <header class="top"><div class="wrap">
 <a class="brand" href="./"><span>Ruck</span><span>sack</span></a>
-<nav><a href="./">Home</a><a href="report.html" class="on">Report a bug</a><a href="feedback.html">Feedback</a></nav>
+<nav><a href="./">Home</a><a href="report.html" class="on">Report a bug</a><a href="https://github.com/Mustac/RucksackForever/blob/main/CHANGELOG.md">What's new</a></nav>
 </div></header>
 <main class="wrap">
 <h1>Report a bug or send an idea</h1>
-<p class="lead">No account needed. Reports are public: everyone can read them on the Feedback page, so leave out anything private.</p>
-<div id="setup" class="note bad" hidden>The report form isn't switched on yet. Until it is, you can <a id="gh" href="#">report on GitHub</a> (needs a GitHub account).</div>
+<p class="lead">No account needed. Only the developer reads your report.</p>
+<div id="setup" class="note bad" hidden>The report form isn't switched on yet. It will be soon. Until then you can <a id="gh" href="#">report on GitHub</a> (needs a GitHub account, and what you write there is public).</div>
 <form id="form" novalidate>
 <label for="what">What happened?</label>
 <p class="hint">What you did, what you expected, and what you got instead.</p>
@@ -50,7 +50,7 @@
       what: what, report: document.getElementById("report").value, name: document.getElementById("name").value, website: document.getElementById("website").value }) })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (r) {
-        if (r.ok) { form.reset(); say("Thanks, your report is in. It shows on the Feedback page in a minute.", "good"); }
+        if (r.ok) { form.reset(); say("Thanks, your report is in.", "good"); }
         else { say(r.d && r.d.error ? r.d.error : "That didn't go through. Try again in a moment.", "bad"); }
         send.disabled = false;
       })

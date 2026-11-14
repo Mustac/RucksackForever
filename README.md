@@ -92,7 +92,7 @@ Works alongside bag addons like Bagnon and Baganator (leave the Bags module off;
 
 ## Website and feedback
 
-[mustac.github.io/RucksackForever](https://mustac.github.io/RucksackForever/) has what Rucksack does, what's new, and a [report form](https://mustac.github.io/RucksackForever/report.html) anyone can use, no account needed. In the game, **Report a bug** at the top of the Rucksack window gives you a ready-made report to paste there. Everyone's reports are on the [Feedback page](https://mustac.github.io/RucksackForever/feedback.html).
+[mustac.github.io/RucksackForever](https://mustac.github.io/RucksackForever/) has what Rucksack does, what's new, and a [report form](https://mustac.github.io/RucksackForever/report.html) anyone can use, no account needed. In the game, **Report a bug** at the top of the Rucksack window gives you a ready-made report to paste there. Only the developer reads the reports.
 
 ## Support
 
