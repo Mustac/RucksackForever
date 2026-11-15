@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## Title: |cffc8a165Ruck|r|cffffd100sack|r: |cffb48cffDarkmoon Faire|r
-## Notes: Part of Rucksack: Darkmoon Faire tickets, turn-ins (with map pins), prizes and the prize tracker. Turn it on or off in Rucksack's Settings > Modules.
+## Notes: Part of Rucksack: Darkmoon Faire tickets, turn-ins (with map pins), prizes, the prize tracker and a plan that lists what you still need. Turn it on or off in Rucksack's Settings > Modules.
 ## Author: Marijan
-## Version: 1.8.5
+## Version: 1.8.6
 ## Dependencies: Rucksack
 ## LoadOnDemand: 1
 ## SavedVariables: RucksackFaireDB
@@ -10,5 +10,7 @@
 
 FaireData.lua
 Faire.lua
+FairePlan.lua
 FaireMap.lua
 FaireUI.lua
+FairePlanUI.lua

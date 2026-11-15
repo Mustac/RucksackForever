@@ -10,7 +10,7 @@ local p = Page()
 UI.pages.bags = p
 GuideButton(p, "bags")
 Text(p, 0, -2, "GameFontNormalLarge"):SetText("|cffd9a35aBags|r")
-Text(p, 0, -28, "GameFontHighlightSmall", 640):SetText("One bag window instead of the game's bags. Pick an item up and every group gets a slot at its end: drop it there and it goes in that group from now on (on Junk: it's junk). Make your own groups with the + next to your bags; the padlock beside it locks the layout.")
+Text(p, 0, -28, "GameFontHighlightSmall", 640):SetText("One bag window instead of the game's bags. Pick an item up and every group gets a slot at its end: drop it there and it goes in that group from now on. The boxes on the right of the bag take what you want sold, thrown away or sent to your bank. Make your own groups with the + next to your bags; the padlock beside it locks the layout.")
 local open = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
 open:SetSize(110, 22)
 open:SetPoint("TOPRIGHT", -34, 0)
@@ -66,7 +66,7 @@ local function choice(label, tipTitle, tipText, opts, get, set, x0)
 end
 choice("Look", "Look", "How the bag is laid out.", {
   { "groups", "Groups", 96, "Your items in labelled groups: Weapons, Armour, Food and water, Trade goods, your own groups..." },
-  { "grid", "One bag", 96, "No groups: everything in one bag, sorted (see Sort): new items first, the empty slots last. Under it, Junk, a fixed group. Holding an item: a red + on Junk makes it junk; a junk item gets a green + on the bag to keep it." },
+  { "grid", "One bag", 96, "No groups: everything in one bag, sorted (see Sort): new items first, the empty slots last. The boxes on the right stay the same." },
 }, function() return D().style end, function(v) D().style = v end)
 choice("Sort", "Sort", "How One bag sorts your items.", {
   { "kind", "Kind", 96, "Weapons, armour, food and water, potions, trade goods, quest items, the rest; in each, the best quality first, then by name." },
@@ -87,6 +87,9 @@ choice("Columns", "Columns", "How many items wide the bag is.", colOpts, functio
 choice("Size", "Size", "How big the bag is on screen.", {
   { 0.8, "80%", 52 }, { 0.9, "90%", 52 }, { 1, "100%", 52 }, { 1.1, "110%", 52 }, { 1.25, "125%", 52 },
 }, function() return D().scale end, function(v) D().scale = v end)
+choice("Boxes", "Boxes", "Where the Always sell / delete, Sell / delete once and Send to bank windows sit, next to the bag. If the screen ends on that side, they go on the other side.", {
+  { "tr", "Top right", 96 }, { "br", "Bottom right", 96 }, { "tl", "Top left", 96 }, { "bl", "Bottom left", 96 },
+}, function() return D().sidePos or "tr" end, function(v) D().sidePos = v end)
 
 -- group order: dragged in the bag itself; this puts it back
 do

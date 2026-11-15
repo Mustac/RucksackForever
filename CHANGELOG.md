@@ -1,3 +1,26 @@
+# Rucksack 1.8.6
+
+### New
+- **Three windows next to your bag:** **Always sell / delete**, **Sell / delete once** and **Send to bank**. Each shows the items that belong to it, and each has a **?** that says what it does. Drop an item on a window to put it there.
+  - **Always sell / delete:** every one of that item, also the ones you get later. A vendor buys it, or the cheapest goes when your bags fill up. Grey items and gear you can't use land here by themselves.
+  - **Sell / delete once:** only the stack you dropped there.
+  - **Send to bank:** the stacks you put here go into your bank by themselves when you open it. Rucksack never sells or throws them away.
+  - **Alt + left-click** an item in your bag sends that stack to the bank (at the bank it goes straight in). **Alt + right-click** an item in any of the three windows takes it out again.
+  - A new button in the bags row moves the windows to the next corner of the bag: top right, bottom right, bottom left, top left. The same choice is on the Bags page.
+- **Do not sell above:** a slider under "Always sell / delete", from 0 to 2 gold in 10 silver steps. Nothing worth more than that (the price of one, not the stack) is sold.
+- **Darkmoon Faire plan:** a new **Plan** tab. Pick the prize you're saving for, tick the turn-ins you want to do and how many times. It shows the tickets you'll have, the items and raw materials you still need, and how many hand-ins your reputation still allows. The on-screen prize card shows it all as a small table. Click an item to see where it comes from and pin it on your map.
+- **Open clams and pouches by itself:** a switch on the Settings page. Clams, pouches and other things that open with one click (no cast) are opened for you, one at a time. It waits while you fight, cast, loot or stand at a vendor, bank, mailbox or trade. Locked boxes are left alone.
+- **Conjured food and water** (and mana gems) are deleted without asking when you destroy them: you can make them again for free.
+
+### Changed
+- **The delete box** now says **Always delete / Delete 16 / Cancel**. The number is how many are in the stack you're holding. Nothing is deleted on the spot any more: it waits like the rest, sold at a vendor or thrown away when your bags are nearly full (the cheapest first). Shift-click Delete to delete it right away.
+- **Junk and Sell are no longer groups in the bag:** the new windows replace them. Items you set to "only sell" before still are only sold, and show in "Always sell / delete".
+- Marking something while a vendor is open sells it right away.
+
+### Fixed
+- A stack you marked yourself wasn't sold when the item was set to Keep.
+- A new empty group's "drop it here" text stayed behind its items.
+
 # Rucksack 1.8.5
 
 ### Fixed

@@ -544,6 +544,11 @@ do
   p:Add(Check(p, 0, y, "Show the minimap button", "Left-click: open Rucksack. Drag it around the minimap.",
     function() return not ns.db.minimapHidden end,
     function(v) ns.db.minimapHidden = not v or nil ns.UpdateMinimapButton() end))
+  -- (15 Nov) auto open (Open.lua)
+  p:Add(Check(p, 330, y, "Open clams and pouches by itself",
+    "Things that say \"Right Click to Open\" and open at once (clams, pouches, bags of loot) are opened as soon as they're in your bags, one at a time.\n\nNot locked boxes, and not in a fight. Never at a vendor, bank, mailbox, trade or auction house.\n\nBags full? It waits for a free slot. Clean-up makes room the usual way (the cheapest junk first, on your next key press), then the rest is opened.",
+    function() return ns.db.autoOpen == true end,
+    function(v) if ns.AutoOpen then ns.AutoOpen.Set(v) end end))
   y = y - 34
   p:Add(KeyButton(p, 0, y, "Open Rucksack", "AUTODELETE_TOGGLE", "A key that opens and closes this window."))
   y = y - 38

@@ -240,6 +240,22 @@ local function junkKind(id, bag, slot)
   local ok, k = pcall(ns.Del.JunkKind, id, bag, slot)
   return ok and k or nil
 end
+-- (15 Nov) the same for the stack on your cursor: a single stack can be marked for sale, so it
+-- matters which slot it came from
+local function kindOfHeld(id)
+  if not id or not hasClean() then return nil end
+  if ns.Del.HeldKind then
+    local ok, k = pcall(ns.Del.HeldKind, id)
+    return ok and k or nil
+  end
+  return junkKind(id)
+end
+-- take a stack off Sell or Junk (from = { bag, slot } it came from, when known)
+local function keepStack(id, from)
+  if ns.Del.KeepAt then return ns.Del.KeepAt(id, from and from[1], from and from[2]) end
+  ns.Del.Keep(id)
+  return "all"
+end
 -- where Rucksack puts an item by itself (noYours) or with your choice (DB.assign: id -> group)
 function B.Category(id, link, bag, slot, noYours)
   local jk = junkKind(id, bag, slot)
@@ -695,8 +711,30 @@ B.restockBtn = iconButton(barIn, 30, "restock", "Restock", function()
   return B.Restock and B.Restock.Tip and B.Restock.Tip() or "Things you always want on you, bought at vendors."
 end, function() if B.Restock and B.Restock.Toggle then B.Restock.Toggle() end end, "RucksackBagsRestockButton")
 B.restockBtn:SetPoint("RIGHT", hiddenBtn, "LEFT", -3, 0)
+-- (15 Nov) where the sell / delete / bank boxes sit: each click moves them to the next corner
+local SIDE_ORDER = { tr = "br", br = "bl", bl = "tl", tl = "tr" }
+local SIDE_NAME = { tr = "top right", br = "bottom right", bl = "bottom left", tl = "top left" }
+B.sideBtn = iconButton(barIn, 30, "side_tr", "Boxes", function()
+  local v = DB and DB.sidePos or "tr"
+  return "The Always sell / delete, Sell / delete once and Send to bank windows sit " .. SIDE_NAME[v] .. " of the bag.\n\nClick: " ..
+    SIDE_NAME[SIDE_ORDER[v]] .. ". Right-click: the other way."
+end, function(self, button)
+  if not DB then return end
+  local v = DB.sidePos or "tr"
+  if button == "RightButton" then
+    for k, nx in pairs(SIDE_ORDER) do if nx == v then v = k break end end
+  else
+    v = SIDE_ORDER[v] or "tr"
+  end
+  DB.sidePos = v
+  setIcon(self, "side_" .. v)
+  B.Draw()
+  if ns.Changed then ns.Changed() end
+  if GameTooltip:IsOwned(self) and self:GetScript("OnEnter") then self:GetScript("OnEnter")(self) end
+end, "RucksackBagsSideButton")
+B.sideBtn:SetPoint("RIGHT", B.restockBtn, "LEFT", -3, 0)
 B.LightUp = lightUp
-B.toolBtns = { lockBtn, trashBtn, newBtn, hiddenBtn, B.restockBtn }
+B.toolBtns = { lockBtn, trashBtn, newBtn, hiddenBtn, B.restockBtn, B.sideBtn }
 
 ---------------------------------------------------------------------------
 -- The game's item buttons: one per bag slot, under a frame that carries the bag number
@@ -758,9 +796,12 @@ local function extraTip(self)
   local e = info[self]
   if not e or not e.id or not GameTooltip:IsOwned(self) then return end
   local lines = {}
-  if e.cat == "sell" then
+  if e.side and B.SideTip then
+    -- (15 Nov) in one of the boxes on the right: the box says what happens to it
+    for _, l in ipairs(B.SideTip(e)) do lines[#lines + 1] = l end
+  elseif e.cat == "sell" then
     lines[#lines + 1] = "|cffffd100Sell:|r sold at a vendor, never thrown away."
-    lines[#lines + 1] = "|cff999999To keep it: drop it on another group's slot, or on Sell's slot again.|r"
+    lines[#lines + 1] = "|cff999999To keep it: pick it up and drop it on the green slot that shows up first in Sell.|r"
   elseif e.cat == "junk" then
     local why = ns.Del.Reason and ns.Del.Reason(e.id)
     lines[#lines + 1] = "|cffff6b6bJunk|r" .. (why and (": " .. why) or "") .. (e.first and "  |cffffd100first to go|r" or "")
@@ -797,6 +838,10 @@ local function getButton(bag, slot)
   b:SetSize(CELL, CELL)
   decorate(b)
   b:HookScript("OnEnter", extraTip)
+  -- (15 Nov) Alt + left-click: this stack goes to the bank; Alt + right-click: it stays (Side.lua)
+  b:HookScript("OnClick", function(self, button)
+    if B.AltClick and IsAltKeyDown and IsAltKeyDown() then B.AltClick(info[self], button) end
+  end)
   b:HookScript("OnLeave", function(self)
     local e = info[self]
     if e and e.isNew and B.newIDs[e.id] then B.newIDs[e.id] = nil B.Changed() end
@@ -1039,10 +1084,19 @@ local function buildCells(v, text)
   local free = B.FreeNow(v) and vLiveBags(v)
   st.freeMode = free
   local merge = (DB.merged and not free) or not live
+  -- (15 Nov) the boxes on the right of the bag (Side.lua): what's on your list, what's marked once
+  -- and what goes to the bank show there, not in the bag's groups
+  local side = v == MAINVIEW and vLiveBags(v) and B.SideOn and B.SideOn() and { always = {}, once = {}, bank = {} } or nil
+  st.side = side
   for _, e in ipairs(items) do
-    byCat[e.cat] = byCat[e.cat] or {}
-    local list = byCat[e.cat]
-    local key = e.cat .. ":" .. e.id
+    if side then
+      local ok, where = pcall(B.SideOf, e)
+      e.side = ok and where and side[where] and where or nil
+    end
+    local group = e.side and ("side:" .. e.side) or e.cat
+    local list
+    if e.side then list = side[e.side] else byCat[e.cat] = byCat[e.cat] or {} list = byCat[e.cat] end
+    local key = group .. ":" .. e.id
     if merge and seen[key] then
       seen[key].total = seen[key].total + e.count
       if e.bag then seen[key].inBags[e.bag] = true end
@@ -1069,16 +1123,34 @@ local function buildCells(v, text)
     table.sort(byCat.sell, sortItems)
     for _, e in ipairs(byCat.sell) do value = value + sellPrice(e.id) * e.total end
   end
+  if side then
+    local max = hasClean() and ns.del.sellMax or nil
+    for _, k in ipairs({ "always", "once" }) do
+      table.sort(side[k], cheapest)
+      for _, e in ipairs(side[k]) do
+        local p = sellPrice(e.id)
+        if not max or p <= max then value = value + p * e.total end -- (over your "Do not sell" limit: not sold)
+      end
+    end
+    table.sort(side.bank, sortItems)
+  end
   st.junkValue = value
   -- your own groups show even when empty (so you can find them)
   for _, c in ipairs(ALL) do if c.custom then byCat[c.key] = byCat[c.key] or {} end end
+  -- (15 Nov) holding something that's on Sell or Junk: that group starts with a green slot. Drop it
+  -- there and it's kept (not sold, not thrown away). Works with the padlock on too.
+  if held and v == MAINVIEW and DB.style ~= "grid" and hasClean() and not side then
+    local kind = kindOfHeld(held)
+    local list = (kind == 2 and byCat.sell) or (kind == 1 and byCat.junk)
+    if list then table.insert(list, 1, { drop = "keep", cat = kind == 2 and "sell" or "junk" }) end
+  end
   -- holding an item: every group you can put it in ends in a slot to drop it on (Junk shows up for it too)
   -- (the bag window only)
   if held and not DB.locked and v == MAINVIEW then
-    if hasClean() then byCat.junk = byCat.junk or {} byCat.sell = byCat.sell or {} end
+    if hasClean() and not side then byCat.junk = byCat.junk or {} byCat.sell = byCat.sell or {} end
     -- (One grid has no groups to drop on: there you drop it on a chip)
     for key, list in pairs(byCat) do
-      if DB.style ~= "grid" and placeable(key) and ((key ~= "junk" and key ~= "sell") or hasClean()) then list[#list + 1] = { drop = key, cat = key } end
+      if DB.style ~= "grid" and placeable(key) and ((key ~= "junk" and key ~= "sell") or (hasClean() and not side)) then list[#list + 1] = { drop = key, cat = key } end
     end
   end
   -- empty slots (live only): every one (you can drop an item on any), or one cell with the number
@@ -1123,13 +1195,15 @@ function B.PlaceIn(key, id, link)
   if DB.locked then return lockedSay() end
   DB.assign = DB.assign or {}
   B.newIDs[id] = nil
-  local kind = hasClean() and ns.Del.JunkKind(id)
+  local from = B.heldFrom -- (the slot the stack came from: placeHeld notes it)
+  B.heldFrom = nil
+  local kind = junkKind(id, from and from[1], from and from[2])
   local isJunk = kind -- (junk or sell: out of either, it's kept)
   if key == "sell" then
     if not hasClean() then return end
     if kind == 2 then -- (its own slot again: keep it)
-      ns.Del.Keep(id)
-      Print(shown(id, link) .. " is kept: it's no longer sold by itself.")
+      local how = keepStack(id, from)
+      Print(shown(id, link) .. (how == "stack" and ": this stack is kept, it's no longer sold." or " is kept: it's no longer sold by itself."))
       return B.Changed()
     end
     if ns.KeepItem(id) then
@@ -1137,9 +1211,19 @@ function B.PlaceIn(key, id, link)
       Print(shown(id, link) .. " is always kept" .. (uses[1] and (" (" .. uses[1] .. ")") or "") .. ".")
       return
     end
+    -- (15 Nov) no vendor buys it: nothing to set
+    if ns.Del.CantSell and ns.Del.CantSell(id) then
+      Print(shown(id, link) .. " can't be sold: no vendor buys it.")
+      return
+    end
     if DB.assign then DB.assign[id] = nil end
-    ns.Del.AddSell(id, link)
-    Print(shown(id, link) .. " is sold at every vendor from now on, and never thrown away.")
+    -- (15 Nov) a box asks how: always, all you have now, or just this stack
+    if ns.Del.AskSell then
+      ns.Del.AskSell(id, link, from and from[1], from and from[2])
+    else
+      ns.Del.AddSell(id, link)
+      Print(shown(id, link) .. " is sold at every vendor from now on, and never thrown away.")
+    end
     return B.Changed()
   end
   if key == "junk" then
@@ -1163,7 +1247,7 @@ function B.PlaceIn(key, id, link)
     return makeJunk(id, link)
   end
   local name = CAT[key].name
-  if isJunk then ns.Del.Keep(id) end -- (out of Junk: kept, so a grey one doesn't slide back)
+  if isJunk then keepStack(id, from) end -- (out of Junk: kept, so a grey one doesn't slide back)
   if not isJunk and DB.assign[id] == key then
     DB.assign[id] = nil
     local back = B.Category(id, link, nil, nil, true)
@@ -1179,21 +1263,35 @@ end
 local function placeHeld(key)
   local id, link = ns.CursorItem()
   if not id then return end
-  if DB.locked then return lockedSay() end
+  -- (the padlock is for arranging groups: taking something off Sell or Junk still works with it on)
+  local heldWas = kindOfHeld(id)
+  -- (15 Nov) a stack on its way to the bank: dropping it anywhere in the bag takes it back
+  local bankFrom = B.HeldSlot and { B.HeldSlot(id) } or nil
+  local wasBank = bankFrom and bankFrom[1] and B.BankSlot(bankFrom[1], bankFrom[2], id)
+  if DB.locked and not (key == "keep" and (heldWas or wasBank)) then return lockedSay() end
+  -- (the slot it came from, noted before the cursor lets go of it)
+  local from = hasClean() and ns.Del.HeldSlot and { ns.Del.HeldSlot(id) } or nil
+  if from and not from[1] then from = nil end
   ClearCursor()
   local wasHidden = DB.hidden and DB.hidden[id]
   if wasHidden then
     DB.hidden[id] = nil
     Print(shown(id, link) .. " shows in your bag again.")
   end
+  if wasBank then
+    B.UnmarkBank(bankFrom[1], bankFrom[2])
+    Print(shown(id, link) .. ": this stack stays in your bags, it's no longer sent to your bank.")
+  end
   if key == "keep" then -- (One bag: a hidden or junk item dropped on the bag)
-    if hasClean() and ns.Del.JunkKind(id) then
-      ns.Del.Keep(id)
-      Print(shown(id, link) .. " is kept: Clean-up leaves it alone.")
+    local kind = heldWas
+    if kind then
+      local how = keepStack(id, from)
+      Print(shown(id, link) .. (how == "stack" and ": this stack is kept, it's no longer sold." or kind == 2 and " is kept: it's no longer sold by itself." or " is kept: Clean-up leaves it alone."))
     end
     return B.Changed()
   end
   if wasHidden and B.Category(id, link, nil, nil, true) == key and not DB.assign[id] then return B.Changed() end
+  B.heldFrom = from
   B.PlaceIn(key, id, link)
 end
 
@@ -1401,16 +1499,22 @@ local function plusSlot(key)
     local name = CAT[self.key] and CAT[self.key].name or ""
     if self.key == "keep" then
       local hid = held and DB.hidden and DB.hidden[held]
-      GameTooltip:AddLine(hid and "|cff66dd66Show it again|r" or "|cff66dd66Keep it|r")
+      local onSell = held and kindOfHeld(held) == 2
+      local hb, hs
+      if held and B.HeldSlot then hb, hs = B.HeldSlot(held) end
+      local toBank = hb and B.BankSlot(hb, hs, held)
+      GameTooltip:AddLine(hid and "|cff66dd66Show it again|r" or toBank and "|cff66dd66Take it out|r" or "|cff66dd66Keep it|r")
       GameTooltip:AddLine(hid and "It's hidden now: drop it here and the bag shows it again." or
+        toBank and "It goes to your bank now: drop it here and it stays in your bags." or
+        onSell and "It's on Sell now: drop it here and it isn't sold any more (all its stacks)." or
         "It's junk now: drop it here and Clean-up leaves it alone (all its stacks).", 1, 1, 1, true)
     elseif self.key == "sell" then
-      local again = held and hasClean() and ns.Del.JunkKind(held) == 2
+      local again = held and kindOfHeld(held) == 2
       GameTooltip:AddLine("|cffffd100Sell|r")
       GameTooltip:AddLine(again and "It's on Sell now: drop it here to keep it." or
         "Drop it here and it's sold at every vendor (all its stacks), and never thrown away, not even when your bags are full.", 1, 1, 1, true)
     elseif self.key == "junk" then
-      local again = held and hasClean() and ns.Del.JunkKind(held)
+      local again = held and kindOfHeld(held)
       GameTooltip:AddLine("|cffff8a8aJunk|r")
       GameTooltip:AddLine(again and "It's junk now: drop it here to keep it." or
         "Drop it here and it's junk: sold at a vendor, or thrown away when your bags fill up. All its stacks.", 1, 1, 1, true)
@@ -1427,6 +1531,7 @@ local function plusSlot(key)
   plusSlots[key] = b
   return b
 end
+B.PlusSlot = plusSlot -- (for Side.lua: the green slot in a box)
 
 ---------------------------------------------------------------------------
 -- Moving groups: drag a group by its name. Out of a fight it lifts and follows the mouse, the
@@ -1798,6 +1903,16 @@ local function show(e, x, y, text, withDot)
   d.dim:SetShown(not matches(e, text))
 end
 
+-- (15 Nov) for Side.lua: a button painted like an empty bag slot (the slot you drop items on)
+function B.PaintEmpty(b) return pcall(paint, b, { bag = 0, slot = 0 }) end
+-- (15 Nov) for Side.lua: put a cell in another pane (the column on the right of the bag)
+function B.ShowIn(P, e, x, y, text)
+  PANE = P
+  local ok, err = pcall(show, e, x, y, text)
+  PANE = MAIN
+  if not ok and not B.sideError then B.sideError = err Print("Bags: the boxes couldn't be drawn fully (" .. tostring(err) .. "). Please tell the author.") end
+end
+function B.Held() return held end
 -- in a fight the game's item buttons may not be moved: refresh them where they are, and lay out after the fight
 local function fightLock()
   if not InCombatLockdown() then return false end
@@ -1843,6 +1958,7 @@ local function drawTop(st)
   lightUp(whoBtn, v2 and v2.who and B.VIEW.frame:IsShown() or false)
   drawBar(st)
   setIcon(lockBtn, DB.locked and "locked" or "unlocked")
+  setIcon(B.sideBtn, "side_" .. (DB.sidePos or "tr"))
   lightUp(lockBtn, DB.locked)
   local off = DB.locked or oneBag
   newBtn:SetAlpha(off and 0.35 or 1)
@@ -1901,10 +2017,12 @@ local function drawOneBag(byCat, text, cols, W, st, canDrop)
     if (a.total or 0) ~= (b.total or 0) then return (a.total or 0) > (b.total or 0) end
     return ((a.bag or 0) * 100 + (a.slot or 0)) < ((b.bag or 0) * 100 + (b.slot or 0))
   end)
+  local sideOn = st and st.side and true or false -- (15 Nov: Junk and Sell are boxes on the right)
   local drop = canDrop and held and not DB.locked and (hasClean() or (DB.hidden and DB.hidden[held]))
-  local heldJunk = drop and ns.Del.JunkKind(held)
-  if canDrop and held and not DB.locked and DB.hidden and DB.hidden[held] then heldJunk = true end
-  if heldJunk then items[#items + 1] = { drop = "keep", cat = "keep" } end
+  -- (15 Nov) a Sell or Junk item on your cursor: the green "keep" slot is the first one of that
+  -- group below (padlock on or off); a hidden item still gets it on the bag
+  local keepKind = not sideOn and canDrop and held and kindOfHeld(held)
+  if canDrop and held and not DB.locked and not keepKind and DB.hidden and DB.hidden[held] then items[#items + 1] = { drop = "keep", cat = "keep" } end
   table.sort(empties, function(a, b)
     if a.cat ~= b.cat then return (EMPTY_ORDER[a.cat] or 9) < (EMPTY_ORDER[b.cat] or 9) end
     if a.bag ~= b.bag then return a.bag < b.bag end
@@ -1915,11 +2033,12 @@ local function drawOneBag(byCat, text, cols, W, st, canDrop)
   local height = math.max(1, math.ceil(#items / cols)) * PITCH - GAP
   if not PANE.static then rects[#rects + 1] = { key = "keep", parent = PANE.body, x = 0, y = 0, w = W, h = height, gap = 0 } end
   -- at the bottom: Sell, then Junk (fixed groups); holding an item, each gets its +
-  local heldKind = drop and hasClean() and ns.Del.JunkKind(held)
-  local canMark = drop and hasClean() and not (DB.hidden and DB.hidden[held])
+  local heldKind = drop and kindOfHeld(held)
+  local canMark = drop and hasClean() and not sideOn and not (DB.hidden and DB.hidden[held])
   local li = 0
   local function fixedGroup(key, list, title, value)
     local plus = canMark and heldKind ~= (key == "sell" and 2 or 1)
+    if keepKind == (key == "sell" and 2 or 1) then table.insert(list, 1, { drop = "keep", cat = key }) end
     if #list == 0 and not plus then return end
     if plus then list[#list + 1] = { drop = key, cat = key } end
     local y = height + GROUP_GAP + 2
@@ -2023,7 +2142,7 @@ local function drawItems(P, v, text, cols, W)
   PANE = P
   P.ghostN = 0
   for _, l in ipairs(P.labels) do l:Hide() end
-  for _, h in ipairs(P.hints) do h:Hide() end
+  for _, h in pairs(P.hints) do h:Hide() end -- (pairs: the list has gaps, one hint per empty group)
   local byCat, st = buildCells(v, text)
   local height, total
   if DB.style == "grid" then
@@ -2302,7 +2421,9 @@ function B.Draw()
   local W = cols * PITCH - GAP
   B.curW = W
   -- (a narrow bag: the tools on the right of the bags row shrink a little so they don't cover the bags)
-  for _, tb in ipairs(B.toolBtns) do tb:SetScale(W < 350 and 0.82 or 1) end
+  -- (15 Nov: six tools now; they shrink just enough to leave the bags room: 5 bags + the gap = 179)
+  local toolScale = math.max(0.6, math.min(1, (W - 179) / (6 * 33 + 8)))
+  for _, tb in ipairs(B.toolBtns) do tb:SetScale(toolScale) end
   searchHint:SetShown(text == "" and not search:HasFocus())
   wipe(used)
   wipe(dropUsed)
@@ -2310,6 +2431,10 @@ function B.Draw()
   wipe(drawn)
   whereText = "Your bags"
   local height, _, st = drawItems(MAIN, MAINVIEW, text, cols, W)
+  if B.DrawSide then
+    local ok, err = pcall(B.DrawSide, st, text, height)
+    if not ok and not B.sideError then B.sideError = err Print("Bags: the boxes couldn't be drawn fully (" .. tostring(err) .. "). Please tell the author.") end
+  end
   drawHidden(text)
   lightUp(hiddenBtn, hf:IsShown())
   drawTop(st)
@@ -2668,7 +2793,7 @@ function B.ShowView(who, kind, auto)
   if not vf:IsShown() then
     vf:ClearAllPoints()
     if DB.viewPos then vf:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", DB.viewPos[1], DB.viewPos[2])
-    elseif f:IsShown() then vf:SetPoint("TOPRIGHT", f, "TOPLEFT", -6, 0)
+    elseif f:IsShown() then vf:SetPoint("TOPRIGHT", f, "TOPLEFT", -6 - (B.sideLeftW or 0), 0)
     else vf:SetPoint("CENTER", UIParent, "CENTER", -200, 60) end
     vf:Show()
   end
@@ -2757,7 +2882,7 @@ f:SetScript("OnUpdate", function(_, dt)
   if held and not moving and not DB.locked and f:IsMouseOver() then
     r = rectUnder()
     if r and placeable(r.key) and ((r.key ~= "junk" and r.key ~= "sell") or hasClean()) then key = r.key end
-    if r and r.key == "keep" and ((hasClean() and ns.Del.JunkKind(held)) or (DB.hidden and DB.hidden[held])) then key = "keep" end
+    if r and r.key == "keep" and ((kindOfHeld(held)) or (DB.hidden and DB.hidden[held])) then key = "keep" end
   end
   if key ~= hoverKey then
     hoverKey = key

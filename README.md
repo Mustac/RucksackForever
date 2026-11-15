@@ -6,15 +6,15 @@
 
 **Clean-up** keeps a few bag slots free for you, always. When space runs low, the cheapest junk goes first (or gets sold at the next vendor), and quest items stay.
 
-**Bags** puts everything in one bag window: items in groups (your own too), junk at a glance, a Hidden bag for things you never need to see, and your bank and other characters a click away.
+**Bags** puts everything in one bag window: items in groups (your own too), three small windows beside it for what gets sold, thrown away or sent to your bank, a Hidden bag for things you never need to see, and your bank and other characters a click away.
 
-**Darkmoon Faire** tracks your tickets, shows where to get every turn-in item (one click pins it on your map) and the prize you're saving for. **Scrolls** lets mages decipher their scrolls with one click.
+**Darkmoon Faire** tracks your tickets, plans your turn-ins for the prize you're saving for (items, raw materials, hand-ins left) and shows where to get every turn-in item (one click pins it on your map). **Scrolls** lets mages decipher their scrolls with one click.
 
 Everything is in one window (`/ruck`), with a small on-screen Pocket that shows bag space, your next meal and what a vendor would pay.
 
 ## Modules: only load what you use
 
-Rucksack comes with all its parts, but only loads the ones you turn on in **Settings > Modules**: Rations, Bags, Clean-up, Darkmoon Faire and Scrolls. Each is a card: click the ones you want, then **Apply**. Bags and Clean-up each work alone; with both on, your bag shows your junk. New ones load right away; ones you turned off stop after a reload, and then they use no memory and do nothing. Each character has its own choice, and **Scrolls turns itself on for mages only**. The "Show button" box on each tool's page only hides or shows that tool's button on screen.
+Rucksack comes with all its parts, but only loads the ones you turn on in **Settings > Modules**: Rations, Bags, Clean-up, Darkmoon Faire and Scrolls. Each is a card: click the ones you want, then **Apply**. Bags and Clean-up each work alone; with both on, your bag gets the sell and delete windows. New ones load right away; ones you turned off stop after a reload, and then they use no memory and do nothing. Each character has its own choice, and **Scrolls turns itself on for mages only**. The "Show button" box on each tool's page only hides or shows that tool's button on screen.
 
 ## Rations: eat and drink with one click
 
@@ -39,23 +39,27 @@ What goes by itself: **grey items**, **white weapons and armour** your class can
 - **Keep empty slots:** deletes only when you drop below the free slots you want to keep, the cheapest first.
 - **Delete limit:** never deletes anything worth more than your limit (1g to start). It stops, tells you, and lets you choose: Delete it, Keep it or Not now.
 - **The trash button:** shows your free slots against your setting, the first item to go and what it's worth; red when it really deletes on your next key press. Hover it for everything that can go. The **RuckDelete** macro does the same and shows the same item.
-- **Deleting by hand:** the game's delete box gets an **Always** button. If the item is used for something (a quest, a Darkmoon turn-in, an unread scroll, your next food or water, a profession tool, or it's rare or better) it tells you what for and asks once more.
+- **Deleting by hand:** the game's delete box becomes **Always delete / Delete 16 / Cancel**. Nothing goes on the spot: it waits, and is sold at a vendor or thrown away when your bags are nearly full (Shift-click Delete to delete it now). If the item is used for something (a quest, a Darkmoon turn-in, an unread scroll, your next food or water, a profession tool, or it's rare or better) it tells you what for and asks once more. Conjured food and water are deleted without asking.
+- **Do not sell above:** nothing worth more than this (0 to 2 gold, the price of one) is sold.
 - Keeps exactly what your current quests still need, never more. Quest starters are kept.
 - **At a vendor:** sells your Clean-up items and junk for gold instead of deleting them (hold Shift to skip).
+- **Open clams and pouches by itself:** a switch on the Settings page; things that open with one click are opened for you, one at a time.
 - Search your list, see what's in your bags, and a history of the last 100 items deleted.
 
 ## Bags: one bag window
 
-Turn it on in Settings > Modules: tick the **Bags** card. B, the bag buttons, vendors, mail and trades then open Rucksack's bag. Items work as always: click, drag, split, use. With Clean-up on too, the bag gets Junk and Sell groups.
+Turn it on in Settings > Modules: tick the **Bags** card. B, the bag buttons, vendors, mail and trades then open Rucksack's bag. Items work as always: click, drag, split, use.
+
+**The windows beside the bag:** **Always sell / delete** (every one of an item), **Sell / delete once** (just that stack) and **Send to bank** (those stacks go into your bank when you open it). Drop an item on a window to put it there; **Alt + left-click** sends a stack to the bank, **Alt + right-click** takes an item out of any window. The first two need Clean-up. A button in the bags row moves them to any corner of the bag.
 
 **Restock:** the cart next to Hidden holds the things you always want on you. Pull an item in, type how many to carry, and a vendor that sells it tops you up. It never spends below the gold you choose to keep, and when money is short it buys a bit of everything or fills the top of your list first.
 
 **Bank:** at a banker your bank opens in Rucksack, with its bag slots on top: click the next locked slot to buy it. **Reagents** lying in an ordinary bag move into your reagent bag by themselves.
 
-- **Groups:** Weapons, Armour, Food and water, Potions, Trade goods, Quest, Everything else, Junk and your own groups, each on its own row (or Packed side by side). Drag a group by its name to move it; the others slide out of the way.
-- **Put an item in a group:** pick it up and every group gets a green **+** (Junk a red one). Drop it there and all its stacks go there from now on. Drop it on its own group again to undo.
+- **Groups:** Weapons, Armour, Food and water, Potions, Trade goods, Quest, Everything else and your own groups, each on its own row (or Packed side by side). Drag a group by its name to move it; the others slide out of the way.
+- **Put an item in a group:** pick it up and every group gets a green **+**. Drop it there and all its stacks go there from now on. Drop it on its own group again to undo.
 - **Your own groups:** make one with the green + in the bags row (or drop an item on it); right-click a group's name to rename it, change its colour or delete it.
-- **One bag:** no groups, everything sorted by kind, quality or name; Junk stays at the bottom. Or switch it to **Free**: nothing is sorted, every item stays in the slot you put it in, and Tidy sorts them once when you want.
+- **One bag:** no groups, everything sorted by kind, quality or name. Or switch it to **Free**: nothing is sorted, every item stays in the slot you put it in, and Tidy sorts them once when you want.
 - **The bags row:** hover Rucksack in the corner and click the arrow. Your four bags and the reagent bag with their free slots (drop a bag on a bag to swap), Hidden, New group, Delete group and a padlock that locks the layout.
 - **Hidden:** a small bag for things you never need to look at (Skinning Knife, Mining Pick, Hearthstone...). Pull them in and the bag stops showing them; they stay usable from there.
 - **Your bank and other characters:** in their own window, as they were when last seen; at a banker your bank is live. Item tooltips say where else you have an item.
@@ -65,6 +69,7 @@ Turn it on in Settings > Modules: tick the **Bags** card. B, the bag buttons, ve
 
 - Every ticket turn-in: what it wants, how many you have (bank too) and the tickets it gives. Ready, need more, too low level, or closed by your Faire reputation.
 - **Where to get it:** good farm spots for each animal part, closest to your level first. Click one to pin it on your world map (TomTom too); shift-click pins them all. Crafted items show their profession and materials.
+- **Plan:** pick your prize, tick the turn-ins you want and how many times; it counts the tickets, the items and raw materials still needed and the hand-ins your reputation allows. The prize card on screen shows it as a table.
 - **Prizes:** click a prize to track it. The Pocket and Home show it as 37 / 50; turn on the on-screen ticket button for a card that fills up and glows gold when you have enough.
 - Darkmoon deck checklist, the Faire's dates and places, Sayge's answers.
 - Item tooltips, and quick turn-ins at Yebb, Kerri, Rinling and Chronos (hold Shift to do it yourself). Clean-up keeps the turn-in items.

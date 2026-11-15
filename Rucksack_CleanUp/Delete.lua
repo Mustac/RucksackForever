@@ -1,9 +1,10 @@
 -- Rucksack / Clean-up (was AutoDelete)
 -- Replaces the game's "Do you want to destroy X?" Yes/No box with Always / Yes / No.
--- "Always" deletes the item now and remembers it. Remembered items are deleted on your next key
--- press (or a click on the trash button) once your bags are nearly full (fewer than minFree empty
--- slots), the cheapest stack first (vendor price x stack). An item set to "as soon as I get it"
--- (its page in the window) doesn't wait for full bags. Never in combat.
+-- "Always" remembers the item (15 Nov: it no longer deletes it on the spot). Remembered items are
+-- deleted on your next key press (or a click on the trash button) once your bags are nearly full
+-- (fewer than minFree empty slots), the cheapest stack first (vendor price x stack). Right after
+-- something is added the bags are checked once, so with full bags the cheapest one goes at once.
+-- An item set to "as soon as I get it" (its page in the window) doesn't wait for full bags. Never in combat.
 -- Why a key press: the game only lets an addon delete an item inside a click or a key press.
 local ns = Rucksack
 if not ns then return end
@@ -43,6 +44,44 @@ function Del.TotalSlots()
 end
 
 local function sellPrice(id) return select(11, ns.GetInfo(id)) or 0 end
+-- (15 Nov) no vendor buys it (the game knows the item and its price is 0)
+function Del.CantSell(id)
+  local name, _, _, _, _, _, _, _, _, _, price = ns.GetInfo(id)
+  return name ~= nil and (price or 0) == 0
+end
+-- (15 Nov) conjured things a class makes again for free (a mage's water, food and mana gems): the
+-- tooltip says "Conjured Item". A warlock's stones say it too, but they cost a Soul Shard: not those.
+local SHARD_STONES = { "Healthstone", "Soulstone", "Spellstone", "Firestone" }
+local conjTip
+function Del.IsConjured(id, link)
+  if not id then return false end
+  local name = ns.NameOf(id, link)
+  if type(name) == "string" then
+    for _, w in ipairs(SHARD_STONES) do if name:find(w, 1, true) then return false end end
+  end
+  local word = ITEM_CONJURED or "Conjured Item"
+  if C_TooltipInfo and C_TooltipInfo.GetItemByID then
+    local ok, data = pcall(C_TooltipInfo.GetItemByID, id)
+    if ok and data and data.lines then
+      for _, l in ipairs(data.lines) do if l.leftText == word then return true end end
+      return false
+    end
+  end
+  if not conjTip then
+    local ok, tip = pcall(CreateFrame, "GameTooltip", "RucksackConjScanTip", nil, "GameTooltipTemplate")
+    if not ok or not tip then return false end
+    conjTip = tip
+  end
+  if not conjTip.SetHyperlink then return false end
+  conjTip:SetOwner(WorldFrame or UIParent, "ANCHOR_NONE")
+  conjTip:ClearLines()
+  if not pcall(conjTip.SetHyperlink, conjTip, "item:" .. id) then return false end
+  for i = 2, (conjTip.NumLines and conjTip:NumLines() or 0) do
+    local fs = _G["RucksackConjScanTipTextLeft" .. i]
+    if fs and fs:GetText() == word then return true end
+  end
+  return false
+end
 
 -- (1.7.4) The junk pool: what Clean-up deletes or sells by itself (no quality to pick any more).
 --  * grey items
@@ -161,7 +200,10 @@ end
 Del.ByFood = function(id) if DB then return byFood(id) end end
 local function onList(id, bag, slot)
   if ns.KeepItem(id) then return false end -- (Darkmoon turn-in items, scrolls... stay)
+  if bag and ns.Bags and ns.Bags.BankSlot and ns.Bags.BankSlot(bag, slot, id) then return false end -- (15 Nov: on its way to the bank)
   if DB.sell[id] then return false end -- (1.8.2 Sell: sold at a vendor, never thrown away)
+  if Del.SlotSell(bag, slot, id) then return false end -- (15 Nov: this very stack is marked for sale)
+  if Del.SlotJunk(bag, slot, id) then return true end  -- (15 Nov: this very stack is marked to be thrown away)
   return DB.items[id] or byRule(id, bag, slot) or (byFood(id) and true)
 end
 Del.OnList = function(id, bag, slot) return DB and onList(id, bag, slot) and true or false end
@@ -439,7 +481,7 @@ local function DeleteOne(force)
   end
   local id = CursorItem()
   if id == it.id then
-    RecordMeta(it.id, it.link, delCount, true, DB.items[it.id] and "always" or byRule(it.id, it.bag, it.slot) and "quality" or "rations")
+    RecordMeta(it.id, it.link, delCount, true, DB.items[it.id] and "always" or Del.SlotJunk(it.bag, it.slot, it.id) and "once" or byRule(it.id, it.bag, it.slot) and "quality" or "rations")
     DeleteCursorItem()
     DB.deleted = (DB.deleted or 0) + delCount
     if DB.chat then
@@ -462,6 +504,16 @@ function Del.Click()
   DeleteOne(true)
 end
 function AutoDelete_DeleteNext() Del.Click() end
+-- (15 Nov) right after something goes on the list: look at the bags now, so with nearly full bags
+-- the cheapest waiting stack goes straight away (the usual rule: the cheapest, not always the new
+-- one). Everything that adds to the list is a click, and the game only deletes inside a click.
+function Del.CheckNow()
+  if CursorHasItem() then ClearCursor() end
+  -- (15 Nov) at a vendor: he buys what's waiting, nothing is thrown away
+  if ns.Sell and ns.Sell.Kick and ns.Sell.Kick() then return false end
+  local ok, did = pcall(DeleteOne, false)
+  return ok and did or false
+end
 
 -- (1.7.4) grey items are on the list already (they go by themselves): not added, only un-kept
 function Del.IsGrey(id, link) return ns.QualityOf(id, link) == 0 end
@@ -469,6 +521,7 @@ function Del.Add(id, link)
   if Del.IsGrey(id, link) then
     DB.keep[id], DB.sell[id] = nil, nil
     Refresh()
+    Del.CheckNow()
     return false, "grey"
   end
   local savedLink = link or ns.LinkOf(id)
@@ -476,29 +529,139 @@ function Del.Add(id, link)
   DB.keep[id], DB.sell[id] = nil, nil
   RecordMeta(id, savedLink, 0, false, "always")
   Refresh()
+  Del.CheckNow()
   return true
+end
+-- (15 Nov) Sell, three ways. "Always": every one of this item, at every vendor (DB.sell, as before).
+-- "Sell all": every stack you have right now, once. "Sell stack": just the stack you're holding,
+-- once. The last two are marks on bag slots (this character's): [bag:slot] = item id. A mark is
+-- good while that slot still holds that item; anything else in the slot and it's dropped.
+-- The delete box marks single stacks the same way: "Delete N" = junkSlots (thrown away by the usual
+-- rule: bags nearly full, cheapest first; a vendor buys it before that), "Sell N" = sellSlots.
+local function slotKey(bag, slot) return bag .. ":" .. slot end
+local function slotMarks(which)
+  which = which or "sellSlots"
+  ns.char[which] = ns.char[which] or {}
+  return ns.char[which]
+end
+local function slotMarked(which, bag, slot, id)
+  local m = bag and slot and ns.char and ns.char[which]
+  if not m then return false end
+  local want = m[slotKey(bag, slot)]
+  if not want then return false end
+  if id == nil then id = SlotInfo(bag, slot) end
+  if want ~= id then m[slotKey(bag, slot)] = nil return false end
+  return true
+end
+function Del.SlotSell(bag, slot, id) return slotMarked("sellSlots", bag, slot, id) end
+function Del.SlotJunk(bag, slot, id) return slotMarked("junkSlots", bag, slot, id) end
+local function clearSlotMarks(id)
+  for _, which in ipairs({ "sellSlots", "junkSlots" }) do
+    local m = ns.char and ns.char[which]
+    if m then for k, v in pairs(m) do if v == id then m[k] = nil end end end
+  end
+end
+-- marks whose stack is gone (sold, deleted, moved, used up): dropped, so nothing that lands there later goes
+local function sweepSlotMarks()
+  for _, which in ipairs({ "sellSlots", "junkSlots" }) do
+    local m = ns.char and ns.char[which]
+    if m and next(m) then
+      for k, want in pairs(m) do
+        local bag, slot = k:match("^(-?%d+):(%d+)$")
+        if not bag or SlotInfo(tonumber(bag), tonumber(slot)) ~= want then m[k] = nil end
+      end
+    end
+  end
+end
+local sweeper = CreateFrame("Frame")
+pcall(sweeper.RegisterEvent, sweeper, "BAG_UPDATE_DELAYED")
+sweeper:SetScript("OnEvent", function() pcall(sweepSlotMarks) end)
+-- the stack on your cursor: which slot it came from (the game locks that slot while you hold it)
+function Del.HeldSlot(id)
+  for bag = 0, ns.NUM_BAGS do
+    for slot = 1, (ns.GetNumSlots(bag) or 0) do
+      local sid, _, _, _, locked = SlotInfo(bag, slot)
+      if sid == id and locked then return bag, slot end
+    end
+  end
+end
+function Del.SellStack(bag, slot, id)
+  if not bag or not slot then return false end
+  slotMarks("sellSlots")[slotKey(bag, slot)] = id
+  slotMarks("junkSlots")[slotKey(bag, slot)] = nil
+  Refresh()
+  if ns.Sell and ns.Sell.Kick then ns.Sell.Kick() end -- (at a vendor: sold right away)
+  return true
+end
+-- this one stack is junk: thrown away by the usual rule (and the bags are looked at right away)
+function Del.JunkStack(bag, slot, id)
+  if not bag or not slot then return false end
+  slotMarks("junkSlots")[slotKey(bag, slot)] = id
+  slotMarks("sellSlots")[slotKey(bag, slot)] = nil
+  Refresh()
+  Del.CheckNow()
+  return true
+end
+-- every stack of it in your bags right now; -> how many stacks, how many items
+function Del.SellAllNow(id)
+  local stacks, items, m = 0, 0, slotMarks()
+  for bag = 0, ns.NUM_BAGS do
+    for slot = 1, (ns.GetNumSlots(bag) or 0) do
+      local sid, count = SlotInfo(bag, slot)
+      if sid == id then m[slotKey(bag, slot)] = id stacks, items = stacks + 1, items + (count or 1) end
+    end
+  end
+  Refresh()
+  if ns.Sell and ns.Sell.Kick then ns.Sell.Kick() end -- (at a vendor: sold right away)
+  return stacks, items
 end
 -- (1.8) keep it: off your list, and the rules leave it alone too
 function Del.Keep(id)
   DB.keep[id] = true
   DB.items[id], DB.now[id], DB.sell[id] = nil, nil, nil
+  clearSlotMarks(id)
   Refresh()
+end
+-- keep the stack in that slot: if only that stack was marked for sale, only its mark goes ("stack");
+-- otherwise the whole item is kept, as before ("all")
+function Del.KeepAt(id, bag, slot)
+  if bag and not DB.sell[id] and Del.SlotSell(bag, slot, id) then
+    ns.char.sellSlots[slotKey(bag, slot)] = nil
+    Refresh()
+    return "stack"
+  end
+  if bag and Del.SlotJunk(bag, slot, id) then
+    ns.char.junkSlots[slotKey(bag, slot)] = nil
+    if not onList(id, bag, slot) then Refresh() return "stack" end -- (still junk some other way: keep the item)
+  end
+  Del.Keep(id)
+  return "all"
 end
 -- (1.8.2) Sell: sold at a vendor every time, never thrown away (not even when your bags are full)
 function Del.AddSell(id, link)
   DB.sell[id] = link or ns.LinkOf(id) or true
   DB.items[id], DB.now[id], DB.keep[id] = nil, nil, nil
+  clearSlotMarks(id)
   Refresh()
+  if ns.Sell and ns.Sell.Kick then ns.Sell.Kick() end -- (at a vendor: sold right away)
 end
 function Del.IsSell(id) return DB and DB.sell[id] and true or false end
 -- 1 = junk (your list or the rules: sold or thrown away), 2 = sell only, nil = neither
+-- (with a bag and slot it also knows a single stack marked for sale)
 function Del.JunkKind(id, bag, slot)
   if not DB or ns.KeepItem(id) then return nil end
   if DB.sell[id] then return 2 end
+  if Del.SlotSell(bag, slot, id) then return 2 end
   return onList(id, bag, slot) and 1 or nil
+end
+-- the same for the stack on your cursor
+function Del.HeldKind(id)
+  local bag, slot = Del.HeldSlot(id)
+  return Del.JunkKind(id, bag, slot)
 end
 function Del.Remove(id)
   DB.items[id], DB.now[id], DB.sell[id] = nil, nil, nil
+  clearSlotMarks(id)
   Refresh()
 end
 
@@ -555,7 +718,7 @@ local askHint = ask:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
 askHint:SetPoint("TOPLEFT", askText, "BOTTOMLEFT", 0, -6)
 askHint:SetPoint("RIGHT", ask, "RIGHT", -22, 0)
 askHint:SetJustifyH("LEFT")
-askHint:SetText("Always = delete now and every time you get it.  Sell = keep it, and sell it at vendors.")
+askHint:SetText("Delete = thrown away when your bags are nearly full, the cheapest first.  Sell = sold at the next vendor, never thrown away.")
 
 local askWarn = ask:CreateFontString(nil, "ARTWORK", "GameFontRedSmall")
 askWarn:SetPoint("TOPLEFT", askHint, "BOTTOMLEFT", 0, -4)
@@ -567,88 +730,217 @@ local function MakeButton(parent, text, w)
   b:SetText(text)
   return b
 end
-local btnSell = MakeButton(ask, "Sell", 96)
-local btnAlways = MakeButton(ask, "Always", 96)
-local btnYes = MakeButton(ask, "Yes")
-local btnNo = MakeButton(ask, "No")
-btnYes:SetPoint("BOTTOM", ask, "BOTTOM", 50, 18)
-btnAlways:SetPoint("RIGHT", btnYes, "LEFT", -8, 0)
-btnSell:SetPoint("RIGHT", btnAlways, "LEFT", -8, 0)
-btnNo:SetPoint("LEFT", btnYes, "RIGHT", 8, 0)
+-- (15 Nov) Always delete / Delete N / Sell N / Cancel. N = how many are in the stack you're holding.
+-- Always delete: every one of this item. Delete N: only this stack. Both wait for the usual rule
+-- (bags nearly full, the cheapest first). Sell N: this stack is sold at a vendor, never thrown away.
+local btnAlways = MakeButton(ask, "Always delete", 124)
+local btnYes = MakeButton(ask, "Delete", 104)   -- (the Delete N button; the name is from when it said Yes)
+local btnSell = MakeButton(ask, "Sell", 104)
+local btnNo = MakeButton(ask, "Cancel", 96)
+btnAlways:SetPoint("BOTTOMLEFT", ask, "BOTTOMLEFT", 70, 18)
+btnYes:SetPoint("LEFT", btnAlways, "RIGHT", 8, 0)
+btnSell:SetPoint("LEFT", btnYes, "RIGHT", 8, 0)
+btnNo:SetPoint("LEFT", btnSell, "RIGHT", 8, 0)
+local function askTip(b, fn)
+  b:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    for i, l in ipairs(fn()) do
+      if i == 1 then GameTooltip:AddLine(l) else GameTooltip:AddLine(l, 1, 1, 1, true) end
+    end
+    GameTooltip:Show()
+  end)
+  b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+end
 btnSell:GetFontString():SetTextColor(1, 0.82, 0)
-btnSell:SetScript("OnEnter", function(self)
-  GameTooltip:SetOwner(self, "ANCHOR_TOP")
-  GameTooltip:AddLine("Sell, don't delete")
-  GameTooltip:AddLine("Keeps it now. From now on it's sold at every vendor, and never thrown away, not even when your bags are full.", 1, 1, 1, true)
-  GameTooltip:AddLine("Undo it on the Clean-up page (/ruck).", 0.7, 0.7, 0.7, true)
-  GameTooltip:Show()
-end)
-btnSell:SetScript("OnLeave", function() GameTooltip:Hide() end)
+if btnSell.SetMotionScriptsWhileDisabled then btnSell:SetMotionScriptsWhileDisabled(true) end -- (its tip still shows when it's greyed out)
+askTip(btnSell, function()
+  if ask.data and ask.data.cantSell then return { "Can't be sold", "No vendor buys this item." } end
+  return { "Sell this stack",
+  "Only this stack. It stays in your bags and is sold at the next vendor. It's never thrown away, not even when your bags are full.",
+  "Take it back: pick it up and drop it on the green slot in Sell." } end)
 btnAlways:GetFontString():SetTextColor(1, 0.35, 0.35)
-btnAlways:SetScript("OnEnter", function(self)
-  GameTooltip:SetOwner(self, "ANCHOR_TOP")
-  GameTooltip:AddLine("Always delete this item")
-  GameTooltip:AddLine("Deletes it now, and from now on every time it lands in your bags.", 1, 1, 1, true)
-  GameTooltip:AddLine("Undo it on the Clean-up page (/ruck).", 0.7, 0.7, 0.7, true)
-  GameTooltip:Show()
-end)
-btnAlways:SetScript("OnLeave", function() GameTooltip:Hide() end)
+askTip(btnAlways, function() return { "Always delete this item",
+  "Every one of it, also the ones you get later. It stays in your bags for now: a vendor buys it, or it's thrown away when your bags are nearly full, the cheapest thing first.",
+  "If your bags are full right now, the cheapest thing on your list goes straight away.",
+  "Undo it on the Clean-up page (/ruck)." } end)
+askTip(btnYes, function() return { "Delete this stack",
+  "Only this stack. It stays in your bags for now: a vendor buys it, or it's thrown away when your bags are nearly full, the cheapest thing first.",
+  "If your bags are full right now, the cheapest thing that's waiting goes straight away.",
+  "Shift-click: delete it right now instead." } end)
 
 local function HideGamePopup() if ask.which then StaticPopup_Hide(ask.which) end end
 
 local function Decide(action, button)
   local d = ask.data
   if not d then ask:Hide() return end
-  -- (1.7.4) the second step: "Delete anyway" does what you picked first (Always or Yes)
+  if action == "sell" and d.cantSell then return end -- (greyed out)
+  local name = d.link or ns.NameOf(d.id)
+  -- (1.7.4) the second step: "... anyway" does what you picked first (Always delete or Delete N)
   if d.warned then
     if action ~= "no" then action = d.warned end
-  elseif action == "always" or action == "yes" then
+  elseif action == "always" or action == "delete" then
     -- something Rucksack knows is useful (a quest, the Faire, a scroll, your next food, rare and
     -- better): ask once more and say what it's for. (Only before deleting: Sell keeps the item.)
     local uses = ns.UsedFor(d.id, d.link)
     if #uses > 0 then
       d.warned = action
-      askText:SetText("Do you really want to delete " .. (d.link or ns.NameOf(d.id)) .. "?")
+      d.now = action == "delete" and IsShiftKeyDown and IsShiftKeyDown() or false
+      askText:SetText((action == "always" and "Do you really want to always delete " or "Do you really want to delete ") .. name .. "?")
       askHint:SetText("It's used for:\n|cffffffff- " .. table.concat(uses, "\n- ") .. "|r")
-      askWarn:SetText(action == "always" and "Delete anyway also deletes it every time you get it." or "")
+      askWarn:SetText(d.now and "It's deleted right now." or action == "always" and "Every one goes on your list: thrown away when your bags are nearly full." or "This stack is thrown away when your bags are nearly full.")
       btnAlways:Hide()
       btnSell:Hide()
-      btnYes:SetText("Delete anyway") btnYes:SetWidth(130)
+      btnYes:SetText(d.now and "Delete anyway" or "Add anyway") btnYes:SetWidth(130)
       btnYes:GetFontString():SetTextColor(1, 0.35, 0.35)
-      btnNo:SetText("No")
+      btnNo:SetText("Cancel")
       ask:SetHeight(150 + 14 * #uses)
       return
     end
   end
   ask.decided = true
-  if action == "sell" then
+  local now = action == "delete" and (d.now or (not d.warned and IsShiftKeyDown and IsShiftKeyDown())) or false
+  -- the stack you're holding: its slot is locked while it's on your cursor
+  local bag, slot = Del.HeldSlot(d.id)
+  local count = bag and select(2, SlotInfo(bag, slot)) or d.count
+  local xN = count and count > 1 and (" x" .. count) or ""
+  if action == "no" then
     ClearCursor()
-    Del.AddSell(d.id, d.link)
-    Print((d.link or ns.NameOf(d.id)) .. " won't be deleted: it's sold at the next vendor, every time you get it. (Undo it on the Clean-up page: /ruck)")
-  elseif action == "no" then
-    ClearCursor()
-  else
-    if action == "always" then
-      DB.items[d.id] = d.link or true
-      DB.keep[d.id] = nil
-      RecordMeta(d.id, d.link, 1, true, "always")
-      Print((d.link or ns.NameOf(d.id)) .. " will now always be deleted. (Undo it on the Clean-up page: /ruck)")
-    else
-      RecordMeta(d.id, d.link, 1, true, "once")
-    end
+  elseif action == "delete" and (now or not bag) then
+    -- Shift-click (or the stack can't be found in your bags): delete it right now, as Yes used to
+    RecordMeta(d.id, d.link, 1, true, "once")
     if CursorItem() == d.id then
       DeleteCursorItem()
     else
       Print("the item is no longer on your cursor, nothing deleted.")
     end
+  else
+    ClearCursor()
+    HideGamePopup()
+    ask:Hide()
+    if action == "always" then
+      -- every one of it goes on your list and waits like the rest. Del.Add looks at the bags right
+      -- away, so with full bags the cheapest waiting thing goes now.
+      local added = Del.Add(d.id, d.link)
+      Print(name .. (added and (d.cantSell and " is on your list: every one is thrown away when your bags are nearly full (cheapest first). Undo it on the Clean-up page: /ruck"
+        or " is on your list: every one is sold at a vendor, or thrown away when your bags are nearly full (cheapest first). Undo it on the Clean-up page: /ruck")
+        or " is grey: it goes by itself already."))
+    elseif action == "delete" then
+      Del.JunkStack(bag, slot, d.id)
+      Print(name .. xN .. ": this stack is thrown away when your bags are nearly full, the cheapest thing first." .. (d.cantSell and "" or " A vendor buys it before that."))
+    elseif action == "sell" then
+      if bag then
+        Del.SellStack(bag, slot, d.id)
+        Print(name .. xN .. ": this stack is sold at the next vendor. It's never thrown away.")
+      else
+        Del.AskSell(d.id, d.link) -- (the stack can't be found: ask how instead)
+      end
+    end
+    if ns.Changed then ns.Changed() end
+    C_Timer.After(0.3, function() Refresh() end)
+    return
   end
   HideGamePopup()
   ask:Hide()
   C_Timer.After(0.3, function() Refresh() end)
 end
+---------------------------------------------------------------------------
+-- (15 Nov) The Sell box (a stack dropped on Sell in the bag): Always / Sell all / Sell N / Cancel
+---------------------------------------------------------------------------
+local sellAsk = CreateFrame("Frame", "RucksackSellAsk", UIParent, ns.BACKDROP_TMPL)
+sellAsk:SetSize(480, 128)
+sellAsk:SetPoint("TOP", UIParent, "TOP", 0, -135)
+sellAsk:SetFrameStrata("FULLSCREEN_DIALOG")
+sellAsk:SetToplevel(true)
+sellAsk:EnableMouse(true)
+sellAsk:SetBackdrop(ns.DIALOG_BACKDROP)
+sellAsk:Hide()
+tinsert(UISpecialFrames, "RucksackSellAsk") -- Esc closes it (counts as Cancel)
+local sellIcon = CreateFrame("Button", nil, sellAsk)
+sellIcon:SetSize(36, 36)
+sellIcon:SetPoint("TOPLEFT", 24, -22)
+sellIcon.tex = sellIcon:CreateTexture(nil, "ARTWORK")
+sellIcon.tex:SetAllPoints()
+sellIcon:SetScript("OnEnter", function(self) if sellAsk.data then ns.ShowItemTooltip(self, sellAsk.data.id, sellAsk.data.link) end end)
+sellIcon:SetScript("OnLeave", function() GameTooltip:Hide() end)
+local sellText = sellAsk:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+sellText:SetPoint("TOPLEFT", sellIcon, "TOPRIGHT", 10, 0)
+sellText:SetPoint("RIGHT", sellAsk, "RIGHT", -22, 0)
+sellText:SetJustifyH("LEFT")
+local sellHint = sellAsk:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+sellHint:SetPoint("TOPLEFT", sellText, "BOTTOMLEFT", 0, -6)
+sellHint:SetPoint("RIGHT", sellAsk, "RIGHT", -22, 0)
+sellHint:SetJustifyH("LEFT")
+sellHint:SetText("Sold at the next vendor, never thrown away. Take it back: pick it up and drop it on the green slot in Sell.")
+local sbAlways = MakeButton(sellAsk, "Always", 100)
+local sbAll = MakeButton(sellAsk, "Sell all", 100)
+local sbStack = MakeButton(sellAsk, "Sell stack", 100)
+local sbCancel = MakeButton(sellAsk, "Cancel", 100)
+sbAlways:SetPoint("BOTTOMLEFT", sellAsk, "BOTTOMLEFT", 28, 18)
+sbAll:SetPoint("LEFT", sbAlways, "RIGHT", 8, 0)
+sbStack:SetPoint("LEFT", sbAll, "RIGHT", 8, 0)
+sbCancel:SetPoint("LEFT", sbStack, "RIGHT", 8, 0)
+sbAlways:GetFontString():SetTextColor(1, 0.82, 0)
+local function sellTip(b, title, body)
+  b:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine(title)
+    GameTooltip:AddLine(body, 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+end
+sellTip(sbAlways, "Always sell this item", "Every one of it is sold at every vendor from now on, also the ones you get later.")
+sellTip(sbAll, "Sell all you have now", "Every stack of it in your bags right now is sold at the next vendor. What you get after that stays.")
+sellTip(sbStack, "Sell this stack", "Only the stack you were holding is sold at the next vendor. Your other stacks stay.")
+sellTip(sbCancel, "Cancel", "Nothing is sold.")
+local function sellDone(msg)
+  local d = sellAsk.data
+  sellAsk:Hide()
+  if d and msg then Print((d.link or ns.NameOf(d.id)) .. msg) end
+  if ns.Changed then ns.Changed() end
+  C_Timer.After(0.3, function() Refresh() end)
+end
+sbAlways:SetScript("OnClick", function()
+  local d = sellAsk.data
+  if not d then return sellAsk:Hide() end
+  Del.AddSell(d.id, d.link)
+  sellDone(": every one is sold at every vendor from now on. (Undo it on the Clean-up page: /ruck)")
+end)
+sbAll:SetScript("OnClick", function()
+  local d = sellAsk.data
+  if not d then return sellAsk:Hide() end
+  local stacks, items = Del.SellAllNow(d.id)
+  sellDone((": all %d you have now (%d stack%s) go at the next vendor. What you get later stays."):format(items, stacks, stacks == 1 and "" or "s"))
+end)
+sbStack:SetScript("OnClick", function()
+  local d = sellAsk.data
+  if not d then return sellAsk:Hide() end
+  -- (the stack must still be where it was)
+  if d.bag and SlotInfo(d.bag, d.slot) == d.id and Del.SellStack(d.bag, d.slot, d.id) then
+    sellDone(": this stack goes at the next vendor. Your other stacks stay.")
+  else
+    sellDone(": that stack isn't where it was any more, nothing marked.")
+  end
+end)
+sbCancel:SetScript("OnClick", function() sellAsk:Hide() end)
+sellAsk:SetScript("OnHide", function() sellAsk.data = nil end)
+-- id, link, and the bag slot the stack came from (nil: "Sell stack" can't be picked)
+function Del.AskSell(id, link, bag, slot)
+  sellAsk.data = { id = id, link = link, bag = bag, slot = slot }
+  sellIcon.tex:SetTexture(ns.GetIcon and ns.GetIcon(id) or nil)
+  local have = ns.GetCount and ns.GetCount(id) or 0
+  local _, stackCount = nil, nil
+  if bag then _, stackCount = SlotInfo(bag, slot) end
+  sellText:SetText("Sell " .. (link or ns.NameOf(id) or "this item") .. "?" ..
+    (have > 0 and ("  |cff999999(you have " .. have .. (stackCount and stackCount < have and (", this stack is " .. stackCount) or "") .. ")|r") or ""))
+  sbStack:SetText(stackCount and ("Sell " .. stackCount) or "Sell stack")
+  sbStack:SetEnabled(bag ~= nil)
+  sellAsk:Show()
+end
+
 btnAlways:SetScript("OnClick", function(self) Decide("always", self) end)
 btnSell:SetScript("OnClick", function(self) Decide("sell", self) end)
-btnYes:SetScript("OnClick", function(self) Decide("yes", self) end)
+btnYes:SetScript("OnClick", function(self) Decide("delete", self) end)
 btnNo:SetScript("OnClick", function(self) Decide("no", self) end)
 
 ask:SetScript("OnHide", function()
@@ -724,23 +1016,34 @@ Del.ShowBlocked = function() if ShowBlocked then ShowBlocked() end end
 
 local function ShowAsk(id, link, which)
   local _, _, quality = ns.GetInfo(link or id)
-  ask.data = { id = id, link = link, quality = quality }
+  -- how many are in the stack on your cursor (its slot is locked while you hold it)
+  local bag, slot = Del.HeldSlot(id)
+  local count = bag and select(2, SlotInfo(bag, slot)) or nil
+  local cantSell = Del.CantSell(id)
+  ask.data = { id = id, link = link, quality = quality, count = count, cantSell = cantSell }
   ask.which = which
   ask.decided = false
   askIcon.tex:SetTexture(ns.GetIcon(id))
-  askText:SetText("Do you want to destroy " .. (link or ns.NameOf(id)) .. "?")
+  askText:SetText("What do you want to do with " .. (link or ns.NameOf(id)) .. "?")
   local grey = quality == 0
-  askHint:SetText(grey and "|cff9d9d9dGrey: already deleted by itself, no need for Always. Sell = keep it, and sell it at vendors.|r" or
-    "Always = delete now and every time you get it.  Sell = keep it, and sell it at vendors.")
+  askHint:SetText(cantSell and "It stays in your bags for now and is thrown away when your bags are nearly full, the cheapest first. No vendor buys this." or
+    grey and "|cff9d9d9dGrey: it's sold or thrown away by itself already.|r" or
+    "It stays in your bags for now: sold at the next vendor, or thrown away when your bags are nearly full, the cheapest first.")
   askWarn:SetText("")
-  btnAlways:SetText("Always"); btnYes:SetText("Yes"); btnNo:SetText("No")
-  btnAlways:SetShown(not grey) btnYes:SetWidth(110)
-  btnSell:Show()
+  local n = count and (" " .. count) or ""
+  btnAlways:SetText("Always delete"); btnYes:SetText("Delete" .. n); btnSell:SetText("Sell" .. n); btnNo:SetText("Cancel")
+  btnAlways:SetShown(not grey) btnYes:SetWidth(104)
+  -- (15 Nov, later the same day) "only sell" is gone: Always delete / Delete N / Cancel. The Sell
+  -- button stays in the code (old saves still have sell-only items) but is never shown.
+  btnSell:Hide()
+  btnNo:ClearAllPoints()
+  btnNo:SetPoint("LEFT", btnYes, "RIGHT", 8, 0)
   btnYes:GetFontString():SetTextColor(1, 0.82, 0)
   ask:SetHeight(150)
   ask:Show()
   ask:Raise()
 end
+Del.TestShowAsk = ShowAsk -- (for the test scripts)
 
 -- take over the game's delete confirmation popups
 local DELETE_POPUPS = { DELETE_ITEM = true, DELETE_GOOD_ITEM = true, DELETE_QUEST_ITEM = true, DELETE_GOOD_QUEST_ITEM = true }
@@ -754,6 +1057,22 @@ hooksecurefunc("StaticPopup_Show", function(which)
   if not DB or not DB.enabled or not DELETE_POPUPS[which] then return end
   local id, link = CursorItem()
   if not id then return end
+  -- (15 Nov) conjured water, food and the like: no box, it's deleted at once (you make it again
+  -- for free). Dropping it is a click, and the game deletes inside a click. If the game refuses,
+  -- the item is still on the cursor and the box asks as usual.
+  if Del.IsConjured(id, link) then
+    local bag, slot = Del.HeldSlot(id)
+    local count = bag and select(2, SlotInfo(bag, slot)) or 1
+    DeleteCursorItem()
+    if CursorItem() ~= id then
+      RecordMeta(id, link, count, true, "once")
+      DB.deleted = (DB.deleted or 0) + count
+      StaticPopup_Hide(which)
+      if DB.chat then Print("deleted " .. (link or ns.NameOf(id)) .. (count > 1 and (" x" .. count) or "") .. " (conjured)") end
+      C_Timer.After(0.3, function() Refresh() end)
+      return
+    end
+  end
   -- the game's popup stays open (it owns the delete), invisible and out of the way
   local f = FindPopupFrame(which)
   if f then

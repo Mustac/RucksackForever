@@ -72,6 +72,15 @@ D.ITEM_NAMES = {
   [11590] = "Mechanical Repair Kit", [15994] = "Thorium Widget",
   [2309] = "Embossed Leather Boots", [2314] = "Toughened Leather Armor", [5739] = "Barbaric Harness",
   [8185] = "Turtle Scale Leggings", [15564] = "Rugged Armor Kit",
+  -- (what they're made of)
+  [2836] = "Coarse Stone", [2838] = "Heavy Stone", [3575] = "Iron Bar", [2605] = "Green Dye", [3860] = "Mithril Bar",
+  [7971] = "Black Pearl", [1210] = "Shadowgem", [7966] = "Solid Grinding Stone", [4304] = "Thick Leather",
+  [12365] = "Dense Stone", [4359] = "Handful of Copper Bolts", [2840] = "Copper Bar", [2589] = "Linen Cloth",
+  [2841] = "Bronze Bar", [2592] = "Wool Cloth", [4377] = "Heavy Blasting Powder", [4234] = "Heavy Leather",
+  [4338] = "Mageweave Cloth", [10505] = "Solid Blasting Powder", [12359] = "Thorium Bar", [14047] = "Runecloth",
+  [2318] = "Light Leather", [2320] = "Coarse Thread", [2319] = "Medium Leather", [4231] = "Cured Light Hide",
+  [2321] = "Fine Thread", [7071] = "Iron Buckle", [8167] = "Turtle Scale", [8343] = "Heavy Silken Thread",
+  [8170] = "Rugged Leather",
 }
 
 -- Crafted items: which profession makes them. The materials get filled in from your own
@@ -84,6 +93,30 @@ D.CRAFTED = {
   [2309] = "Leatherworking", [2314] = "Leatherworking", [5739] = "Leatherworking", [8185] = "Leatherworking",
   [15564] = "Leatherworking",
 }
+
+-- (15 Nov) What each crafted turn-in is made of, for the Plan tab: { item id, how many }.
+-- makes = how many one craft gives (1 unless said). From WoW Forever's recipe lists (15 Nov 2026).
+-- Your own profession window beats this: whatever it shows is kept (see scanTradeSkill in Faire.lua).
+D.RECIPES = {
+  [3240]  = { mats = { { 2836, 1 } } },                                               -- Coarse Weightstone
+  [3486]  = { mats = { { 2838, 3 } } },                                               -- Heavy Grinding Stone
+  [3835]  = { mats = { { 3575, 6 }, { 2605, 1 } } },                                  -- Green Iron Bracers
+  [7945]  = { mats = { { 3860, 16 }, { 7971, 1 }, { 1210, 4 }, { 7966, 1 }, { 4304, 2 } } }, -- Big Black Mace
+  [12644] = { mats = { { 12365, 4 } } },                                              -- Dense Grinding Stone
+  [4363]  = { mats = { { 4359, 2 }, { 2840, 1 }, { 2589, 2 } } },                     -- Copper Modulator
+  [4375]  = { mats = { { 2841, 2 }, { 2592, 1 } } },                                  -- Whirring Bronze Gizmo
+  [9313]  = { makes = 3, mats = { { 4377, 1 }, { 4234, 1 } } },                       -- Green Firework (3 a craft)
+  [11590] = { mats = { { 3860, 1 }, { 4338, 1 }, { 10505, 1 } } },                    -- Mechanical Repair Kit
+  [15994] = { mats = { { 12359, 3 }, { 14047, 1 } } },                                -- Thorium Widget
+  [2309]  = { mats = { { 2318, 8 }, { 2320, 5 } } },                                  -- Embossed Leather Boots
+  [2314]  = { mats = { { 2319, 10 }, { 4231, 2 }, { 2321, 2 } } },                    -- Toughened Leather Armor
+  [5739]  = { mats = { { 4234, 14 }, { 2321, 2 }, { 7071, 1 } } },                    -- Barbaric Harness
+  [8185]  = { mats = { { 4304, 14 }, { 8167, 28 }, { 8343, 1 } } },                   -- Turtle Scale Leggings
+  [15564] = { mats = { { 8170, 5 } } },                                               -- Rugged Armor Kit
+}
+-- Reputation one turn-in gives (Classic's number). The addon measures the real one on your first
+-- hand-in and uses that from then on (Forever's Diplomat talent and humans get more).
+D.REP_PER = 250
 
 -- Dropped items: good places to farm them. map = the game's map id, x/y = where most of them are.
 -- pct = how often one drops (Wowhead's numbers).

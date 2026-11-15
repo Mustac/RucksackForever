@@ -95,6 +95,14 @@ local function learned(t)
 end
 ns.Learned = learned
 
+-- (15 Nov) the NPC put this turn-in on its list today and your reputation hasn't moved since: it's
+-- open, whatever the built-in limits say (Forever may have moved them)
+function ns.OfferedNow(q)
+  local o = ns.char and ns.char.offered and ns.char.offered[q]
+  if not o or o.day ~= date("%Y-%m-%d") then return false end
+  local standing, into = ns.Rep()
+  return o.standing == standing and o.into == into
+end
 -- state: "ready" (can hand in now, times = how many), "short" (need more), "level", "rep" (closed)
 function ns.TurninState(t)
   local item, n, tickets = learned(t)
@@ -102,7 +110,7 @@ function ns.TurninState(t)
   local st = { item = item, n = n, tickets = tickets, bags = bags, all = all }
   if UnitLevel("player") < t.lv then
     st.state = "level"
-  elseif pastCap(t.tier) then
+  elseif pastCap(t.tier) and not ns.OfferedNow(t.q) then
     st.state = "rep"
   elseif bags >= n then
     st.state, st.times = "ready", math.floor(bags / n)
@@ -259,9 +267,9 @@ local function scanTradeSkillModern()
       local mats = {}
       for _, slot in ipairs(sch.reagentSlotSchematics or {}) do
         local r = slot.reagents and slot.reagents[1]
-        if r and r.itemID then mats[#mats + 1] = { name = ns.ItemName(r.itemID), n = slot.quantityRequired or 1 } end
+        if r and r.itemID then mats[#mats + 1] = { id = r.itemID, name = ns.ItemName(r.itemID), n = slot.quantityRequired or 1 } end
       end
-      ns.db.recipes[id] = { mats = mats, by = UnitName("player") }
+      ns.db.recipes[id] = { mats = mats, by = UnitName("player"), makes = tonumber(sch.quantityMin) or 1 }
       ns.char.canMake[id] = true
     end
   end
@@ -276,9 +284,10 @@ local function scanTradeSkill()
       local mats = {}
       for j = 1, (GetTradeSkillNumReagents and GetTradeSkillNumReagents(i) or 0) do
         local name, _, need = GetTradeSkillReagentInfo(i, j)
-        if name then mats[#mats + 1] = { name = name, n = need or 1 } end
+        local rl = GetTradeSkillReagentItemLink and GetTradeSkillReagentItemLink(i, j)
+        if name then mats[#mats + 1] = { id = rl and tonumber(rl:match("item:(%d+)")) or nil, name = name, n = need or 1 } end
       end
-      ns.db.recipes[id] = { mats = mats, by = UnitName("player") }
+      ns.db.recipes[id] = { mats = mats, by = UnitName("player"), makes = GetTradeSkillNumMade and tonumber((GetTradeSkillNumMade(i))) or 1 }
       ns.char.canMake[id] = true
     end
   end
@@ -399,6 +408,11 @@ on("ADDON_LOADED", function(name)
   if db.tooltips == nil then db.tooltips = true end
   c.canMake = c.canMake or {}
   c.history = c.history or {}
+  c.plan = c.plan or {}             -- (15 Nov) the Plan tab: what you ticked, how many times
+  c.plan.picks = c.plan.picks or {}
+  c.plan.times = c.plan.times or {}
+  c.closed = c.closed or {}         -- turn-ins the NPC didn't offer when you last spoke: [quest] = "2026-11-15"
+  c.offered = c.offered or {}       -- ...and the ones it did: [quest] = { day, standing, into }
   ns.db, ns.char = db, c
   -- (1.7) ticked in Settings > Modules while playing: the login already happened
   if IsLoggedIn and IsLoggedIn() and ev.PLAYER_LOGIN then C_Timer.After(0, ev.PLAYER_LOGIN) end
@@ -435,8 +449,37 @@ on("TRADE_SKILL_LIST_UPDATE", function() pcall(scanTradeSkill) end)
 on("TRADE_SKILL_DATA_SOURCE_CHANGED", function() pcall(scanTradeSkill) end)
 on("PLAYER_LOGOUT", saveAlts)
 
+-- (15 Nov) what this turn-in NPC offers right now. A turn-in that should be open but isn't on the list
+-- has hit a limit (your reputation, or one Forever added): the Plan tab shows it as closed for today.
+-- Only trusted when the NPC offers at least one quest (an empty list can just mean "not loaded yet").
+local function noteOffered(byId, byTitle)
+  local name = D.NPCS[npcID() or 0]
+  if not name or not ns.char or not next(byId or byTitle) then return end
+  local today, lvl = date("%Y-%m-%d"), UnitLevel("player")
+  for _, g in ipairs(D.TURNINS) do
+    if g.npc == name then
+      for _, t in ipairs(g.list) do
+        if lvl >= t.lv and (byId or t.tier < 5) then
+          local there
+          if byId then there = byId[t.q] or (t.more and byId[t.more]) else there = byTitle[t.title] end
+          ns.char.closed[t.q] = (not there) and today or nil
+          local standing, into = ns.Rep()
+          ns.char.offered[t.q] = there and { day = today, standing = standing, into = into } or nil
+        end
+      end
+    end
+  end
+  if ns.Refresh then ns.Refresh() end
+  if ns.PaintScreenButton then ns.PaintScreenButton() end
+end
 -- the NPC's list: hand in finished quests first, then pick ones we have the items for
 on("GOSSIP_SHOW", function()
+  if C_GossipInfo and atTurninNPC() then
+    local seen = {}
+    for _, q in ipairs(C_GossipInfo.GetActiveQuests and C_GossipInfo.GetActiveQuests() or {}) do if q.questID then seen[q.questID] = true end end
+    for _, q in ipairs(C_GossipInfo.GetAvailableQuests and C_GossipInfo.GetAvailableQuests() or {}) do if q.questID then seen[q.questID] = true end end
+    pcall(noteOffered, seen, nil)
+  end
   if not quick() or not C_GossipInfo then return end
   for _, q in ipairs(C_GossipInfo.GetActiveQuests and C_GossipInfo.GetActiveQuests() or {}) do
     if q.isComplete and BY_QUEST[q.questID] then C_GossipInfo.SelectActiveQuest(q.questID) return end
@@ -447,6 +490,12 @@ on("GOSSIP_SHOW", function()
 end)
 -- (older style quest list)
 on("QUEST_GREETING", function()
+  if atTurninNPC() then
+    local seen = {}
+    for i = 1, (GetNumActiveQuests and GetNumActiveQuests() or 0) do local t = GetActiveTitle(i) if t then seen[t] = true end end
+    for i = 1, (GetNumAvailableQuests and GetNumAvailableQuests() or 0) do local t = GetAvailableTitle(i) if t then seen[t] = true end end
+    pcall(noteOffered, nil, seen)
+  end
   if not quick() then return end
   for i = 1, (GetNumActiveQuests and GetNumActiveQuests() or 0) do
     local title, done = GetActiveTitle(i)
@@ -489,6 +538,11 @@ on("QUEST_COMPLETE", function()
       end
     end
   end
+  -- (15 Nov) measure the reputation one hand-in gives: note it now, look again after the hand-in
+  if t and atTurninNPC() and not ns.repWatch then
+    local standing, into = ns.Rep()
+    ns.repWatch = { standing = standing, into = into, n = 0 }
+  end
   if npcID() == D.PRIZE_NPC then ns.pendingPrize = GetTitleText and GetTitleText() end
   if quick() and t and (GetNumQuestChoices() or 0) <= 1 then GetQuestReward(1) end
 end)
@@ -498,6 +552,19 @@ on("QUEST_TURNED_IN", function(q)
   local _, _, _, s = ns.FaireStatus()
   local week = s and ("%d-%02d-%02d"):format(s[1], s[2], s[3]) or date("%Y-%m-%d")
   local h = ns.char.history
+  local w = ns.repWatch
+  if t and w then
+    w.n = w.n + 1
+    local stamp = w.n
+    C_Timer.After(1.5, function()
+      if ns.repWatch ~= w or w.n ~= stamp then return end -- (another hand-in followed: wait for the last one)
+      ns.repWatch = nil
+      local standing, into = ns.Rep()
+      local per = standing == w.standing and (into - w.into) / w.n or 0
+      if per >= 10 and per <= 2000 then ns.db.repPer = math.floor(per + 0.5) end
+      refresh()
+    end)
+  end
   if t then
     local _, _, tickets = learned(t)
     h[#h + 1] = { when = date("%Y-%m-%d %H:%M"), week = week, got = tickets, what = t.title }

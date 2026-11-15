@@ -232,8 +232,9 @@ local function place()
   local bag, hidden = RucksackBagsFrame, RucksackBagsHidden
   win:ClearAllPoints()
   if hidden and hidden:IsShown() then win:SetPoint("TOPLEFT", hidden, "BOTTOMLEFT", 0, -3)
-  else win:SetPoint("TOPLEFT", bag, "TOPRIGHT", 3, 0) end
+  else win:SetPoint("TOPLEFT", bag, "TOPRIGHT", 3 + (B.sideRightW or 0), 0) end -- (15 Nov: past the boxes on the bag's right)
 end
+B.PlaceRestock = place
 local function numberBox(parent, w, letters)
   local e = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
   e:SetSize(w, 18)

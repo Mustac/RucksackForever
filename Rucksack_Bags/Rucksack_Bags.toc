@@ -1,12 +1,13 @@
 ## Interface: 16001
 ## Title: |cffc8a165Ruck|r|cffffd100sack|r: |cffd9a35aBags|r
-## Notes: Part of Rucksack: one bag window with groups (yours too), Junk, Hidden, your bank and other characters. Turn it on or off in Rucksack's Settings > Modules.
+## Notes: Part of Rucksack: one bag window with groups (yours too), sell, delete and bank windows, Hidden, your bank and other characters. Turn it on or off in Rucksack's Settings > Modules.
 ## Author: Marijan
-## Version: 1.8.5
+## Version: 1.8.6
 ## Dependencies: Rucksack
 ## LoadOnDemand: 1
 ## SavedVariables: RucksackBagsDB
 
 Bags.lua
+Side.lua
 BagsUI.lua
 Restock.lua

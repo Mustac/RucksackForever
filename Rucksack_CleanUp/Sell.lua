@@ -10,6 +10,20 @@ local Print = ns.Print
 local Sell = {}
 ns.Sell = Sell
 local DB
+-- (15 Nov) the "Do not sell above" slider in the bag: 0 to 2g in 10s steps; it starts at 2g
+Sell.MAX, Sell.STEP = 20000, 1000
+function Sell.Limit() return DB and DB.sellMax or Sell.MAX end
+function Sell.SetLimit(v)
+  if not DB then return end
+  v = math.max(0, math.min(Sell.MAX, math.floor((tonumber(v) or Sell.MAX) / Sell.STEP + 0.5) * Sell.STEP))
+  DB.sellMax = v
+  if ns.Changed then ns.Changed() end
+end
+-- too valuable to be sold by itself (the price of one)
+function Sell.OverLimit(id)
+  local price = select(11, ns.GetInfo(id)) or 0
+  return price > Sell.Limit()
+end
 
 local function useItem(bag, slot)
   local C = C_Container
@@ -109,14 +123,20 @@ function Sell.Items()
   for bag = 0, ns.NUM_BAGS do
     for slot = 1, (ns.GetNumSlots(bag) or 0) do
       local id, count, link, _, locked = ns.SlotInfo(bag, slot)
-      if id and not DB.keep[id] and not ns.KeepItem(id) then
+      local marked = ns.Del.SlotSell and ns.Del.SlotSell(bag, slot, id) -- (15 Nov: this very stack is marked for sale)
+      -- (15 Nov) a stack marked by hand (Sell N or Delete N) goes even when the item is set to Keep:
+      -- the mark is newer and only for this stack (he kept Healing Potions and marked 3 of them)
+      local byHand = marked or (ns.Del.SlotJunk and ns.Del.SlotJunk(bag, slot, id))
+      local toBank = id and ns.Bags and ns.Bags.BankSlot and ns.Bags.BankSlot(bag, slot, id) -- (15 Nov: on its way to the bank)
+      if id and not toBank and (byHand or not DB.keep[id]) and not ns.KeepItem(id) then
         local _, _, quality, _, _, _, _, _, _, _, price = ns.GetInfo(link or id)
         price = price or 0
-        if price > 0 then
+        -- (15 Nov) "Do not sell above": nothing worth more than this (one item, not the stack) is sold
+        if price > 0 and price <= (DB.sellMax or Sell.MAX) then
           local grey = DB.sellGrey and quality == 0
-          local listed = DB.sellList and ns.Del.OnList(id, bag, slot) and (DB.items[id] or (quality or 0) < 3 or ns.Del.ByRule(id, bag, slot))
+          local listed = DB.sellList and ns.Del.OnList(id, bag, slot) and (DB.items[id] or (quality or 0) < 3 or ns.Del.ByRule(id, bag, slot) or (ns.Del.SlotJunk and ns.Del.SlotJunk(bag, slot, id)))
           -- (1.8.2) Sell: always sold here (never thrown away)
-          if not listed and DB.sell and DB.sell[id] and not ns.KeepItem(id) then listed = true end
+          if not listed and ((DB.sell and DB.sell[id]) or marked) and not ns.KeepItem(id) then listed = true end
           local gear = not grey and not listed and Sell.CantUse(bag, slot, id, quality)
           if grey or listed or gear then
             local g = byID[id]
@@ -197,6 +217,7 @@ ev:RegisterEvent("MERCHANT_CLOSED")
 ev:SetScript("OnEvent", function(_, e)
   if not DB then return end
   if e == "MERCHANT_CLOSED" then atVendor = false return end
+  if e ~= "MERCHANT_SHOW" then return end
   atVendor = true
   if IsShiftKeyDown() then return end -- (Shift while opening the vendor: sell nothing this time)
   local items = Sell.Items()
@@ -205,11 +226,25 @@ ev:SetScript("OnEvent", function(_, e)
   ticker:Show()
 end)
 function Sell.AtVendor() return atVendor end
+-- (15 Nov) something was just marked while the vendor is open: sell it now, don't wait for the
+-- next visit. (A moment later: the stack you held is still locked right after the click.)
+function Sell.Kick()
+  if not DB or not atVendor then return false end
+  C_Timer.After(0.3, function()
+    if not atVendor or (queue and #queue > 0) then return end
+    local items = Sell.Items()
+    if #items == 0 then return end
+    queue, soldNow, soldValue, acc = items, 0, 0, 0
+    ticker:Show()
+  end)
+  return true
+end
 
 table.insert(ns.onLoad, function()
   DB = ns.del
   if DB.sellGrey == nil then DB.sellGrey = false end
   if DB.sellGear == nil then DB.sellGear = true end -- (10 Nov) gear this character can't use
+  if DB.sellMax == nil then DB.sellMax = Sell.MAX end -- (15 Nov) "Do not sell above"
   if ns.char then
     ns.char.sellArmor = ns.char.sellArmor or {}
     -- (1.7.4) once per character: the armour types its class can never wear count as "can't use"

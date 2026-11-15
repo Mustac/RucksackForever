@@ -64,7 +64,7 @@ local function showPage(key)
   end
   if ns.Refresh then ns.Refresh() end
 end
-local tabOrder = { { "turnins", "Turn-ins" }, { "prizes", "Prizes" }, { "decks", "Decks" }, { "faire", "Faire & Sayge" } }
+local tabOrder = { { "turnins", "Turn-ins" }, { "plan", "Plan" }, { "prizes", "Prizes" }, { "decks", "Decks" }, { "faire", "Faire & Sayge" } }
 local prevTab
 for _, t in ipairs(tabOrder) do
   local b = CreateFrame("Button", nil, f)
@@ -132,11 +132,17 @@ local function check(parent, label, get, set, help)
   return c
 end
 
+-- (15 Nov) the Plan tab is its own file (FairePlanUI.lua): it borrows the page and these helpers
+ns.UI = { pages = pages, text = text, tip = tip, button = button, check = check, showPage = showPage,
+  GOLD = GOLD, GREY = GREY, GREEN = GREEN, RED = RED, PURPLE = PURPLE }
+
 ---------------------------------------------------------------------------
 -- Turn-ins page: the list on the left, the selected item on the right
 ---------------------------------------------------------------------------
 local P = pages.turnins
 local selected -- the turn-in shown on the right
+-- (15 Nov) from the Plan tab: click an item there and you land here, on that item (where it comes from, map pins)
+function ns.ShowTurnin(t) selected = t showPage("turnins") end
 local rows, heads = {}, {}
 local LIST_W = 372
 
@@ -645,13 +651,14 @@ function ns.Refresh()
     sname, into, size))
   faireLine:SetText(ns.FaireLine())
   if current == "turnins" then drawTurnins()
+  elseif current == "plan" then if ns.DrawPlan then ns.DrawPlan() end
   elseif current == "prizes" then drawPrizes()
   elseif current == "decks" then drawDecks()
   elseif current == "faire" then drawFaire() end
 end
 f:HookScript("OnShow", function() if not current then showPage("turnins") else ns.Refresh() end end)
 
--- open Rucksack on the Faire page (and a tab: turnins, prizes, decks, faire)
+-- open Rucksack on the Faire page (and a tab: turnins, plan, prizes, decks, faire)
 function ns.Open(tab)
   local shown = RucksackFrame and RucksackFrame:IsShown() and f:IsShown()
   if not tab and shown then RucksackFrame:Hide() return end
@@ -748,13 +755,75 @@ fade:SetToAlpha(1)
 fade:SetDuration(0.9)
 
 local CARD = { cName, cNum, cMore, cBarBg, cBarWait, cBar }
-local function setCard(on)
+local BARW = 128 -- (the bar and the name are as wide as the card allows)
+-- (15 Nov) under the prize: a table. The turn-ins you ticked on the Plan tab with what's still missing,
+-- then anything else in your bags that a turn-in takes, each with its tickets and hand-ins left.
+local TW = 268
+local tSep = sb:CreateTexture(nil, "ARTWORK")
+tSep:SetPoint("TOPLEFT", 4, -44)
+tSep:SetSize(TW - 8, 1)
+tSep:SetColorTexture(0.62, 0.42, 0.85, 0.45)
+tSep:Hide()
+local tRows = {}
+local function tRow(i)
+  local r = tRows[i]
+  if r then return r end
+  r = {}
+  local function cell(w, just)
+    local s = sb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    s:SetWidth(w)
+    s:SetJustifyH(just)
+    s:SetWordWrap(false)
+    return s
+  end
+  r.name, r.have, r.tk, r.left = cell(140, "LEFT"), cell(48, "RIGHT"), cell(34, "RIGHT"), cell(30, "RIGHT")
+  tRows[i] = r
+  return r
+end
+local function hideTable(from)
+  for i = from or 1, #tRows do local r = tRows[i] r.name:Hide() r.have:Hide() r.tk:Hide() r.left:Hide() end
+  if not from or from <= 1 then tSep:Hide() end
+end
+-- paints the table; -> how high it is (0: nothing to show)
+local function paintTable()
+  local list = ns.PlanCalc and ns.PlanTable and ns.PlanTable(ns.PlanCalc()) or {}
+  if #list == 0 then hideTable() return 0 end
+  tSep:Show()
+  table.insert(list, 1, { name = GREY .. "Hand in|r", have = GREY .. "Have|r", tk = GREY .. "Tickets|r", left = GREY .. "Left|r", head = true })
+  local y = -49
+  for i, e in ipairs(list) do
+    local r = tRow(i)
+    if e.span and i > 1 then y = y - 3 end
+    r.name:ClearAllPoints()
+    r.name:SetPoint("TOPLEFT", sb, "TOPLEFT", e.indent and 16 or 7, y)
+    r.name:SetWidth(e.span and (TW - 14) or (e.indent and 131 or 140))
+    r.name:SetText(e.span or e.name or "")
+    r.name:Show()
+    for k, x in pairs({ have = 148, tk = 196, left = 231 }) do
+      local s = r[k]
+      s:ClearAllPoints()
+      s:SetPoint("TOPLEFT", sb, "TOPLEFT", x, y)
+      s:SetText(e.span and "" or e[k] or "")
+      s:SetShown(not e.span)
+    end
+    y = y - 13
+  end
+  hideTable(#list + 1)
+  return -y - 40 + 3
+end
+local function setCard(on, th)
+  th = on and th or 0
   for _, r in ipairs(CARD) do r:SetShown(on) end
-  sb:SetSize(on and 184 or 40, 40)
+  if not on then hideTable() end
+  local w = on and (th > 0 and TW or 184) or 40
+  BARW = math.max(40, w - 56)
+  cName:SetWidth(BARW)
+  cBarBg:SetWidth(BARW)
+  sb:SetSize(w, 40 + th)
 end
 
 sb:SetScript("OnClick", function(_, mouse)
-  if mouse == "RightButton" then ns.Open("prizes") else ns.Open() end
+  if mouse == "RightButton" then ns.Open(ns.char and ns.Goal() and "plan" or "prizes") else ns.Open() end
 end)
 sb:SetScript("OnDragStart", function(self) self:StartMoving() end)
 sb:SetScript("OnDragStop", function(self)
@@ -773,7 +842,8 @@ sb:SetScript("OnEnter", function(self)
     if waiting > 0 then GameTooltip:AddDoubleLine("Waiting in your bags", "+" .. waiting, 1, 1, 1, 0.4, 0.87, 0.4) end
     GameTooltip:AddLine(ns.GoalRoute(goal, have, waiting), 1, 1, 1, true)
     GameTooltip:AddLine(ns.FaireLine(), 1, 1, 1, true)
-    GameTooltip:AddLine("Left-click: open.  Right-click: prizes.  Drag: move.", 0.7, 0.7, 0.7, true)
+    GameTooltip:AddLine("The table: what you ticked on the Plan tab (and what's still missing), then other turn-in items you have. Left = hand-ins left.", 0.8, 0.8, 0.8, true)
+    GameTooltip:AddLine("Left-click: open.  Right-click: the plan.  Drag: move.", 0.7, 0.7, 0.7, true)
     GameTooltip:Show()
   else
     quickTip(self, "Left-click: open.  Right-click: prizes (pick one to track).  Drag: move.")
@@ -787,6 +857,26 @@ function ns.PaintScreenButton()
   local have = ns.Tickets()
   local count, waiting = ns.ReadyNow()
   local goal = ns.db.tracker ~= false and ns.Goal()
+  local th = ns.db.tracker ~= false and paintTable() or 0
+  if not goal and th > 0 then
+    -- no prize picked, but there's a plan (or turn-in items in your bags): the card with just the tickets
+    setCard(true, th)
+    edge(0.62, 0.42, 0.85)
+    sbIcon:SetTexture(ticketIcon())
+    sbIcon:SetDesaturated(false)
+    sbIcon:SetVertexColor(1, 1, 1)
+    sbFill:Hide()
+    sbCount:SetText("")
+    sbBadge:Hide()
+    sbReady:Hide()
+    cName:SetText("Darkmoon tickets")
+    cNum:SetText("|cffffffff" .. have .. "|r")
+    cMore:SetText(waiting > 0 and (GREEN .. "+" .. waiting .. " in bags|r") or "")
+    cBarBg:Hide() cBar:Hide() cBarWait:Hide()
+    glow:Hide()
+    pulse:Stop()
+    return
+  end
   if not goal then
     setCard(false)
     edge(0.62, 0.42, 0.85)
@@ -802,7 +892,7 @@ function ns.PaintScreenButton()
     pulse:Stop()
     return
   end
-  setCard(true)
+  setCard(true, th)
   sbCount:SetText("")
   sbBadge:Hide()
   sbReady:Hide()
@@ -824,9 +914,9 @@ function ns.PaintScreenButton()
   cName:SetText(goal.name)
   cNum:SetText((done and GREEN or "|cffffffff") .. have .. "|r" .. GREY .. " / " .. goal.cost .. "|r")
   cMore:SetText(done and "" or (waiting > 0 and (GREEN .. "+" .. waiting .. " in bags|r")) or "")
-  cBar:SetWidth(math.max(1, 128 * frac))
+  cBar:SetWidth(math.max(1, BARW * frac))
   cBar:SetColorTexture(done and 1 or 0.62, done and 0.82 or 0.42, done and 0 or 0.85, 1)
-  cBarWait:SetWidth(math.max(1, 128 * math.min(1, (have + waiting) / goal.cost)))
+  cBarWait:SetWidth(math.max(1, BARW * math.min(1, (have + waiting) / goal.cost)))
   cBarWait:SetShown(waiting > 0 and not done)
   if done then
     edge(1, 0.82, 0)
