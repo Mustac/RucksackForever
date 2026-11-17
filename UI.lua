@@ -547,10 +547,15 @@ do
   -- (15 Nov) auto open (Open.lua)
   p:Add(Check(p, 330, y, "Open clams and pouches by itself",
     "Things that say \"Right Click to Open\" and open at once (clams, pouches, bags of loot) are opened as soon as they're in your bags, one at a time.\n\nNot locked boxes, and not in a fight. Never at a vendor, bank, mailbox, trade or auction house.\n\nBags full? It waits for a free slot. Clean-up makes room the usual way (the cheapest junk first, on your next key press), then the rest is opened.",
-    function() return ns.db.autoOpen == true end,
+    function() return ns.db.autoOpen ~= false end,
     function(v) if ns.AutoOpen then ns.AutoOpen.Set(v) end end))
   y = y - 34
   p:Add(KeyButton(p, 0, y, "Open Rucksack", "AUTODELETE_TOGGLE", "A key that opens and closes this window."))
+  -- (16 Nov) Version.lua
+  p:Add(Check(p, 330, y, "Tell me when a new version is out",
+    "When you log in, chat says so if a newer Rucksack is out.\n\nThe game can't look on the internet, so Rucksack learns it from other players who use it: your guild and the people you group with. Nobody sees these messages.",
+    function() return ns.db.updateNotice ~= false end,
+    function(v) ns.db.updateNotice = v and true or false end))
   y = y - 38
   -- (1.7.4) modules as cards: click a card to tick it, then Apply (bottom right) does it all at once.
   -- Always this character's own choice. Unticked = not loaded at all (after a reload).

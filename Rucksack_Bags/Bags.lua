@@ -781,6 +781,10 @@ local function decorate(b)
   d.quest = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   d.quest:SetPoint("TOPRIGHT", -1, -1)
   d.quest:SetText("|cffffe45c!|r")
+  d.needed = b:CreateTexture(nil, "OVERLAY", nil, 6) -- (16 Nov) a quest you have needs it: kept, not sold
+  d.needed:SetTexture("Interface\\ContainerFrame\\UI-Icon-QuestBang")
+  d.needed:SetSize(17, 17)
+  d.needed:SetPoint("TOPRIGHT", 3, 3)
   d.tag = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall") -- "BoE", "open"
   d.tag:SetPoint("TOPLEFT", 1, -1)
   local font = d.tag:GetFont()
@@ -840,8 +844,10 @@ local function getButton(bag, slot)
   b:HookScript("OnEnter", extraTip)
   -- (15 Nov) Alt + left-click: this stack goes to the bank; Alt + right-click: it stays (Side.lua)
   b:HookScript("OnClick", function(self, button)
-    if B.AltClick and IsAltKeyDown and IsAltKeyDown() then B.AltClick(info[self], button) end
+    if B.AltClick and IsAltKeyDown and IsAltKeyDown() then B.AltClick(info[self], button)
+    elseif B.DroppedOn then B.DroppedOn(info[self]) end -- (an item from a box put on an empty slot)
   end)
+  b:HookScript("OnReceiveDrag", function(self) if B.DroppedOn then B.DroppedOn(info[self]) end end)
   b:HookScript("OnLeave", function(self)
     local e = info[self]
     if e and e.isNew and B.newIDs[e.id] then B.newIDs[e.id] = nil B.Changed() end
@@ -1124,15 +1130,13 @@ local function buildCells(v, text)
     for _, e in ipairs(byCat.sell) do value = value + sellPrice(e.id) * e.total end
   end
   if side then
-    local max = hasClean() and ns.del.sellMax or nil
-    for _, k in ipairs({ "always", "once" }) do
-      table.sort(side[k], cheapest)
-      for _, e in ipairs(side[k]) do
-        local p = sellPrice(e.id)
-        if not max or p <= max then value = value + p * e.total end -- (over your "Do not sell" limit: not sold)
-      end
-    end
+    for _, k in ipairs({ "always", "once" }) do table.sort(side[k], cheapest) end
     table.sort(side.bank, sortItems)
+    -- (15 Nov) what a vendor really pays: Clean-up's own list of what it sells (the limit, quest needs...)
+    if hasClean() and ns.Sell and ns.Sell.Items then
+      local ok, _, v = pcall(ns.Sell.Items)
+      if ok and v then value = v end
+    end
   end
   st.junkValue = value
   -- your own groups show even when empty (so you can find them)
@@ -1146,6 +1150,10 @@ local function buildCells(v, text)
   end
   -- holding an item: every group you can put it in ends in a slot to drop it on (Junk shows up for it too)
   -- (the bag window only)
+  -- (15 Nov) an item from one of the boxes beside the bag: no group slots (it would land in that group
+  -- for good); it comes out on the slot at the start of Empty, at the bottom
+  -- (16 Nov) with the padlock open the groups take it too: it leaves its box and goes in that group
+  local heldBox = side and held and B.HeldBox and B.HeldBox(held) or nil
   if held and not DB.locked and v == MAINVIEW then
     if hasClean() and not side then byCat.junk = byCat.junk or {} byCat.sell = byCat.sell or {} end
     -- (One grid has no groups to drop on: there you drop it on a chip)
@@ -1170,6 +1178,10 @@ local function buildCells(v, text)
         end
       end
     end
+  end
+  if heldBox and DB.style ~= "grid" then
+    byCat.empty = byCat.empty or {}
+    table.insert(byCat.empty, 1, { drop = "keep", cat = "empty" })
   end
   return byCat, st
 end
@@ -1503,9 +1515,12 @@ local function plusSlot(key)
       local hb, hs
       if held and B.HeldSlot then hb, hs = B.HeldSlot(held) end
       local toBank = hb and B.BankSlot(hb, hs, held)
-      GameTooltip:AddLine(hid and "|cff66dd66Show it again|r" or toBank and "|cff66dd66Take it out|r" or "|cff66dd66Keep it|r")
+      local box = held and B.HeldBox and B.HeldBox(held)
+      GameTooltip:AddLine(hid and "|cff66dd66Show it again|r" or (toBank or box) and "|cff66dd66Take it out|r" or "|cff66dd66Keep it|r")
       GameTooltip:AddLine(hid and "It's hidden now: drop it here and the bag shows it again." or
         toBank and "It goes to your bank now: drop it here and it stays in your bags." or
+        box == "once" and "Drop it here and this stack stays in your bag: no longer sold or thrown away." or
+        box == "always" and "Drop it here and it stays in your bag: no longer sold or thrown away (all its stacks)." or
         onSell and "It's on Sell now: drop it here and it isn't sold any more (all its stacks)." or
         "It's junk now: drop it here and Clean-up leaves it alone (all its stacks).", 1, 1, 1, true)
     elseif self.key == "sell" then
@@ -1889,8 +1904,16 @@ local function show(e, x, y, text, withDot)
     B.paintError = err
     Print("Bags: a button couldn't be drawn fully (" .. tostring(err) .. "). Please tell the author.")
   end
-  d.mark:SetShown(e.cat == "junk")
-  d.coin:SetShown(e.cat == "sell")
+  -- (16 Nov) a current quest needs it (he: "if it is current quest item place yellow circle ! in top
+  -- right corner on top"): that's why it isn't sold or thrown away. Not on the Quest group's own items.
+  local needed = false
+  if not e.empty and e.id and e.cat ~= "quest" and hasClean() and ns.Del.QuestNeed then
+    local okN, n = pcall(ns.Del.QuestNeed, e.id, e.link)
+    needed = okN and n and n > 0 or false
+  end
+  d.needed:SetShown(needed)
+  d.mark:SetShown(e.cat == "junk" and not needed)
+  d.coin:SetShown(e.cat == "sell" and not needed)
   d.arrow:SetShown(e.upgrade and true or false)
   d.quest:SetShown(e.cat == "quest" and withDot ~= true)
   if e.first then d.edge:SetVertexColor(1, 0.25, 0.25) d.edge:Show()

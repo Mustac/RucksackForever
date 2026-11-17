@@ -39,11 +39,12 @@ What goes by itself: **grey items**, **white weapons and armour** your class can
 - **Keep empty slots:** deletes only when you drop below the free slots you want to keep, the cheapest first.
 - **Delete limit:** never deletes anything worth more than your limit (1g to start). It stops, tells you, and lets you choose: Delete it, Keep it or Not now.
 - **The trash button:** shows your free slots against your setting, the first item to go and what it's worth; red when it really deletes on your next key press. Hover it for everything that can go. The **RuckDelete** macro does the same and shows the same item.
-- **Deleting by hand:** the game's delete box becomes **Always delete / Delete 16 / Cancel**. Nothing goes on the spot: it waits, and is sold at a vendor or thrown away when your bags are nearly full (Shift-click Delete to delete it now). If the item is used for something (a quest, a Darkmoon turn-in, an unread scroll, your next food or water, a profession tool, or it's rare or better) it tells you what for and asks once more. Conjured food and water are deleted without asking.
+- **Deleting by hand:** without Bags, the game's delete box becomes **Always delete / Delete 16 / Cancel**: nothing goes on the spot, it waits and is sold at a vendor or thrown away when your bags are nearly full (Shift-click Delete to delete it now). With Bags on, dragging an item out of the bag asks "Are you sure?" and deletes it right away; your lists stay as they are (to sell or delete later, drop it on a window beside the bag). If the item is used for something (a quest, a Darkmoon turn-in, an unread scroll, your next food or water, a profession tool, or it's rare or better) it tells you what for and asks once more. Conjured food and water are deleted without asking.
 - **Do not sell above:** nothing worth more than this (0 to 2 gold, the price of one) is sold.
-- Keeps exactly what your current quests still need, never more. Quest starters are kept.
+- Keeps exactly what your current quests still need, never more. Quest starters are kept. Items a quest needs show a yellow **!** in the bag.
 - **At a vendor:** sells your Clean-up items and junk for gold instead of deleting them (hold Shift to skip).
-- **Open clams and pouches by itself:** a switch on the Settings page; things that open with one click are opened for you, one at a time.
+- **Open clams and pouches by itself** (on unless you turn it off in Settings): things that open with one click are opened for you, one at a time, and never sold or deleted.
+- **At a vendor, it tells you why** something wasn't sold (kept, a quest needs it, over your limit...) and tries again if the vendor didn't take it.
 - Search your list, see what's in your bags, and a history of the last 100 items deleted.
 
 ## Bags: one bag window
@@ -84,6 +85,7 @@ Turn it on in Settings > Modules: tick the **Bags** card. B, the bag buttons, ve
 - **Home:** bag space, your next food and water, what's waiting to go, and what a vendor would pay right now.
 - **Pocket:** a small window that stays on screen with the same numbers and your Darkmoon prize. Four styles: **Rows**, **Tiles**, **Strip** (just icons and numbers, across or down) and **Ledger** (text only). Right-click it for its settings.
 - **Guide:** every feature explained in the game. Hover any option for a short tip.
+- **New version notice:** when someone in your guild or group has a newer Rucksack, you get a line at login saying so (can be turned off in Settings).
 
 ## Commands
 

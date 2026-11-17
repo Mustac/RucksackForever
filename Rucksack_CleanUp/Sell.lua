@@ -10,6 +10,7 @@ local Print = ns.Print
 local Sell = {}
 ns.Sell = Sell
 local DB
+local atVendorNow -- (below)
 -- (15 Nov) the "Do not sell above" slider in the bag: 0 to 2g in 10s steps; it starts at 2g
 Sell.MAX, Sell.STEP = 20000, 1000
 function Sell.Limit() return DB and DB.sellMax or Sell.MAX end
@@ -30,6 +31,18 @@ local function useItem(bag, slot)
   if C and C.UseContainerItem then return C.UseContainerItem(bag, slot) end
   if UseContainerItem then return UseContainerItem(bag, slot) end
 end
+-- (16 Nov) the other way to sell: pick the stack up and hand it to the vendor
+local function sellByCursor(bag, slot)
+  if not SellCursorItem then return false end
+  local C = C_Container
+  if C and C.PickupContainerItem then C.PickupContainerItem(bag, slot) elseif PickupContainerItem then PickupContainerItem(bag, slot) end
+  if not CursorHasItem() then return false end
+  SellCursorItem()
+  return true -- (whether it went is checked a second later)
+end
+-- (16 Nov) items a vendor wouldn't take this session (he: "that one refuses to sell, all other
+-- sold"): what the game said. Not tried again until you log in again.
+Sell.refused = {}
 
 ---------------------------------------------------------------------------
 -- (10 Nov) Soulbound gear this character can't use: sold at a vendor, never deleted.
@@ -128,7 +141,7 @@ function Sell.Items()
       -- the mark is newer and only for this stack (he kept Healing Potions and marked 3 of them)
       local byHand = marked or (ns.Del.SlotJunk and ns.Del.SlotJunk(bag, slot, id))
       local toBank = id and ns.Bags and ns.Bags.BankSlot and ns.Bags.BankSlot(bag, slot, id) -- (15 Nov: on its way to the bank)
-      if id and not toBank and (byHand or not DB.keep[id]) and not ns.KeepItem(id) then
+      if id and not toBank and not Sell.refused[id] and (byHand or not DB.keep[id]) and not ns.KeepItem(id) then
         local _, _, quality, _, _, _, _, _, _, _, price = ns.GetInfo(link or id)
         price = price or 0
         -- (15 Nov) "Do not sell above": nothing worth more than this (one item, not the stack) is sold
@@ -168,6 +181,71 @@ function Sell.Items()
   return out, value
 end
 
+-- (15 Nov) why a vendor won't buy this item (or this stack, with bag and slot) from you right
+-- now, in words (nil: it's sold). The same checks as Sell.Items, in the same order.
+function Sell.WhyNot(id, link, bag, slot)
+  if not DB or not id then return nil end
+  if not DB.enabled then return "Clean-up is switched off." end
+  if Sell.refused[id] then
+    local msg = Sell.refused[id]
+    return "the vendor wouldn't take it when Rucksack tried" .. (type(msg) == "string" and msg ~= "" and (" (the game said: " .. msg .. ")") or "") .. ". It's tried again after you log in again."
+  end
+  if bag and ns.Bags and ns.Bags.BankSlot and ns.Bags.BankSlot(bag, slot, id) then return "it's on its way to your bank." end
+  local byHand = bag and ((ns.Del.SlotSell and ns.Del.SlotSell(bag, slot, id)) or (ns.Del.SlotJunk and ns.Del.SlotJunk(bag, slot, id)))
+  if DB.keep[id] and not byHand then return "it's set to Keep on the Clean-up page." end
+  if ns.KeepItem(id) then
+    local uses = ns.UsedFor and ns.UsedFor(id, link) or {}
+    return "it's always kept" .. (uses[1] and (" (" .. uses[1] .. ")") or "") .. "."
+  end
+  local name, _, _, _, _, _, _, _, _, _, price = ns.GetInfo(link or id)
+  if not name then return "the game hasn't sent this item's details yet. Close the vendor and open it again." end
+  price = price or 0
+  if price <= 0 then return "no vendor buys it." end
+  if price > (DB.sellMax or Sell.MAX) then
+    return "one is worth " .. Sell.Money(price) .. ", more than your \"Do not sell above\" (" .. Sell.Money(DB.sellMax or Sell.MAX) .. "). Move the slider up to sell it."
+  end
+  if not DB.sellList and not (DB.sell and DB.sell[id]) then return "selling your list is switched off on the Clean-up page." end
+  local need = ns.Del.QuestNeed and ns.Del.QuestNeed(id, link) or 0
+  if need > 0 then
+    local nm = ns.NameOf(id, link)
+    local titles = nm and ns.Del.questTitles and ns.Del.questTitles[nm:lower()]
+    local q = titles and titles[1] and (" (\"" .. titles[1] .. "\")") or ""
+    if need == math.huge then return "it starts a quest, so it's kept." end
+    return "a quest you have" .. q .. " needs " .. need .. ". Only what's over that is sold."
+  end
+  if bag then
+    local it = C_Container.GetContainerItemInfo(bag, slot)
+    if it and it.isLocked then return "the stack is locked right now (picked up or being moved)." end
+  end
+  return nil
+end
+
+-- (16 Nov) at a vendor: everything in "Always sell / delete" or "Sell / delete once" that wasn't
+-- sold says why in chat, once per item and visit (at most 6 lines)
+local told
+function Sell.Report()
+  if not DB or not DB.enabled or not atVendorNow() then return end
+  told = told or {}
+  local selling = {}
+  for _, s in ipairs((Sell.Items())) do selling[s.bag .. ":" .. s.slot] = true end
+  local lines = 0
+  for bag = 0, ns.NUM_BAGS do
+    for slot = 1, (ns.GetNumSlots(bag) or 0) do
+      local id, count, link = ns.SlotInfo(bag, slot)
+      if id and not told[id] and not selling[bag .. ":" .. slot] then
+        local ok, kind = pcall(ns.Del.JunkKind, id, bag, slot)
+        if ok and kind and lines < 6 then
+          told[id] = true
+          lines = lines + 1
+          local why = Sell.WhyNot(id, link, bag, slot)
+          Print("not sold: " .. (link or ns.NameOf(id) or "?") .. ((count or 1) > 1 and (" x" .. count) or "") .. ": " ..
+            (why or "Rucksack can't tell why. Please send the author a screenshot of this line."))
+        end
+      end
+    end
+  end
+end
+
 -- money as "1g 23s 40c" in the game's coin colours
 function Sell.Money(copper)
   copper = math.floor(copper or 0)
@@ -182,6 +260,8 @@ end
 
 -- selling, a few at a time while the vendor is open
 local queue, atVendor, soldNow, soldValue = nil, false, 0, 0
+local tried, lastError -- (16 Nov: what this run tried to sell; the game's last red error text)
+atVendorNow = function() return atVendor end
 local ticker = CreateFrame("Frame")
 ticker:Hide()
 local acc = 0
@@ -191,13 +271,12 @@ ticker:SetScript("OnUpdate", function(self, el)
   acc = 0
   if not atVendor or not queue or #queue == 0 then
     self:Hide()
-    if soldNow > 0 then
-      DB.soldGold = (DB.soldGold or 0) + soldValue
-      DB.soldCount = (DB.soldCount or 0) + soldNow
-      Print(("sold %d item%s for %s."):format(soldNow, soldNow == 1 and "" or "s", Sell.Money(soldValue)))
-    end
-    soldNow, soldValue, queue = 0, 0, nil
-    ns.Changed()
+    queue = nil
+    -- (16 Nov) a moment later: did every stack really go? Only those count as sold.
+    local list = tried
+    tried = nil
+    if list then C_Timer.After(1, function() Sell.Check(list) end)
+    elseif atVendor then C_Timer.After(0.5, Sell.Report) end
     return
   end
   local s = table.remove(queue, 1)
@@ -205,24 +284,65 @@ ticker:SetScript("OnUpdate", function(self, el)
   -- (only if that slot still holds the same item, the same amount)
   if id == s.id and count == s.count and not CursorHasItem() then
     useItem(s.bag, s.slot)
-    soldNow = soldNow + s.count
-    soldValue = soldValue + s.price * s.count
-    if ns.Del.RecordMeta then ns.Del.RecordMeta(s.id, s.link, 0, false) end
+    tried = tried or {}
+    tried[#tried + 1] = s
   end
 end)
+-- (16 Nov) after a run: what's gone was sold; a stack still there gets one more try the other way,
+-- and if it's still there after that, the vendor won't take it: chat says what the game said
+function Sell.Check(list, second)
+  if not DB then return end
+  if second and CursorHasItem() then ClearCursor() end -- (a stack the vendor didn't take goes back)
+  local again = {}
+  for _, s in ipairs(list or {}) do
+    local id, count = ns.SlotInfo(s.bag, s.slot)
+    if id == s.id and count == s.count then
+      if not second and atVendor and not CursorHasItem() and sellByCursor(s.bag, s.slot) then
+        again[#again + 1] = s
+      else
+        Sell.refused[s.id] = lastError or true
+        told = told or {}
+        told[s.id] = true -- (said here: not again in the list after it)
+        if atVendor or second then
+          Print("the vendor wouldn't take " .. (s.link or ns.NameOf(s.id) or "?") .. (s.count > 1 and (" x" .. s.count) or "") ..
+            (lastError and (": the game said \"" .. lastError .. "\"") or "") .. ". Rucksack won't try it again until you log in again.")
+        end
+      end
+    else
+      soldNow = soldNow + s.count
+      soldValue = soldValue + s.price * s.count
+      if ns.Del.RecordMeta then ns.Del.RecordMeta(s.id, s.link, 0, false) end
+    end
+  end
+  if #again > 0 then return C_Timer.After(1, function() Sell.Check(again, true) end) end
+  if soldNow > 0 then
+    DB.soldGold = (DB.soldGold or 0) + soldValue
+    DB.soldCount = (DB.soldCount or 0) + soldNow
+    Print(("sold %d item%s for %s."):format(soldNow, soldNow == 1 and "" or "s", Sell.Money(soldValue)))
+  end
+  soldNow, soldValue, lastError = 0, 0, nil
+  ns.Changed()
+  if atVendor then C_Timer.After(0.5, Sell.Report) end
+end
 
 local ev = CreateFrame("Frame")
 ev:RegisterEvent("MERCHANT_SHOW")
 ev:RegisterEvent("MERCHANT_CLOSED")
-ev:SetScript("OnEvent", function(_, e)
+pcall(ev.RegisterEvent, ev, "UI_ERROR_MESSAGE")
+ev:SetScript("OnEvent", function(_, e, a1, a2)
   if not DB then return end
+  if e == "UI_ERROR_MESSAGE" then
+    if atVendor then lastError = type(a2) == "string" and a2 or (type(a1) == "string" and a1) or lastError end
+    return
+  end
   if e == "MERCHANT_CLOSED" then atVendor = false return end
   if e ~= "MERCHANT_SHOW" then return end
   atVendor = true
+  told = nil -- (a new visit: say again what isn't sold)
   if IsShiftKeyDown() then return end -- (Shift while opening the vendor: sell nothing this time)
   local items = Sell.Items()
-  if #items == 0 then return end
-  queue, soldNow, soldValue, acc = items, 0, 0, 0
+  if #items == 0 then C_Timer.After(0.5, Sell.Report) return end
+  queue, soldNow, soldValue, acc, tried, lastError = items, 0, 0, 0, nil, nil
   ticker:Show()
 end)
 function Sell.AtVendor() return atVendor end
@@ -234,7 +354,7 @@ function Sell.Kick()
     if not atVendor or (queue and #queue > 0) then return end
     local items = Sell.Items()
     if #items == 0 then return end
-    queue, soldNow, soldValue, acc = items, 0, 0, 0
+    queue, soldNow, soldValue, acc, tried, lastError = items, 0, 0, 0, nil, nil
     ticker:Show()
   end)
   return true

@@ -201,6 +201,7 @@ Del.ByFood = function(id) if DB then return byFood(id) end end
 local function onList(id, bag, slot)
   if ns.KeepItem(id) then return false end -- (Darkmoon turn-in items, scrolls... stay)
   if bag and ns.Bags and ns.Bags.BankSlot and ns.Bags.BankSlot(bag, slot, id) then return false end -- (15 Nov: on its way to the bank)
+  if bag and ns.AutoOpen and ns.AutoOpen.WillOpen and ns.AutoOpen.WillOpen(bag, slot) then return false end -- (16 Nov: a clam to open first)
   if DB.sell[id] then return false end -- (1.8.2 Sell: sold at a vendor, never thrown away)
   if Del.SlotSell(bag, slot, id) then return false end -- (15 Nov: this very stack is marked for sale)
   if Del.SlotJunk(bag, slot, id) then return true end  -- (15 Nov: this very stack is marked to be thrown away)
@@ -775,6 +776,19 @@ local function Decide(action, button)
   if not d then ask:Hide() return end
   if action == "sell" and d.cantSell then return end -- (greyed out)
   local name = d.link or ns.NameOf(d.id)
+  -- (17 Nov) the "Are you sure?" box: needed for something? Say what, and ask once more.
+  if d.confirm and action ~= "no" then
+    if d.uses and #d.uses > 0 and not d.second then
+      d.second = true
+      askText:SetText(name .. " is needed:")
+      askHint:SetText("|cffffffff- " .. table.concat(d.uses, "\n- ") .. "|r")
+      askWarn:SetText("Delete it anyway? It's gone for good.")
+      btnYes:SetText("Delete anyway")
+      ask:SetHeight(150 + 14 * #d.uses)
+      return
+    end
+    action, d.warned, d.now = "delete", "delete", true
+  end
   -- (1.7.4) the second step: "... anyway" does what you picked first (Always delete or Delete N)
   if d.warned then
     if action ~= "no" then action = d.warned end
@@ -1014,7 +1028,10 @@ ShowBlocked = function()
 end
 Del.ShowBlocked = function() if ShowBlocked then ShowBlocked() end end
 
-local function ShowAsk(id, link, which)
+-- (17 Nov) the boxes beside the bag: is that where things are put on the lists now?
+local function sideBoxes() return ns.Bags and ns.Bags.SideOn and ns.Bags.SideOn() and ns.Bags.DrawSide and true or false end
+Del.SideBoxes = sideBoxes
+local function ShowAsk(id, link, which, uses)
   local _, _, quality = ns.GetInfo(link or id)
   -- how many are in the stack on your cursor (its slot is locked while you hold it)
   local bag, slot = Del.HeldSlot(id)
@@ -1040,6 +1057,23 @@ local function ShowAsk(id, link, which)
   btnNo:SetPoint("LEFT", btnYes, "RIGHT", 8, 0)
   btnYes:GetFontString():SetTextColor(1, 0.82, 0)
   ask:SetHeight(150)
+  if uses then
+    -- (17 Nov) "Are you sure?" Delete / Cancel. Delete deletes it right now (it's the click) and leaves
+    -- your lists and windows as they are. Something it's needed for: a second question says what.
+    ask.data.confirm, ask.data.uses = true, uses
+    askText:SetText("Are you sure you want to delete " .. (link or ns.NameOf(id)) .. (count and count > 1 and (" x" .. count) or "") .. "?")
+    askHint:SetText("It's deleted right now. Your lists and the windows beside your bag stay as they are.\nTo sell or delete it later instead, drop it on one of those windows.")
+    askWarn:SetText("")
+    btnAlways:Hide()
+    btnYes:SetText("Delete") btnYes:SetWidth(130)
+    btnYes:GetFontString():SetTextColor(1, 0.35, 0.35)
+    btnYes:ClearAllPoints()
+    btnYes:SetPoint("BOTTOMLEFT", ask, "BOTTOMLEFT", 70, 18)
+    ask:SetHeight(150)
+  else
+    btnYes:ClearAllPoints()
+    btnYes:SetPoint("LEFT", btnAlways, "RIGHT", 8, 0)
+  end
   ask:Show()
   ask:Raise()
 end
@@ -1073,6 +1107,11 @@ hooksecurefunc("StaticPopup_Show", function(which)
       return
     end
   end
+  -- (17 Nov) with the boxes beside the bag, those are where you choose "sell or delete later". An
+  -- item dropped outside the bag is a real delete, your lists and windows stay as they are. He: "Always
+  -- ask if you sure you want to delete it, and if it is a quest ask him that item is needed for a
+  -- quest or darkmoon or anywhere that important to us and then again procede or cancel".
+  local uses = sideBoxes() and ns.UsedFor(id, link) or nil
   -- the game's popup stays open (it owns the delete), invisible and out of the way
   local f = FindPopupFrame(which)
   if f then
@@ -1086,7 +1125,7 @@ hooksecurefunc("StaticPopup_Show", function(which)
       f:HookScript("OnHide", function(self) self:SetAlpha(1) end)
     end
   end
-  ShowAsk(id, link, which)
+  ShowAsk(id, link, which, uses)
 end)
 
 ---------------------------------------------------------------------------

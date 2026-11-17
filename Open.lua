@@ -34,7 +34,8 @@ local blocked = false      -- the game refused: only the button from now on
 local pending = false
 local run
 
-local function on() return ns.db and ns.db.autoOpen == true end
+-- (16 Nov: on unless you switch it off; he had never found the switch and thought it was broken)
+local function on() return ns.db and ns.db.autoOpen ~= false end
 function A.On() return on() end
 function A.Blocked() return blocked end
 
@@ -128,6 +129,16 @@ local function findNext()
   return fb, fs, fid, flink, n
 end
 A.FindNext = findNext
+-- (16 Nov) this slot will be opened by itself: Clean-up doesn't sell it or throw it away meanwhile
+local willCache = {}
+function A.WillOpen(bag, slot)
+  if not on() or not bag or not slot or not C or not C.GetContainerItemInfo then return false end
+  local i = C.GetContainerItemInfo(bag, slot)
+  if not i or not i.hasLoot or not i.itemID or gaveUp[i.itemID] then return false end
+  if ns.db.noOpen and ns.db.noOpen[i.itemID] then return false end
+  if willCache[i.itemID] == nil then willCache[i.itemID] = not hasCast(i.itemID) end
+  return willCache[i.itemID] and not isLocked(bag, slot)
+end
 
 local function schedule(sec)
   if pending then return end
@@ -232,7 +243,7 @@ run = function()
 end
 function A.Kick(sec) if on() then schedule(sec or 0.5) end end
 function A.Set(v)
-  ns.db.autoOpen = v and true or nil
+  ns.db.autoOpen = v and true or false
   wipe(tries)
   if v then A.Kick(0.2) elseif btn and not InCombatLockdown() then btn:Hide() end
 end

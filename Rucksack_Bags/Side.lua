@@ -121,7 +121,8 @@ function B.SideTip(e)
     out[1] = (e.side == "once" and "|cffff8a8aSell / delete once|r: only this stack." or ("|cffff8a8aAlways sell / delete|r" .. (why and (": " .. why) or ""))) ..
       (e.first and "  |cffffd100first to go|r" or "")
   end
-  if over and e.side ~= "bank" then out[#out + 1] = "|cffffd100Not sold:|r one is worth more than your \"Do not sell above\" (" .. money(ns.Sell.Limit()) .. ")." end
+  local whyNot = ns.Sell.WhyNot and ns.Sell.WhyNot(e.id, e.link, e.bag, e.slot)
+  if whyNot then out[#out + 1] = "|cffffd100Not sold:|r " .. whyNot end
   out[#out + 1] = "|cff999999Alt + right-click: back in your bag. (Or pick it up and drop it on the green slot in its box.)|r"
   return out
 end
@@ -272,37 +273,43 @@ if slider.SetBackdrop then
 end
 -- (15 Nov) filled like a health bar up to the handle, with a shadow inside
 local SL_IN = 3 -- (inside the edge)
-local fill = slider:CreateTexture(nil, "ARTWORK")
+local fill = slider:CreateTexture(nil, "ARTWORK", nil, -2) -- (under the handle)
 fill:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
 fill:SetVertexColor(0.85, 0.65, 0.12)
 fill:SetPoint("TOPLEFT", SL_IN, -SL_IN)
 fill:SetPoint("BOTTOMLEFT", SL_IN, SL_IN)
-fill:SetWidth(1)
-local shadeTop = slider:CreateTexture(nil, "ARTWORK", nil, 2)
+fill:SetWidth(1) -- (until the handle exists: then it reaches the handle)
+local shadeTop = slider:CreateTexture(nil, "ARTWORK", nil, -1)
 shadeTop:SetColorTexture(0, 0, 0, 0.55)
 shadeTop:SetPoint("TOPLEFT", SL_IN, -SL_IN)
 shadeTop:SetPoint("TOPRIGHT", -SL_IN, -SL_IN)
 shadeTop:SetHeight(3)
-local shadeTop2 = slider:CreateTexture(nil, "ARTWORK", nil, 2)
+local shadeTop2 = slider:CreateTexture(nil, "ARTWORK", nil, -1)
 shadeTop2:SetColorTexture(0, 0, 0, 0.25)
 shadeTop2:SetPoint("TOPLEFT", shadeTop, "BOTTOMLEFT")
 shadeTop2:SetPoint("TOPRIGHT", shadeTop, "BOTTOMRIGHT")
 shadeTop2:SetHeight(2)
-local shadeBottom = slider:CreateTexture(nil, "ARTWORK", nil, 2)
+local shadeBottom = slider:CreateTexture(nil, "ARTWORK", nil, -1)
 shadeBottom:SetColorTexture(0, 0, 0, 0.4)
 shadeBottom:SetPoint("BOTTOMLEFT", SL_IN, SL_IN)
 shadeBottom:SetPoint("BOTTOMRIGHT", -SL_IN, SL_IN)
 shadeBottom:SetHeight(2)
 for _, t in ipairs({ shadeTop, shadeTop2, shadeBottom }) do t:SetBlendMode("BLEND") end
+-- (16 Nov) the fill ends at the middle of the handle, wherever the game draws it (it ran short before)
 local function paintFill()
   local v = ns.Sell and ns.Sell.Limit and ns.Sell.Limit() or 0
-  local inner = (slider:GetWidth() or (W - 66)) - SL_IN * 2
-  local wv = math.floor(inner * math.max(0, math.min(1, v / (ns.Sell.MAX or 20000))) + 0.5)
-  fill:SetWidth(math.max(1, wv))
-  fill:SetTexCoord(0, math.max(0.01, wv / math.max(1, inner)), 0, 1)
-  fill:SetShown(wv > 0)
+  fill:SetShown(v > 0)
 end
 slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
+do
+  local thumb = slider.GetThumbTexture and slider:GetThumbTexture()
+  if thumb then
+    fill:ClearAllPoints()
+    fill:SetPoint("TOPLEFT", slider, "TOPLEFT", SL_IN, -SL_IN)
+    fill:SetPoint("BOTTOMLEFT", slider, "BOTTOMLEFT", SL_IN, SL_IN)
+    fill:SetPoint("RIGHT", thumb, "CENTER", 0, 0)
+  end
+end
 slider:SetMinMaxValues(0, 20)
 slider:SetValueStep(1)
 if slider.SetObeyStepOnDrag then slider:SetObeyStepOnDrag(true) end
@@ -401,6 +408,26 @@ drop = function(key)
 end
 B.SideDrop = function(key) return drop(key) end
 -- one stack to the bank (dropped on the box, or Alt + left-click)
+-- (15 Nov) an item from one of the boxes, dropped on an empty slot of your bag: it's out of its box
+-- (called after the game has put it there)
+function B.DroppedOn(e)
+  local h = B.sideHeld
+  if not h or not e or not e.empty or not e.bag or not B.IS_BAG[e.bag] then return end
+  if CursorHasItem() then return end -- (the game didn't take it)
+  B.sideHeld = nil
+  local name = shown(h.id)
+  if h.box == "bank" then
+    if h.bag then B.UnmarkBank(h.bag, h.slot) end
+    Print(name .. " stays in your bag: it's no longer sent to your bank.")
+  elseif h.box == "once" then
+    -- (the mark was on the slot it left: nothing to do)
+    Print(name .. " stays in your bag: this stack is no longer sold or thrown away.")
+  elseif h.box == "always" and hasClean() then
+    ns.Del.Keep(h.id)
+    Print(name .. " stays in your bag: it's no longer sold or thrown away (every one of it).")
+  end
+  B.Changed()
+end
 function B.SendStack(bag, slot, id, link)
   local name = shown(id, link)
   if not bag then Print("pick " .. name .. " up from your bag and drop that stack here.") return end
@@ -447,6 +474,20 @@ local function screenRight()
   local r, s = UIParent:GetRight(), UIParent:GetEffectiveScale()
   return r and s and r * s or nil
 end
+-- the box the stack on your cursor sits in ("always", "once", "bank" or nil), and its bag slot
+function B.HeldBox(id)
+  if not id then return nil end
+  local hb, hs = B.HeldSlot(id)
+  if hb and B.BankSlot(hb, hs, id) then return "bank", hb, hs end
+  if hasClean() then
+    local ok, kind = pcall(ns.Del.JunkKind, id, hb, hs)
+    if ok and kind then
+      if kind == 1 then return (hb and ns.Del.SlotJunk(hb, hs, id)) and "once" or "always", hb, hs end
+      return ((not ns.del.sell[id]) and hb and ns.Del.SlotSell(hb, hs, id)) and "once" or "always", hb, hs
+    end
+  end
+  return nil, hb, hs
+end
 function B.DrawSide(st, text)
   oldBankList()
   local side = st and st.side
@@ -458,20 +499,10 @@ function B.DrawSide(st, text)
   end
   local clean = hasClean()
   local held = B.Held and B.Held()
-  local heldIn -- the box the item on your cursor sits in
-  if held then
-    local db = DB()
-    local hb, hs = B.HeldSlot(held)
-    if hb and B.BankSlot(hb, hs, held) then heldIn = "bank"
-    elseif clean then
-      local bag, slot = heldSlot(held)
-      local ok, kind = pcall(ns.Del.JunkKind, held, bag, slot)
-      if ok and kind then
-        if kind == 1 then heldIn = bag and ns.Del.SlotJunk(bag, slot, held) and "once" or "always"
-        else heldIn = (not ns.del.sell[held]) and bag and ns.Del.SlotSell(bag, slot, held) and "once" or "always" end
-      end
-    end
-  end
+  local heldIn, hb, hs -- the box the item on your cursor sits in, and its slot
+  if held then heldIn, hb, hs = B.HeldBox(held) end
+  -- (15 Nov) remembered for a drop on an empty slot in the bag: that takes it out of its box
+  B.sideHeld = held and heldIn and { id = held, bag = hb, slot = hs, box = heldIn } or nil
   local y = 0
   for _, def in ipairs(BOXES) do
     local box = boxes[def.key]
@@ -484,7 +515,8 @@ function B.DrawSide(st, text)
       local top = y
       local extra = def.key == "always" and SLIDER_H or 0
       local cells = {}
-      if heldIn == def.key then cells[1] = { drop = "keep", cat = "keep" } end
+      -- (One bag has no Empty group: there the slot to take it out is in its own box)
+      if heldIn == def.key and DB().style == "grid" then cells[1] = { drop = "keep", cat = "keep" } end
       for _, e in ipairs(list) do cells[#cells + 1] = e end
       local n = #cells
       -- (15 Nov) the empty slot only while you hold an item, in every box but the one it's in already

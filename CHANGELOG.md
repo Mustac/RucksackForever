@@ -1,3 +1,20 @@
+# Rucksack 1.8.7
+
+### New
+- **Destroying an item** (with Bags on): drag it out of your bag and Rucksack asks "Are you sure you want to delete it?" with **Delete** or **Cancel**. Delete removes it right away. If it's needed for something (a quest, a Darkmoon turn-in, a rare or better item...), a second question says what and asks again. Your lists and the windows beside the bag stay as they are.
+- **A yellow ! on items a quest needs**, in the top right corner of the item in your bag.
+- **"A new version is out"** at login, when someone in your guild or group has a newer Rucksack. A tick box in Settings turns it off.
+- **At a vendor, Rucksack tells you why** something wasn't sold: "not sold: Crisp Spider Meat x4: a quest needs it". If the vendor doesn't take something, it tries once more and tells you what the game said.
+- **Take an item out of a window by dropping it on an empty slot** in your bag. While you hold an item from one of the windows, the Empty group shows a green slot first for it.
+
+### Changed
+- **Open clams and pouches by itself is now on** unless you turn it off. Clams and pouches it will open are never sold or deleted.
+- With the padlock open, you can drop an item from the windows into any group.
+- The bag's hover text and the value at the bottom now match what really gets sold.
+
+### Fixed
+- The colour inside the "Do not sell above" slider now ends exactly at the handle.
+
 # Rucksack 1.8.6
 
 ### New
