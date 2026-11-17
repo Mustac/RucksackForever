@@ -1,3 +1,8 @@
+# Rucksack 1.8.8
+
+### Changed
+- **Destroying an item** (with Bags on) is one simple question now: "Delete Linen Cloth x14?", with what it's needed for underneath (a quest, a Darkmoon turn-in...) when it is. **Delete** or **Cancel**, no second question. Your lists stay as they are.
+
 # Rucksack 1.8.7
 
 ### New

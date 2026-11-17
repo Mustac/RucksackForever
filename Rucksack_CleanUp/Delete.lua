@@ -778,15 +778,6 @@ local function Decide(action, button)
   local name = d.link or ns.NameOf(d.id)
   -- (17 Nov) the "Are you sure?" box: needed for something? Say what, and ask once more.
   if d.confirm and action ~= "no" then
-    if d.uses and #d.uses > 0 and not d.second then
-      d.second = true
-      askText:SetText(name .. " is needed:")
-      askHint:SetText("|cffffffff- " .. table.concat(d.uses, "\n- ") .. "|r")
-      askWarn:SetText("Delete it anyway? It's gone for good.")
-      btnYes:SetText("Delete anyway")
-      ask:SetHeight(150 + 14 * #d.uses)
-      return
-    end
     action, d.warned, d.now = "delete", "delete", true
   end
   -- (1.7.4) the second step: "... anyway" does what you picked first (Always delete or Delete N)
@@ -1058,18 +1049,19 @@ local function ShowAsk(id, link, which, uses)
   btnYes:GetFontString():SetTextColor(1, 0.82, 0)
   ask:SetHeight(150)
   if uses then
-    -- (17 Nov) "Are you sure?" Delete / Cancel. Delete deletes it right now (it's the click) and leaves
-    -- your lists and windows as they are. Something it's needed for: a second question says what.
-    ask.data.confirm, ask.data.uses = true, uses
-    askText:SetText("Are you sure you want to delete " .. (link or ns.NameOf(id)) .. (count and count > 1 and (" x" .. count) or "") .. "?")
-    askHint:SetText("It's deleted right now. Your lists and the windows beside your bag stay as they are.\nTo sell or delete it later instead, drop it on one of those windows.")
+    -- (17 Nov 15:41) one simple question, he: "Just ask Delete Linen Cloth x14 / - its used for quest
+    -- this and that / Delete Cancel ... no confirmation after". Delete deletes it right now (it's the
+    -- click) and leaves your lists and windows as they are.
+    ask.data.confirm = true
+    askText:SetText("Delete " .. (link or ns.NameOf(id)) .. (count and count > 1 and (" x" .. count) or "") .. "?")
+    askHint:SetText(#uses > 0 and ("|cffffffff- " .. table.concat(uses, "\n- ") .. "|r") or "")
     askWarn:SetText("")
     btnAlways:Hide()
     btnYes:SetText("Delete") btnYes:SetWidth(130)
     btnYes:GetFontString():SetTextColor(1, 0.35, 0.35)
     btnYes:ClearAllPoints()
     btnYes:SetPoint("BOTTOMLEFT", ask, "BOTTOMLEFT", 70, 18)
-    ask:SetHeight(150)
+    ask:SetHeight(110 + 14 * #uses)
   else
     btnYes:ClearAllPoints()
     btnYes:SetPoint("LEFT", btnAlways, "RIGHT", 8, 0)
