@@ -11,20 +11,10 @@ local Sell = {}
 ns.Sell = Sell
 local DB
 local atVendorNow -- (below)
--- (15 Nov) the "Do not sell above" slider in the bag: 0 to 2g in 10s steps; it starts at 2g
-Sell.MAX, Sell.STEP = 20000, 1000
-function Sell.Limit() return DB and DB.sellMax or Sell.MAX end
-function Sell.SetLimit(v)
-  if not DB then return end
-  v = math.max(0, math.min(Sell.MAX, math.floor((tonumber(v) or Sell.MAX) / Sell.STEP + 0.5) * Sell.STEP))
-  DB.sellMax = v
-  if ns.Changed then ns.Changed() end
-end
--- too valuable to be sold by itself (the price of one)
-function Sell.OverLimit(id)
-  local price = select(11, ns.GetInfo(id)) or 0
-  return price > Sell.Limit()
-end
+-- (17 Nov, 1.9) selling has no limit any more: the slider in the bag is the delete limit now (he:
+-- "if the item is there and worth 1 gold we would not want to delete it but only sell"). DB.sellMax
+-- from 1.8.6 is left unused in old saves.
+function Sell.OverLimit() return false end
 
 local function useItem(bag, slot)
   local C = C_Container
@@ -144,8 +134,7 @@ function Sell.Items()
       if id and not toBank and not Sell.refused[id] and (byHand or not DB.keep[id]) and not ns.KeepItem(id) then
         local _, _, quality, _, _, _, _, _, _, _, price = ns.GetInfo(link or id)
         price = price or 0
-        -- (15 Nov) "Do not sell above": nothing worth more than this (one item, not the stack) is sold
-        if price > 0 and price <= (DB.sellMax or Sell.MAX) then
+        if price > 0 then
           local grey = DB.sellGrey and quality == 0
           local listed = DB.sellList and ns.Del.OnList(id, bag, slot) and (DB.items[id] or (quality or 0) < 3 or ns.Del.ByRule(id, bag, slot) or (ns.Del.SlotJunk and ns.Del.SlotJunk(bag, slot, id)))
           -- (1.8.2) Sell: always sold here (never thrown away)
@@ -201,9 +190,6 @@ function Sell.WhyNot(id, link, bag, slot)
   if not name then return "the game hasn't sent this item's details yet. Close the vendor and open it again." end
   price = price or 0
   if price <= 0 then return "no vendor buys it." end
-  if price > (DB.sellMax or Sell.MAX) then
-    return "one is worth " .. Sell.Money(price) .. ", more than your \"Do not sell above\" (" .. Sell.Money(DB.sellMax or Sell.MAX) .. "). Move the slider up to sell it."
-  end
   if not DB.sellList and not (DB.sell and DB.sell[id]) then return "selling your list is switched off on the Clean-up page." end
   local need = ns.Del.QuestNeed and ns.Del.QuestNeed(id, link) or 0
   if need > 0 then
@@ -364,7 +350,6 @@ table.insert(ns.onLoad, function()
   DB = ns.del
   if DB.sellGrey == nil then DB.sellGrey = false end
   if DB.sellGear == nil then DB.sellGear = true end -- (10 Nov) gear this character can't use
-  if DB.sellMax == nil then DB.sellMax = Sell.MAX end -- (15 Nov) "Do not sell above"
   if ns.char then
     ns.char.sellArmor = ns.char.sellArmor or {}
     -- (1.7.4) once per character: the armour types its class can never wear count as "can't use"

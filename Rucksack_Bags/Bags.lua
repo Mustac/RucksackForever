@@ -415,7 +415,8 @@ function B.BankOpen() return bankOpen end
 local f = CreateFrame("Frame", "RucksackBagsFrame", UIParent, ns.BACKDROP_TMPL)
 f:SetSize(420, 300)
 f:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -80, 120)
-f:SetFrameStrata("MEDIUM")
+f:SetFrameStrata("HIGH") -- (17 Nov) above Questie's tracker and other addons' windows; menus and tooltips stay on top
+f:SetToplevel(true)
 f:SetClampedToScreen(true)
 f:SetMovable(true)
 f:EnableMouse(true)
@@ -1092,7 +1093,7 @@ local function buildCells(v, text)
   local merge = (DB.merged and not free) or not live
   -- (15 Nov) the boxes on the right of the bag (Side.lua): what's on your list, what's marked once
   -- and what goes to the bank show there, not in the bag's groups
-  local side = v == MAINVIEW and vLiveBags(v) and B.SideOn and B.SideOn() and { always = {}, once = {}, bank = {} } or nil
+  local side = v == MAINVIEW and vLiveBags(v) and B.SideOn and B.SideOn() and { always = {}, once = {}, bank = {}, quiver = {} } or nil
   st.side = side
   for _, e in ipairs(items) do
     if side then
@@ -1103,7 +1104,7 @@ local function buildCells(v, text)
     local list
     if e.side then list = side[e.side] else byCat[e.cat] = byCat[e.cat] or {} list = byCat[e.cat] end
     local key = group .. ":" .. e.id
-    if merge and seen[key] then
+    if merge and seen[key] and e.side ~= "quiver" then
       seen[key].total = seen[key].total + e.count
       if e.bag then seen[key].inBags[e.bag] = true end
     else
@@ -1160,6 +1161,20 @@ local function buildCells(v, text)
     for key, list in pairs(byCat) do
       if DB.style ~= "grid" and placeable(key) and ((key ~= "junk" and key ~= "sell") or (hasClean() and not side)) then list[#list + 1] = { drop = key, cat = key } end
     end
+  end
+  -- (1.9) the quiver window beside the bag: its empty slots show there, in slot order with its arrows
+  local qbag = side and B.QuiverShown and B.QuiverShown() or nil
+  if qbag and live then
+    local keep = {}
+    for _, sl in ipairs(st.empties.S) do
+      if sl.bag == qbag then
+        side.quiver[#side.quiver + 1] = { bag = sl.bag, slot = sl.slot, cat = "emptyS", empty = true, inBags = { [sl.bag] = true } }
+      else
+        keep[#keep + 1] = sl
+      end
+    end
+    st.empties.S = keep
+    table.sort(side.quiver, function(a, b) return (a.slot or 0) < (b.slot or 0) end)
   end
   -- empty slots (live only): every one (you can drop an item on any), or one cell with the number
   if live then
@@ -2480,7 +2495,8 @@ end
 ---------------------------------------------------------------------------
 local vf = CreateFrame("Frame", "RucksackBagsView", UIParent, ns.BACKDROP_TMPL)
 vf:SetSize(340, 200)
-vf:SetFrameStrata("MEDIUM")
+vf:SetFrameStrata("HIGH")
+vf:SetToplevel(true)
 vf:SetClampedToScreen(true)
 vf:SetMovable(true)
 vf:EnableMouse(true)
@@ -3071,6 +3087,86 @@ function B.ReagentStep()
     end
   end
 end
+-- (1.9, 17 Nov) arrows and bullets go into your quiver or ammo pouch by themselves (he: "auto
+-- move ammo to quiver"), the same way: a half-full stack of it first, then an empty slot, one stack
+-- at a time. Never in a fight or while you hold something; stacks marked for a box stay put.
+do -- (in a block: the file has nearly as many top-level names as Lua allows)
+local function hasBit(v, b) return v and math.floor(v / b) % 2 == 1 or false end
+-- the ammo bag you wear: its bag number and kind (1 = quiver/arrows, 2 = ammo pouch/bullets)
+function B.QuiverBag()
+  for _, bag in ipairs(BAR) do
+    local n = C_Container.GetContainerNumSlots(bag) or 0
+    if n > 0 then
+      local fam = select(2, C_Container.GetContainerNumFreeSlots(bag)) or 0
+      if hasBit(fam, 1) then return bag, 1 elseif hasBit(fam, 2) then return bag, 2 end
+    end
+  end
+end
+-- does this item go in that ammo bag?
+function B.FitsQuiver(id, kind)
+  if not id or not kind then return false end
+  local getFamily = (C_Item and C_Item.GetItemFamily) or GetItemFamily
+  if not getFamily then return false end
+  local ok, fam = pcall(getFamily, id)
+  return ok and hasBit(fam, kind) or false
+end
+B.ammoNo = {}
+function B.AmmoHome()
+  if not DB or DB.ammoHome == false then return end
+  if B.ammoWait and GetTime() - B.ammoWait < 2 then return end
+  B.ammoWait = GetTime()
+  C_Timer.After(0.6, B.AmmoStep)
+end
+function B.AmmoStep()
+  B.ammoWait = nil
+  if not DB or DB.ammoHome == false then return end
+  if tidying or InCombatLockdown() or CursorHasItem() or (GetCursorInfo and GetCursorInfo()) then return end
+  if SpellIsTargeting and SpellIsTargeting() then return end
+  local q, kind = B.QuiverBag()
+  if not q then return end
+  local empty, partial, busy = nil, {}, false
+  for slot = 1, C_Container.GetContainerNumSlots(q) or 0 do
+    local it = C_Container.GetContainerItemInfo(q, slot)
+    if it and it.itemID then
+      if it.isLocked then busy = true
+      else
+        local max = select(8, ns.GetInfo(it.hyperlink or it.itemID))
+        if max and (it.stackCount or 1) < max and not partial[it.itemID] then partial[it.itemID] = slot end
+      end
+    elseif not empty then
+      empty = slot
+    end
+  end
+  if busy then return B.AmmoHome() end
+  if not empty and not next(partial) then return end
+  for _, bag in ipairs(BAGS) do
+    local fam = bag == 0 and 0 or (select(2, C_Container.GetContainerNumFreeSlots(bag)) or 0)
+    if bag ~= q and bag ~= REAGENT and fam == 0 then
+      for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
+        local it = C_Container.GetContainerItemInfo(bag, slot)
+        local id = it and it.itemID
+        if id and not it.isLocked and not B.ammoNo[id] and B.FitsQuiver(id, kind)
+          and not (B.BankSlot and B.BankSlot(bag, slot, id))
+          and not (ns.Del and ns.Del.SlotJunk and ns.Del.SlotJunk(bag, slot, id)) then
+          local to = partial[id] or empty
+          if to then
+            local sig = bag .. ":" .. slot .. ":" .. id .. ":" .. (it.stackCount or 1) .. ">" .. to
+            if sig == B.ammoLast and GetTime() - (B.ammoLastAt or 0) < 5 then
+              B.ammoNo[id], B.ammoLast = true, nil -- (the game won't do it: not tried again)
+            else
+              B.ammoLast, B.ammoLastAt = sig, GetTime()
+              C_Container.PickupContainerItem(bag, slot)
+              C_Container.PickupContainerItem(q, to)
+              if CursorHasItem() then ClearCursor() B.ammoNo[id] = true end
+            end
+            return B.AmmoHome()
+          end
+        end
+      end
+    end
+  end
+end
+end
 function B.Toggle() if f:IsShown() then B.Close() else B.Open() end end
 function B.IsShown() return f:IsShown() end
 local hooked = false
@@ -3194,7 +3290,7 @@ ev:SetScript("OnEvent", function(_, e)
   if e == "PLAYER_LOGOUT" then pcall(B.SaveBags) return end
   if e == "PLAYERBANKSLOTS_CHANGED" then pcall(B.SaveBank) end
   if e == "PLAYERBANKBAGSLOTS_CHANGED" or e == "BANK_TABS_CHANGED" then B.ForgetLocked() B.lockCheck = 2 end
-  if e == "PLAYER_REGEN_ENABLED" then B.ReagentsHome() if pendingDraw then B.Changed() end return end
+  if e == "PLAYER_REGEN_ENABLED" then B.ReagentsHome() B.AmmoHome() if pendingDraw then B.Changed() end return end
   if OPENERS[e] then
     if DB and DB.replace and not f:IsShown() then autoOpened = true B.Open() else B.Changed() end
   elseif CLOSERS[e] then
@@ -3205,6 +3301,7 @@ ev:SetScript("OnEvent", function(_, e)
       pcall(B.SaveBags)
       if bankOpen then pcall(B.SaveBank) end
       B.ReagentsHome()
+      B.AmmoHome()
     elseif e == "PLAYER_MONEY" then
       pcall(B.SaveBags)
     end
@@ -3264,6 +3361,7 @@ table.insert(ns.onLogin, function()
   pcall(B.SaveBags)
   takeOver()
   B.ReagentsHome()
+  B.AmmoHome()
   -- (the Junk group shows what the trash button shows: hide that button once; "Show button" on the
   -- Clean-up page brings it back)
   if ns.del and not DB.trashHidden then

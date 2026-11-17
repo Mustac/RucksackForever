@@ -6,8 +6,9 @@
 --   Send to bank         : only the stacks you put there, moved into your bank by itself when you open
 --                          the bank; never sold or thrown away. Alt + left-click an item in the bag sends
 --                          that stack; Alt + right-click takes it back (marks on bag slots, per character)
--- Under the first box's name: "Do not sell above", 0 to 2g in 10s steps (Clean-up never sells an
--- item worth more than that). Every box and the slider have a "?" that says what it does.
+-- Under the first box's name (1.9): "Delete only items worth up to", the delete limit (10s to 5g in
+-- 10s steps, the same setting as on the Clean-up page): worth more, it's only sold, never thrown
+-- away by itself. Every box and the slider have a "?" that says what it does.
 -- The first two boxes and the slider need Clean-up; without it only the bank box shows.
 -- Each is its own small bag window: a name, the items, and while you hold an item one empty slot
 -- at the end to drop it on (like the slot every group in the bag gets then).
@@ -93,10 +94,18 @@ sweep:SetScript("OnEvent", function()
     if not bag or ns.SlotInfo(tonumber(bag), tonumber(slot)) ~= want then m[k] = nil end
   end
 end)
--- the box an item in your bags shows in ("always", "once", "bank"), or nil: it stays in the bag
+-- (1.9) the quiver window: only while you wear a quiver or ammo pouch, and "Quiver beside the bag" is on
+function B.QuiverShown()
+  local db = DB()
+  if not db or db.showQuiver == false or not B.QuiverBag then return nil end
+  return (B.QuiverBag())
+end
+-- the box an item in your bags shows in ("always", "once", "bank", "quiver"), or nil: it stays in the bag
 function B.SideOf(e)
   local db = DB()
   if not db or not e or not e.id or e.empty then return nil end
+  local q = B.QuiverShown()
+  if q and e.bag == q then return "quiver" end
   if B.BankSlot(e.bag, e.slot, e.id) then return "bank" end
   if not hasClean() then return nil end
   if e.cat == "junk" then
@@ -109,7 +118,6 @@ end
 -- an item's extra tooltip lines when it sits in a box
 function B.SideTip(e)
   local out = {}
-  local over = hasClean() and ns.Sell.OverLimit and ns.Sell.OverLimit(e.id)
   if e.side == "bank" then
     out[1] = "|cff7fd4ffSend to bank:|r this stack goes in your bank when you open it."
     out[2] = "|cff999999Alt + right-click: back in your bag.|r"
@@ -165,6 +173,10 @@ local BOXES = {
     tip = { "The stacks you put here go into your bank when you open it.",
       "Rucksack never sells them or throws them away.",
       "Alt + left-click an item in your bag: that stack goes here (at the bank: straight in). Alt + right-click it: back in your bag." } },
+  { key = "quiver", name = "Quiver", color = { 0.72, 0.88, 0.5 }, quiver = true,
+    tip = { "The quiver or ammo pouch you wear, slot by slot.",
+      "Arrows and bullets in your other bags move in here by themselves when there's room (a switch on the Bags page).",
+      "Drop ammo on this window to put it in." } },
 }
 local HOWTO = "Drop an item on the box to put it here. To take it out: Alt + right-click it, or pick it up and drop it on the green slot that shows up in the box."
 
@@ -246,17 +258,20 @@ for i, def in ipairs(BOXES) do
   boxes[def.key] = box
 end
 
--- "Do not sell above": under the first box's name
+-- (1.9) the delete limit: under the first box's name
 local limit = CreateFrame("Frame", nil, boxes.always)
 limit:SetSize(W, SLIDER_H)
 limit:SetPoint("TOPLEFT", 1, -HDR - 3)
 limit.label = limit:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
 limit.label:SetPoint("TOPLEFT", 0, 0)
 limit.label:SetJustifyH("LEFT")
-limit.label:SetText("Do not sell above")
-local LIMIT_TIP = { "Rucksack never sells an item worth more than this. It counts the price of one, not the whole stack.",
-  "At 0 nothing is sold.", "Drag it, or turn the mouse wheel over it: 10 silver a step, up to 2 gold." }
-limit.q = qmark(boxes.always, function(self) tipOn(self, "Do not sell above", LIMIT_TIP) end)
+limit.label:SetText("Delete items worth up to")
+local LIMIT_NAME = "Delete items worth up to"
+local LIMIT_TIP = { "When your bags are nearly full, Rucksack only throws away a stack worth up to this much at a vendor (the whole stack).",
+  "Worth more? It stays in your bag and is sold at the next vendor.",
+  "Dragging an item out of your bag still deletes it, whatever it's worth.",
+  "Drag the slider, or turn the mouse wheel over it: 10 silver a step, up to 5 gold. All the way right: no limit. The same setting as the delete limit on the Clean-up page." }
+limit.q = qmark(boxes.always, function(self) tipOn(self, LIMIT_NAME, LIMIT_TIP) end)
 limit.q:SetPoint("TOPRIGHT", boxes.always, "TOPRIGHT", 0, -HDR - 1)
 local slider = CreateFrame("Slider", "RucksackSellLimitSlider", limit, ns.BACKDROP_TMPL)
 slider:SetOrientation("HORIZONTAL")
@@ -296,9 +311,14 @@ shadeBottom:SetPoint("BOTTOMRIGHT", -SL_IN, SL_IN)
 shadeBottom:SetHeight(2)
 for _, t in ipairs({ shadeTop, shadeTop2, shadeBottom }) do t:SetBlendMode("BLEND") end
 -- (16 Nov) the fill ends at the middle of the handle, wherever the game draws it (it ran short before)
-local function paintFill()
-  local v = ns.Sell and ns.Sell.Limit and ns.Sell.Limit() or 0
-  fill:SetShown(v > 0)
+local function paintFill() fill:Show() end
+-- (1.9) slider steps: 1..50 = 10s..5g, 51 = no limit
+local NOLIMIT = 51
+local function curStep()
+  local Del = ns.Del
+  local v = Del and Del.Limit and Del.Limit()
+  if not v then return NOLIMIT end
+  return math.max(1, math.min(50, math.floor(v / 1000 + 0.5)))
 end
 slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
 do
@@ -310,35 +330,35 @@ do
     fill:SetPoint("RIGHT", thumb, "CENTER", 0, 0)
   end
 end
-slider:SetMinMaxValues(0, 20)
+slider:SetMinMaxValues(1, NOLIMIT)
 slider:SetValueStep(1)
 if slider.SetObeyStepOnDrag then slider:SetObeyStepOnDrag(true) end
 slider:EnableMouseWheel(true)
 local function limitText()
-  local v = ns.Sell.Limit()
-  limit.value:SetText(v > 0 and money(v) or "|cffff8a8anothing|r")
+  local st = curStep()
+  limit.value:SetText(st == NOLIMIT and "|cffff8a8ano limit|r" or money(st * 1000))
   paintFill()
 end
 local function setLimit(steps)
-  steps = math.max(0, math.min(20, math.floor(steps + 0.5)))
-  if ns.Sell.Limit() == steps * ns.Sell.STEP then return end
-  ns.Sell.SetLimit(steps * ns.Sell.STEP)
+  steps = math.max(1, math.min(NOLIMIT, math.floor(steps + 0.5)))
+  if curStep() == steps then return end
+  ns.Del.SetLimit(steps < NOLIMIT and steps * 1000 or nil)
   limitText()
   B.Changed()
 end
-B.SetSellLimit = setLimit -- (steps of 10s: 0..20)
+B.SetDeleteLimit = setLimit -- (steps of 10s: 1..50, 51 = no limit)
 slider:SetScript("OnValueChanged", function(self, v)
   if self.quiet or not hasClean() then return end
   setLimit(v)
 end)
 slider:SetScript("OnMouseWheel", function(self, delta)
   if not hasClean() then return end
-  setLimit(ns.Sell.Limit() / ns.Sell.STEP + (delta > 0 and 1 or -1))
+  setLimit(curStep() + (delta > 0 and 1 or -1))
   self.quiet = true
-  self:SetValue(ns.Sell.Limit() / ns.Sell.STEP)
+  self:SetValue(curStep())
   self.quiet = nil
 end)
-slider:SetScript("OnEnter", function(self) tipOn(self, "Do not sell above", LIMIT_TIP) end)
+slider:SetScript("OnEnter", function(self) tipOn(self, LIMIT_NAME, LIMIT_TIP) end)
 slider:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
 -- the bank box: a button to put them in now (shows at the bank while some are still in your bags)
@@ -370,6 +390,7 @@ drop = function(key)
   local name = shown(id, link)
   if db.hidden and db.hidden[id] then db.hidden[id] = nil end
   if key == "bank" then return B.SendStack(bag, slot, id, link) end
+  if key == "quiver" then return B.IntoQuiver(bag, slot, id, link) end
   if not hasClean() then return end
   local wasBank = bag and B.BankSlot(bag, slot, id)
   if wasBank then B.UnmarkBank(bag, slot) end
@@ -407,6 +428,32 @@ drop = function(key)
   go()
 end
 B.SideDrop = function(key) return drop(key) end
+-- (1.9) a stack dropped on the quiver window: onto a half-full stack of it there, or an empty slot
+function B.IntoQuiver(bag, slot, id, link)
+  local q, kind = B.QuiverBag()
+  local name = shown(id, link)
+  if not q then return end
+  if not B.FitsQuiver(id, kind) then
+    Print(name .. " doesn't go in " .. (kind == 2 and "an ammo pouch" or "a quiver") .. ": only " .. (kind == 2 and "bullets" or "arrows") .. " do.")
+    return
+  end
+  if not bag or bag == q then return end
+  local to
+  for s2 = 1, C_Container.GetContainerNumSlots(q) or 0 do
+    local it = C_Container.GetContainerItemInfo(q, s2)
+    if it and it.itemID == id then
+      local max = select(8, ns.GetInfo(it.hyperlink or id))
+      if max and (it.stackCount or 1) < max then to = s2 break end
+    elseif not it and not to then
+      to = to or -s2
+    end
+  end
+  if to and to < 0 then to = -to end
+  if not to then Print("your " .. (kind == 2 and "ammo pouch" or "quiver") .. " is full.") return end
+  C_Container.PickupContainerItem(bag, slot)
+  C_Container.PickupContainerItem(q, to)
+  if CursorHasItem() then ClearCursor() end
+end
 -- one stack to the bank (dropped on the box, or Alt + left-click)
 -- (15 Nov) an item from one of the boxes, dropped on an empty slot of your bag: it's out of its box
 -- (called after the game has put it there)
@@ -504,9 +551,11 @@ function B.DrawSide(st, text)
   -- (15 Nov) remembered for a drop on an empty slot in the bag: that takes it out of its box
   B.sideHeld = held and heldIn and { id = held, bag = hb, slot = hs, box = heldIn } or nil
   local y = 0
+  local qbag, qkind
+  if B.QuiverShown() then qbag, qkind = B.QuiverBag() end
   for _, def in ipairs(BOXES) do
     local box = boxes[def.key]
-    if def.clean and not clean then
+    if (def.clean and not clean) or (def.quiver and not qbag) then
       box:Hide()
       box.win:Hide()
       box.slot:Hide()
@@ -523,6 +572,15 @@ function B.DrawSide(st, text)
       -- (that one has the green slot to take it out)
       local slotOn = held and heldIn ~= def.key and (def.key == "bank" or clean) or false
       if n == 0 then slotOn = true end -- (an empty box always shows one empty slot, so it never looks bare)
+      if def.quiver then
+        -- (its own empty slots show already; the title counts the ammo)
+        slotOn = n == 0
+        local ammo = 0
+        for _, e in ipairs(list) do if not e.empty then ammo = ammo + (e.total or e.count or 0) end end
+        local c = def.color
+        box.title:SetText(("|cff%02x%02x%02x%s|r  |cffffffff%d|r"):format(math.floor(c[1] * 255), math.floor(c[2] * 255), math.floor(c[3] * 255),
+          qkind == 2 and "Ammo pouch" or "Quiver", ammo))
+      end
       local total = n + (slotOn and 1 or 0)
       local rows = math.ceil(total / COLS)
       local iy = top + HDR + extra
@@ -571,7 +629,7 @@ function B.DrawSide(st, text)
   if clean then
     limit:Show() limit.q:Show()
     slider.quiet = true
-    slider:SetValue(ns.Sell.Limit() / ns.Sell.STEP)
+    slider:SetValue(curStep())
     slider.quiet = nil
     limitText()
   end

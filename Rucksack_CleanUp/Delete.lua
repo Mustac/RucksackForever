@@ -455,6 +455,20 @@ Del.RecordMeta = RecordMeta
 -- now), or until you free up a bag slot yourself.
 local ShowBlocked -- below
 function Del.Blocked() return Del.blocked end
+-- (17 Nov, 1.9) the slider beside the bag sets this too: "Delete only items worth up to". 10s to 5g
+-- in 10s steps, nil = no limit. Over it, Clean-up never deletes by itself: it's sold at a vendor.
+Del.LIMIT_STEP, Del.LIMIT_STEPS = 1000, 50
+function Del.Limit() return DB and DB.maxValue end
+function Del.SetLimit(v)
+  if not DB then return end
+  if v then
+    v = math.max(1, math.min(Del.LIMIT_STEPS, math.floor(v / Del.LIMIT_STEP + 0.5))) * Del.LIMIT_STEP
+    DB.lastLimit = v
+  end
+  DB.maxValue = v
+  if Refresh then Refresh() end
+  if ns.Changed then ns.Changed() end
+end
 local function DeleteOne(force)
   if not DB or not DB.enabled then return false end
   if InCombatLockdown() then return false end
@@ -465,8 +479,8 @@ local function DeleteOne(force)
     local b = Del.blocked
     if not b or b.id ~= it.id then
       Del.blocked = { id = it.id, link = it.link, value = value, free = FreeSlots() }
-      Print("next to delete is " .. (it.link or ns.NameOf(it.id)) .. " (" .. ns.Sell.Money(value) .. "), more than your " ..
-        ns.Sell.Money(DB.maxValue) .. " limit. Clean-up waits: click the trash button (or the Clean-up page) to choose, or free up a bag slot.")
+      Print("your bags are nearly full, but " .. (it.link or ns.NameOf(it.id)) .. " (" .. ns.Sell.Money(value) .. ") is worth more than your " ..
+        ns.Sell.Money(DB.maxValue) .. " delete limit, so it's kept for a vendor. Click the trash button to choose.")
       Refresh()
     end
     if force and ShowBlocked then ShowBlocked() end

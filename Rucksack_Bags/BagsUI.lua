@@ -31,6 +31,12 @@ p:Add(Check(p, 0, y, "Reagents into the reagent bag", "A reagent lying in one of
   function() return D().reagentHome ~= false end, function(v) D().reagentHome = v and true or false if v then B.ReagentsHome() end end, "GameFontHighlightSmall"))
 p:Add(Check(p, 330, y, "Restock by itself at vendors", "With this on, a vendor that sells something on your Restock list tops you up as soon as you open the vendor. Off: click Buy now in the Restock bag (the cart next to your bags).",
   function() return D().restockAuto ~= false end, function(v) D().restockAuto = v and true or false end, "GameFontHighlightSmall"))
+y = y - 24
+-- (1.9) the quiver
+p:Add(Check(p, 0, y, "Quiver beside the bag", "While you wear a quiver or ammo pouch, it gets its own window beside the bag, under Send to bank: your arrows slot by slot and how many you have.",
+  function() return D().showQuiver ~= false end, function(v) D().showQuiver = v and true or false B.Changed() end, "GameFontHighlightSmall"))
+p:Add(Check(p, 330, y, "Arrows and bullets into the quiver", "Ammo lying in one of your ordinary bags moves into your quiver or ammo pouch by itself when there's room (onto a half-full stack first, then an empty slot). Never in a fight, never while you hold an item.",
+  function() return D().ammoHome ~= false end, function(v) D().ammoHome = v and true or false if v then B.AmmoHome() end end, "GameFontHighlightSmall"))
 y = y - 32
 
 -- a row of small buttons, the one in use lit gold
@@ -87,7 +93,7 @@ choice("Columns", "Columns", "How many items wide the bag is.", colOpts, functio
 choice("Size", "Size", "How big the bag is on screen.", {
   { 0.8, "80%", 52 }, { 0.9, "90%", 52 }, { 1, "100%", 52 }, { 1.1, "110%", 52 }, { 1.25, "125%", 52 },
 }, function() return D().scale end, function(v) D().scale = v end)
-choice("Boxes", "Boxes", "Where the Always sell / delete, Sell / delete once and Send to bank windows sit, next to the bag. If the screen ends on that side, they go on the other side.", {
+choice("Boxes", "Boxes", "Where the Always sell / delete, Sell / delete once, Send to bank and Quiver windows sit, next to the bag. If the screen ends on that side, they go on the other side.", {
   { "tr", "Top right", 96 }, { "br", "Bottom right", 96 }, { "tl", "Top left", 96 }, { "bl", "Bottom left", 96 },
 }, function() return D().sidePos or "tr" end, function(v) D().sidePos = v end)
 

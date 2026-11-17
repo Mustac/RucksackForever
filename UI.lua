@@ -561,6 +561,7 @@ do
   -- Always this character's own choice. Unticked = not loaded at all (after a reload).
   local pend = {}        -- key -> wanted, not applied yet
   local function wantedNow(key)
+    if key == "del" then key = "bags" end -- (1.9: one choice)
     if pend[key] ~= nil then return pend[key] end
     return ns.ModuleWanted(key)
   end
@@ -574,11 +575,11 @@ do
     scrolls = { icon = "Interface\\Icons\\INV_Scroll_03",
       tip = "Mages: one click deciphers your next scroll with Comprehend Scroll, only the ones your skill allows. Turned on by itself for mages, off for everyone else." },
     bags = { icon = "Interface\\Icons\\INV_Misc_Bag_08",
-      tip = "One bag window instead of the game's bags: items in groups (weapons, armour, food, your own groups...), a Junk group, your bank and your other characters. Pick an item up and drop it on a group to put it there. Opens on B. Off to start: turn it off again if you use another bag addon." },
+      tip = "Rucksack's bag, instead of the game's bags: items in groups (weapons, armour, food, your own groups...), windows beside it for what's sold, thrown away or sent to the bank, and it keeps bag slots free for you. Your bank and your other characters too. Opens on B.\n\nTurn off other bag addons (Bagnon, Baganator...) while it's on." },
   }
   local mh = Text(p, 0, y, "GameFontNormal")
   mh:SetText("Modules")
-  HoverLabel(p, mh, "Modules", "Rucksack comes with all its parts, but only loads the ones you pick here. A part that's off isn't loaded at all: no memory, no work. Each character has its own choice.\n\nEvery card is on or off. Bags and Clean-up each work alone; with both on, your bag shows your junk.\n\nThen click Apply (bottom right). Parts you turned on load right away; if you turned any off, it asks once to reload (the game can't unload a part while it runs).")
+  HoverLabel(p, mh, "Modules", "Rucksack comes with all its parts, but only loads the ones you pick here. A part that's off isn't loaded at all: no memory, no work. Each character has its own choice.\n\nBags is the heart of it: the bag with the sell, delete and bank windows. The others are extras.\n\nThen click Apply (bottom right). Parts you turned on load right away; if you turned any off, it asks once to reload (the game can't unload a part while it runs).")
   Text(p, 100, y - 1, "GameFontDisableSmall", 500):SetText("tick what you want, then Apply  ·  this character")
   y = y - 22
   -- (1.8.2) every module is one card with a tick. Bags and Clean-up sit together in one frame: each
@@ -651,44 +652,9 @@ do
   end
   local MOD = {}
   for _, m in ipairs(ns.MODULES) do MOD[m.key] = m end
-  -- Bags and Clean-up: the pair
-  do
-    local PAD, BAND = 8, 30
-    local box = CreateFrame("Frame", nil, p, ns.BACKDROP_TMPL)
-    box:SetSize(2 * CW + 10, PAD + CH + 4 + BAND + PAD - 2)
-    box:SetPoint("TOPLEFT", 0, y)
-    box:SetBackdrop(ns.SLOT_BACKDROP)
-    box:SetBackdropColor(0.05, 0.045, 0.035, 0.9)
-    ns.UI.modPair = box
-    local w = (2 * CW + 10 - 2 * PAD - 8) / 2
-    moduleCard(MOD.bags, box, PAD, -PAD, w)
-    moduleCard(MOD.del, box, PAD + w + 8, -PAD, w)
-    local band = box:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    band:SetPoint("TOPLEFT", PAD + 4, -(PAD + CH + 6))
-    band:SetWidth(2 * CW + 10 - 2 * PAD - 8)
-    band:SetHeight(BAND - 4)
-    band:SetJustifyH("LEFT")
-    band:SetJustifyV("TOP")
-    band:SetWordWrap(true)
-    box.band = band
-    p.updates[#p.updates + 1] = function()
-      local b, d = wantedNow("bags"), wantedNow("del")
-      if b and d then
-        band:SetText("|cffffd100Working together.|r Your bag gets Junk and Sell groups: drop an item on Junk to mark it, and the bag shows what your junk sells for.")
-        box:SetBackdropBorderColor(0.62, 0.52, 0.3)
-      elseif b then
-        band:SetText("|cffd9a35aBags on its own.|r One bag window with your groups; nothing is sold or thrown away. Tick Clean-up too and your bag gets Junk and Sell groups.")
-        box:SetBackdropBorderColor(0.3, 0.3, 0.3)
-      elseif d then
-        band:SetText("|cffff8a8aClean-up on its own.|r It sells junk and keeps slots free, with the game's own bags or another bag addon. Tick Bags too and you manage junk right in your bag.")
-        box:SetBackdropBorderColor(0.3, 0.3, 0.3)
-      else
-        band:SetText("|cff999999Both off: your items are left alone. Your junk list and your groups are kept for when you turn them on again.|r")
-        box:SetBackdropBorderColor(0.3, 0.3, 0.3)
-      end
-    end
-    y = y - (PAD + CH + 4 + BAND + PAD - 2) - 6
-  end
+  -- (1.9) Bags (with Clean-up inside) is one wide card on top
+  moduleCard(MOD.bags, p, 0, y, 2 * CW + 10)
+  y = y - CH - 6
   local CARDS = {}
   for _, m in ipairs(ns.MODULES) do if m.key ~= "del" and m.key ~= "bags" then CARDS[#CARDS + 1] = m end end
   for i, m in ipairs(CARDS) do

@@ -1,20 +1,16 @@
 # Rucksack Forever
 
-**Tired of full bags and digging for food?** Rucksack takes care of the chores every adventurer repeats all day. Made for World of Warcraft Forever (interface 16001).
+**A bag addon for World of Warcraft Forever** (interface 16001). Rucksack is your bag: one window with your items in groups, and beside it a window for each job: **Always sell / delete**, **Sell / delete once**, **Send to bank** and your **Quiver**. It keeps a few bag slots free for you, sells your junk at every vendor, sends stacks to the bank by themselves, and moves your arrows into the quiver. Quest items stay.
 
-**Rations** picks the right food and water for you and eats and drinks with one click. No more searching your bags after every fight or eating the wrong stack.
-
-**Clean-up** keeps a few bag slots free for you, always. When space runs low, the cheapest junk goes first (or gets sold at the next vendor), and quest items stay.
-
-**Bags** puts everything in one bag window: items in groups (your own too), three small windows beside it for what gets sold, thrown away or sent to your bank, a Hidden bag for things you never need to see, and your bank and other characters a click away.
-
-**Darkmoon Faire** tracks your tickets, plans your turn-ins for the prize you're saving for (items, raw materials, hand-ins left) and shows where to get every turn-in item (one click pins it on your map). **Scrolls** lets mages decipher their scrolls with one click.
+Extras you can turn on or off: **Rations** eats and drinks with one click, **Darkmoon Faire** tracks your tickets, turn-ins and prizes (one click pins where to get an item on your map), and **Scrolls** lets mages decipher their scrolls with one click.
 
 Everything is in one window (`/ruck`), with a small on-screen Pocket that shows bag space, your next meal and what a vendor would pay.
 
+**Using another bag addon** (Bagnon, Baganator...)? Turn it off for the full experience: Rucksack's bag replaces it.
+
 ## Modules: only load what you use
 
-Rucksack comes with all its parts, but only loads the ones you turn on in **Settings > Modules**: Rations, Bags, Clean-up, Darkmoon Faire and Scrolls. Each is a card: click the ones you want, then **Apply**. Bags and Clean-up each work alone; with both on, your bag gets the sell and delete windows. New ones load right away; ones you turned off stop after a reload, and then they use no memory and do nothing. Each character has its own choice, and **Scrolls turns itself on for mages only**. The "Show button" box on each tool's page only hides or shows that tool's button on screen.
+Rucksack loads only the parts you turn on in **Settings > Modules**. **Bags** is the bag itself, with selling, deleting and the bank built in (it starts on). **Rations**, **Darkmoon Faire** and **Scrolls** are extras. Click the cards you want, then **Apply**. New ones load right away; ones you turned off stop after a reload, and then they use no memory and do nothing. Each character has its own choice, and **Scrolls turns itself on for mages only**.
 
 ## Rations: eat and drink with one click
 
@@ -30,28 +26,29 @@ Rucksack comes with all its parts, but only loads the ones you turn on in **Sett
 - Three macros shared by all your characters, kept up to date: **EatDrink**, **Eat** and **Drink**. Drag them onto your bars straight from the Rations page; **Create macros** makes any that are missing.
 - Right-click the eat button: the Rations page.
 
-## Clean-up: delete or sell what you don't need
+## Selling and deleting: free bag slots, always
 
-**Clean-up is like a little bag helper.** You pick how many free slots you always want to keep, say 4. As soon as you drop below that, it throws out your **cheapest junk first**, the stuff worth the least, until you're back to 4 free slots. No more "Inventory is full" in the middle of a dungeon.
+**Your bag cleans itself up.** You pick how many free slots you always want to keep, say 4. As soon as you drop below that, it throws out your **cheapest junk first**, the stuff worth the least, until you're back to 4 free slots. No more "Inventory is full" in the middle of a dungeon.
 
 What goes by itself: **grey items**, **white weapons and armour** your class can't wear or that are worse than what you wear in that slot, and **soulbound gear** of any quality your class can't use. Better gear, gear for an empty slot and **profession tools** (Skinning Knife, Mining Pick, fishing poles, enchanting rods...) always stay. Anything else only goes if you told it to: click **Always** when you delete something once. Passing a vendor? It **sells** the junk for gold instead. And it never touches what your quests still need: if a quest wants 8 wolf pelts, it keeps 8.
 
 - **Keep empty slots:** deletes only when you drop below the free slots you want to keep, the cheapest first.
-- **Delete limit:** never deletes anything worth more than your limit (1g to start). It stops, tells you, and lets you choose: Delete it, Keep it or Not now.
+- **Delete items worth up to:** the slider under "Always sell / delete" (10 silver to 5 gold, or no limit). A stack worth more is never thrown away by itself: it waits and is sold at the next vendor. Selling has no limit.
 - **The trash button:** shows your free slots against your setting, the first item to go and what it's worth; red when it really deletes on your next key press. Hover it for everything that can go. The **RuckDelete** macro does the same and shows the same item.
-- **Deleting by hand:** with Bags on, dragging an item out of the bag asks "Delete Linen Cloth x14?", lists what it's needed for (a quest, a Darkmoon turn-in, an unread scroll, your next food or water, a profession tool, rare or better), and Delete removes it right away. Your lists and the windows beside the bag stay as they are (to sell or delete later, drop it on a window instead). Without Bags, the game's delete box becomes **Always delete / Delete 16 / Cancel**: nothing goes on the spot, it waits and is sold at a vendor or thrown away when your bags are nearly full (Shift-click Delete to delete it now); an item used for something gets one more question. Conjured food and water are deleted without asking.
-- **Do not sell above:** nothing worth more than this (0 to 2 gold, the price of one) is sold.
+- **Deleting by hand:** drag an item out of the bag and Rucksack asks "Delete Linen Cloth x14?", with what it's needed for underneath (a quest, a Darkmoon turn-in, an unread scroll, your next food or water, a profession tool, rare or better). Delete removes it right away; your lists and windows stay as they are. Conjured food and water are deleted without asking.
 - Keeps exactly what your current quests still need, never more. Quest starters are kept. Items a quest needs show a yellow **!** in the bag.
 - **At a vendor:** sells your Clean-up items and junk for gold instead of deleting them (hold Shift to skip).
 - **Open clams and pouches by itself** (on unless you turn it off in Settings): things that open with one click are opened for you, one at a time, and never sold or deleted.
-- **At a vendor, it tells you why** something wasn't sold (kept, a quest needs it, over your limit...) and tries again if the vendor didn't take it.
+- **At a vendor, it tells you why** something wasn't sold (kept, a quest needs it...) and tries again if the vendor didn't take it.
 - Search your list, see what's in your bags, and a history of the last 100 items deleted.
 
-## Bags: one bag window
+## The bag
 
-Turn it on in Settings > Modules: tick the **Bags** card. B, the bag buttons, vendors, mail and trades then open Rucksack's bag. Items work as always: click, drag, split, use.
+B, the bag buttons, vendors, mail and trades open Rucksack's bag. Items work as always: click, drag, split, use. It draws above other windows on your screen.
 
-**The windows beside the bag:** **Always sell / delete** (every one of an item), **Sell / delete once** (just that stack) and **Send to bank** (those stacks go into your bank when you open it). Drop an item on a window to put it there; **Alt + left-click** sends a stack to the bank, **Alt + right-click** takes an item out of any window. The first two need Clean-up. A button in the bags row moves them to any corner of the bag.
+**The windows beside the bag:** **Always sell / delete** (every one of an item), **Sell / delete once** (just that stack) and **Send to bank** (those stacks go into your bank when you open it). Drop an item on a window to put it there; **Alt + left-click** sends a stack to the bank, **Alt + right-click** takes an item out of any window. A button in the bags row moves them to any corner of the bag.
+
+**Quiver:** while you wear a quiver or ammo pouch, a fourth window shows it slot by slot with how many arrows you have. Arrows and bullets in your other bags move into it by themselves. Both can be turned off on the Bags page.
 
 **Restock:** the cart next to Hidden holds the things you always want on you. Pull an item in, type how many to carry, and a vendor that sells it tops you up. It never spends below the gold you choose to keep, and when money is short it buys a bit of everything or fills the top of your list first.
 
@@ -95,7 +92,7 @@ Turn it on in Settings > Modules: tick the **Bags** card. B, the bag buttons, ve
 
 Get it from [CurseForge](https://www.curseforge.com/wow/addons/rucksack-forever) (pick your WoW Forever install in the CurseForge app), or download the zip from [Releases](https://github.com/Mustac/RucksackForever/releases) and unpack it into `World of Warcraft\_forever_\Interface\AddOns`. The zip holds six folders: `Rucksack` and its modules `Rucksack_Rations`, `Rucksack_CleanUp`, `Rucksack_Bags`, `Rucksack_Faire` and `Rucksack_Scrolls`. Keep them all; pick what loads in Settings > Modules.
 
-Works alongside bag addons like Bagnon and Baganator (leave the Bags module off; Bags is its own bag).
+Rucksack is a bag addon: turn off other bag addons like Bagnon and Baganator.
 
 ## Website and feedback
 

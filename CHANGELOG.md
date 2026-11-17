@@ -1,3 +1,17 @@
+# Rucksack 1.9.0
+
+**Rucksack is now a bag addon.** Selling, deleting and sending to the bank are part of Rucksack's own bag.
+
+### New
+- **Bags and Clean-up are one module:** the **Bags** card in Settings > Modules is the bag with everything built in. If you had Clean-up or Bags on, your bag is on now. Rations, Darkmoon Faire and Scrolls stay as extras.
+- **A one-time message** says so when you log in. If another bag addon is running (Bagnon, Baganator...), a button turns it off and reloads.
+- **Quiver window:** while you wear a quiver or ammo pouch, a fourth window beside the bag (under Send to bank) shows it slot by slot, with how many arrows you have. Drop ammo on it to put it in.
+- **Arrows and bullets move into your quiver** by themselves when there's room (half-full stacks first). Never in a fight. Both quiver switches are on the Bags page, on to start.
+
+### Changed
+- **"Delete items worth up to"** replaces "Do not sell above". The slider is now your delete limit (10 silver to 5 gold, or no limit, the same setting as on the Clean-up page): a stack worth more is never thrown away by itself, only sold at the next vendor. Selling has no limit any more.
+- **The bag draws above other windows,** like quest trackers and health bars from other addons.
+
 # Rucksack 1.8.8
 
 ### Changed

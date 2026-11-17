@@ -71,7 +71,7 @@ do
     local lim = p:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     lim:SetPoint("TOPLEFT", 4, y - 4)
     lim:SetText("Don't delete anything worth more than")
-    HoverLabel(p, lim, "Delete limit", "Clean-up never deletes a stack worth more than this at a vendor. When the next one is, it stops and tells you; click the trash button to choose (Delete it, Keep it, Not now). It goes on by itself once you free up a bag slot.\n\nSelling has its own limit: \"Do not sell above\", the slider on the right of your bag (it starts at 2 gold).")
+    HoverLabel(p, lim, "Delete limit", "Clean-up never deletes a stack worth more than this at a vendor by itself: it keeps it and sells it at the next vendor. Click the trash button to choose (Delete it, Keep it, Not now).\n\nThe slider under \"Always sell / delete\" beside your bag is the same setting. Selling has no limit.")
     -- (1.8.2) a slider: 10s to 5g in 10s steps; - and + (and the mouse wheel) step 10s; "No limit" ticks it off
     local STEP, MAXSTEPS = 1000, 50
     local function setLimit(v)
@@ -125,7 +125,7 @@ do
       local v = D().maxValue or D().lastLimit or 10000
       setLimit(math.max(STEP, math.min(STEP * MAXSTEPS, v + (delta > 0 and STEP or -STEP))))
     end)
-    tip(slider, "Delete limit", "Drag to set it: 10s to 5g, in 10s steps. A stack worth more isn't deleted: Clean-up waits and asks you.")
+    tip(slider, "Delete limit", "Drag to set it: 10s to 5g, in 10s steps. A stack worth more isn't deleted by itself: it's sold at the next vendor.")
     local plus = stepBtn("+", 1)
     plus:SetPoint("LEFT", slider, "RIGHT", 6, 0)
     local valFs = p:CreateFontString(nil, "ARTWORK", "GameFontHighlight")

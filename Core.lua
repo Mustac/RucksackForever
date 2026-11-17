@@ -14,7 +14,7 @@ ns.MODULES = {
   { key = "del", folder = "Rucksack_CleanUp", name = "Clean-up", what = "sells junk, keeps bag slots free" },
   { key = "faire", folder = "Rucksack_Faire", name = "Darkmoon Faire", what = "tickets, turn-ins and prizes" },
   { key = "scrolls", folder = "Rucksack_Scrolls", name = "Scrolls", what = "mages: one click deciphers a scroll" },
-  { key = "bags", folder = "Rucksack_Bags", name = "Bags", what = "one bag window with groups and your bank" },
+  { key = "bags", folder = "Rucksack_Bags", name = "Bags", what = "your bag: groups, sell, delete and bank windows" },
 }
 ns.loaded = {}   -- key -> true once that module's files ran
 function ns.Has(key) return ns.loaded[key] and true or false end
@@ -50,20 +50,40 @@ end
 
 -- (1.7.4) which modules to load: ticked in Settings > Modules, always per character.
 -- New: everything on, except Scrolls, which is on for mages only.
+-- (1.9, 17 Nov) Rucksack is a bag addon now: Bags and Clean-up are one choice, "Bags" (he: "Make
+-- the addon exclusivly bag addon, so from now on just make one setting, bag with this filters
+-- together"). Clean-up's folder still loads on its own, but always together with Bags.
 function ns.ModuleWanted(key)
+  if key == "del" then key = "bags" end
   local mods = ns.char and ns.char.modules
-  -- (1.8.2) Bags and Clean-up are two modules: each works alone, and together the bag shows your junk
   if mods and mods[key] ~= nil then return mods[key] end
   if key == "scrolls" then
     local _, class = UnitClass("player")
     return class == "MAGE"
   end
-  if key == "bags" then return false end -- (1.8: replaces your bag window, so you turn it on yourself)
   return true
 end
 function ns.SetModuleWanted(key, on)
   ns.char.modules = ns.char.modules or {}
+  if key == "del" then key = "bags" end
   ns.char.modules[key] = on and true or false
+  if key == "bags" then ns.char.modules.del = on and true or false end
+end
+-- (1.9) once per character: whoever used Clean-up or Bags before gets the whole bag. Someone who had
+-- both off (Rations or Darkmoon only) keeps it off; the one-time message offers it (News.lua).
+local function bagAddonOnce()
+  local c = ns.char
+  if c.bagAddon then return end
+  local mods = c.modules or {}
+  c.modules = mods
+  c.hadBag = mods.bags == true or nil
+  if mods.del ~= false or mods.bags == true then
+    c.bagTurnedOn = (mods.bags ~= true) or nil -- (for the message: the bag is new for this character)
+    mods.bags, mods.del = true, true
+  else
+    mods.bags, mods.del = false, false
+  end
+  c.bagAddon = true
 end
 -- (1.7.4) once per character: take over the old choices (this character's own, or the account's),
 -- and decide Scrolls by class
@@ -246,6 +266,7 @@ ev:SetScript("OnEvent", function(self, event, arg1)
   if event == "ADDON_LOADED" then
     if arg1 ~= ADDON then return end
     -- the core's own settings; each module keeps its own
+    ns.newInstall = RucksackDB == nil -- (1.9: a first install doesn't get the "now a bag addon" message)
     RucksackDB = RucksackDB or {}
     ns.db = RucksackDB
     -- (1.7) settings from 1.x lived in this addon's saved file; the modules take them over the
@@ -262,6 +283,7 @@ ev:SetScript("OnEvent", function(self, event, arg1)
     for _, fn in ipairs(ns.onLoad) do fn() end
     self:UnregisterEvent("ADDON_LOADED")
     moduleChoicesOnce()
+    bagAddonOnce()
     -- (1.7) now load the ticked modules
     for _, m in ipairs(ns.MODULES) do
       if ns.ModuleWanted(m.key) then ns.LoadModule(m) end
