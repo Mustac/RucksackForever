@@ -110,6 +110,27 @@ B.CATS = {
   { key = "emptyS", name = "Empty · special bag", color = { 0.3, 0.38, 0.45 } },
   { key = "junk", name = "Junk", color = { 0.9, 0.3, 0.3 } }, -- (1.8.2: Junk is under everything unless you drag it)
 }
+-- (1.9.1) the kinds of special bag: name and default colour (bit = the game's bag family)
+B.SPECIAL = {
+  { bit = 1, key = "quiver", name = "Quiver", color = { 0.80, 0.63, 0.40 } },
+  { bit = 2, key = "ammo", name = "Ammo pouch", color = { 0.68, 0.68, 0.74 } },
+  { bit = 4, key = "soul", name = "Soul bag", color = { 0.66, 0.38, 0.95 } },
+  { bit = 32, key = "herb", name = "Herb bag", color = { 0.35, 0.82, 0.38 } },
+  { bit = 64, key = "enchant", name = "Enchanting bag", color = { 0.38, 0.58, 1 } },
+  { bit = 1024, key = "mining", name = "Mining bag", color = { 0.86, 0.52, 0.30 } },
+  { bit = 8, key = "leather", name = "Leatherworking bag", color = { 0.62, 0.44, 0.27 } },
+  { bit = 128, key = "engineer", name = "Engineering bag", color = { 1, 0.58, 0.18 } },
+  { bit = 512, key = "gem", name = "Gem bag", color = { 0.32, 0.86, 0.90 } },
+  { bit = 16, key = "inscribe", name = "Inscription bag", color = { 0.90, 0.84, 0.58 } },
+}
+-- each kind's empty slots are their own group, named after the bag ("Empty · Herb bag")
+do
+  local at
+  for i, c in ipairs(B.CATS) do if c.key == "emptyS" then at = i end end
+  for n, sp in ipairs(B.SPECIAL) do
+    table.insert(B.CATS, at + n, { key = "emptyS_" .. sp.key, name = "Empty · " .. sp.name, color = sp.color, spec = sp.key })
+  end
+end
 -- colours for your own groups
 B.PALETTE = { { 0.75, 0.54, 0.94 }, { 0.37, 0.78, 0.94 }, { 0.94, 0.63, 0.31 }, { 0.91, 0.44, 0.69 },
   { 0.48, 0.84, 0.48 }, { 0.95, 0.85, 0.35 }, { 0.45, 0.6, 1 }, { 0.85, 0.85, 0.85 } }
@@ -125,10 +146,12 @@ local function rebuild()
         CAT[g.key] = cc
       end
     end
+    if c.spec then c.color = B.SpecialColor and B.SpecialColor(c.spec) or c.color end
     ALL[#ALL + 1] = c
     CAT[c.key] = c
   end
 end
+B.RebuildCats = function() rebuild() end
 rebuild()
 B.CAT = CAT
 local held -- the item on your cursor (groups get a slot to drop it on)
@@ -158,6 +181,9 @@ function B.Ordered()
   for _, c in ipairs(ALL) do
     if not seen[c.key] then
       local at = (c.key == "junk" or c.key:find("^empty")) and (#keys + 1) or B.TailStart(keys)
+      if c.spec then -- (1.9.1: a special bag's empty group goes right after "Empty · special bag")
+        for i = #keys, 1, -1 do if keys[i] == "emptyS" or keys[i]:find("^emptyS_") then at = i + 1 break end end
+      end
       table.insert(list, at, c)
       table.insert(keys, at, c.key)
     end
@@ -790,6 +816,20 @@ local function decorate(b)
   d.tag:SetPoint("TOPLEFT", 1, -1)
   local font = d.tag:GetFont()
   if font then d.tag:SetFont(font, 9, "OUTLINE") end
+  -- (1.9.1) a special bag's slot: tinted in that bag's colour, with a thin border of it
+  d.tint = b:CreateTexture(nil, "OVERLAY", nil, -2)
+  d.tint:SetAllPoints()
+  d.tint:Hide()
+  d.lines = {}
+  for i = 1, 4 do
+    local t = b:CreateTexture(nil, "OVERLAY", nil, -1)
+    if i == 1 then t:SetPoint("TOPLEFT") t:SetPoint("TOPRIGHT") t:SetHeight(1)
+    elseif i == 2 then t:SetPoint("BOTTOMLEFT") t:SetPoint("BOTTOMRIGHT") t:SetHeight(1)
+    elseif i == 3 then t:SetPoint("TOPLEFT") t:SetPoint("BOTTOMLEFT") t:SetWidth(1)
+    else t:SetPoint("TOPRIGHT") t:SetPoint("BOTTOMRIGHT") t:SetWidth(1) end
+    t:Hide()
+    d.lines[i] = t
+  end
   d.dim = b:CreateTexture(nil, "OVERLAY", nil, 7) -- search and filter: everything else goes dark
   d.dim:SetAllPoints()
   d.dim:SetColorTexture(0, 0, 0, 0.75)
@@ -1178,7 +1218,17 @@ local function buildCells(v, text)
   end
   -- empty slots (live only): every one (you can drop an item on any), or one cell with the number
   if live then
-    for kind, cat in pairs({ [""] = "empty", R = "emptyR", S = "emptyS" }) do
+    -- (1.9.1) a special bag's empty slots: one group per kind ("Empty · Herb bag")
+    local bySpec = {}
+    for _, sl in ipairs(st.empties.S) do
+      local sp = B.SpecialOf(sl.bag)
+      local k = sp and ("S_" .. sp.key) or "S"
+      bySpec[k] = bySpec[k] or {}
+      table.insert(bySpec[k], sl)
+    end
+    local kinds = { [""] = "empty", R = "emptyR" }
+    for k, list in pairs(bySpec) do st.empties[k] = list kinds[k] = "empty" .. k end
+    for kind, cat in pairs(kinds) do
       local list = st.empties[kind]
       if #list > 0 then
         byCat[cat] = {}
@@ -1939,6 +1989,17 @@ local function show(e, x, y, text, withDot)
   local c = withDot and CAT[e.cat]
   if c and not e.empty then d.dot:SetColorTexture(c.color[1], c.color[2], c.color[3], 1) d.dot:Show() else d.dot:Hide() end
   d.dim:SetShown(not matches(e, text))
+  -- (1.9.1) in a special bag: its colour
+  local sp = e.bag and B.SpecialOf and B.SpecialOf(e.bag)
+  if sp and DB.specialTint ~= false then
+    local sc = B.SpecialColor(sp.key)
+    d.tint:SetColorTexture(sc[1], sc[2], sc[3], e.empty and 0.28 or 0.14)
+    d.tint:Show()
+    for _, t in ipairs(d.lines) do t:SetColorTexture(sc[1], sc[2], sc[3], 0.9) t:Show() end
+  else
+    d.tint:Hide()
+    for _, t in ipairs(d.lines) do t:Hide() end
+  end
 end
 
 -- (15 Nov) for Side.lua: a button painted like an empty bag slot (the slot you drop items on)
@@ -2009,6 +2070,7 @@ end
 -- green + on the bag when it's junk already (keep it).
 local KIND = { weapon = 1, armor = 2, food = 3, consumable = 4, trade = 5, quest = 6, other = 7 }
 local EMPTY_ORDER = { empty = 1, emptyR = 2, emptyS = 3 }
+for n, sp in ipairs(B.SPECIAL) do EMPTY_ORDER["emptyS_" .. sp.key] = 3 + n end
 local function drawOneBag(byCat, text, cols, W, st, canDrop)
   local items, junk, sell, empties = {}, {}, {}, {}
   for _, list in pairs(byCat) do
@@ -3060,10 +3122,11 @@ function B.ReagentStep()
   if busy then return B.ReagentsHome() end -- (a move is still on its way)
   if not empty and not next(partial) then return end
   for _, bag in ipairs(BAGS) do
-    if bag ~= REAGENT then
+    if bag ~= REAGENT and not (B.SpecialOf and B.SpecialOf(bag)) then
       for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
         local it = C_Container.GetContainerItemInfo(bag, slot)
-        if it and it.itemID and not it.isLocked and B.IsReagent(it.itemID) then
+        if it and it.itemID and not it.isLocked and B.IsReagent(it.itemID)
+          and not (B.SpecialRoomFor and B.SpecialRoomFor(it.itemID)) then -- (1.9.1: special bags first)
           local to = partial[it.itemID] or empty
           if to then
             local sig = bag .. ":" .. slot .. ":" .. it.itemID .. ":" .. (it.stackCount or 1) .. ">" .. to
@@ -3087,79 +3150,124 @@ function B.ReagentStep()
     end
   end
 end
--- (1.9, 17 Nov) arrows and bullets go into your quiver or ammo pouch by themselves (he: "auto
--- move ammo to quiver"), the same way: a half-full stack of it first, then an empty slot, one stack
--- at a time. Never in a fight or while you hold something; stacks marked for a box stay put.
+-- (1.9.1, 17 Nov) special bags (he: "special bags, name of the bag to be correct like Herb bag as
+-- category, tint of action slots and border of slot, and items prefer those, actually sorting in real
+-- time if it has place item will go to those bags, make it as setting. And let us change colors
+-- inside settings"). Each kind has a name and a colour (yours, from the Bags page, or the default).
+-- An item that fits one goes there by itself when there's room: onto a half-full stack of it first,
+-- then an empty slot, one stack at a time, before the reagent bag. Never in a fight or while you hold
+-- something; stacks marked for a window stay put.
 do -- (in a block: the file has nearly as many top-level names as Lua allows)
-local function hasBit(v, b) return v and math.floor(v / b) % 2 == 1 or false end
+local function hasBit(v, b) return v and v > 0 and math.floor(v / b) % 2 == 1 or false end
+B.hasBit = hasBit
+local byKey = {}
+for _, sp in ipairs(B.SPECIAL) do byKey[sp.key] = sp end
+B.SpecialByKey = byKey
+-- your colour for a kind, or its own
+function B.SpecialColor(key)
+  local mine = DB and DB.specColors and DB.specColors[key]
+  return mine or (byKey[key] and byKey[key].color) or { 0.5, 0.5, 0.5 }
+end
+-- what kind of special bag this bag is (nil: an ordinary bag, the backpack or the reagent bag)
+function B.SpecialOf(bag)
+  if not bag or bag == 0 or bag == REAGENT then return nil end
+  if not C_Container.GetContainerNumFreeSlots or (C_Container.GetContainerNumSlots(bag) or 0) == 0 then return nil end
+  local fam = select(2, C_Container.GetContainerNumFreeSlots(bag)) or 0
+  if fam == 0 then return nil end
+  for _, sp in ipairs(B.SPECIAL) do if hasBit(fam, sp.bit) then return sp end end
+end
+local function itemFamily(id)
+  local getFamily = (C_Item and C_Item.GetItemFamily) or GetItemFamily
+  if not getFamily or not id then return 0 end
+  local ok, fam = pcall(getFamily, id)
+  return ok and fam or 0
+end
 -- the ammo bag you wear: its bag number and kind (1 = quiver/arrows, 2 = ammo pouch/bullets)
 function B.QuiverBag()
   for _, bag in ipairs(BAR) do
-    local n = C_Container.GetContainerNumSlots(bag) or 0
-    if n > 0 then
-      local fam = select(2, C_Container.GetContainerNumFreeSlots(bag)) or 0
-      if hasBit(fam, 1) then return bag, 1 elseif hasBit(fam, 2) then return bag, 2 end
-    end
+    local sp = B.SpecialOf(bag)
+    if sp and (sp.bit == 1 or sp.bit == 2) then return bag, sp.bit end
   end
 end
 -- does this item go in that ammo bag?
-function B.FitsQuiver(id, kind)
-  if not id or not kind then return false end
-  local getFamily = (C_Item and C_Item.GetItemFamily) or GetItemFamily
-  if not getFamily then return false end
-  local ok, fam = pcall(getFamily, id)
-  return ok and hasBit(fam, kind) or false
-end
-B.ammoNo = {}
-function B.AmmoHome()
-  if not DB or DB.ammoHome == false then return end
-  if B.ammoWait and GetTime() - B.ammoWait < 2 then return end
-  B.ammoWait = GetTime()
-  C_Timer.After(0.6, B.AmmoStep)
-end
-function B.AmmoStep()
-  B.ammoWait = nil
-  if not DB or DB.ammoHome == false then return end
-  if tidying or InCombatLockdown() or CursorHasItem() or (GetCursorInfo and GetCursorInfo()) then return end
-  if SpellIsTargeting and SpellIsTargeting() then return end
-  local q, kind = B.QuiverBag()
-  if not q then return end
-  local empty, partial, busy = nil, {}, false
-  for slot = 1, C_Container.GetContainerNumSlots(q) or 0 do
-    local it = C_Container.GetContainerItemInfo(q, slot)
-    if it and it.itemID then
-      if it.isLocked then busy = true
-      else
-        local max = select(8, ns.GetInfo(it.hyperlink or it.itemID))
-        if max and (it.stackCount or 1) < max and not partial[it.itemID] then partial[it.itemID] = slot end
+function B.FitsQuiver(id, kind) return id and kind and hasBit(itemFamily(id), kind) or false end
+-- your special bags right now: for each, the half-full stacks (by item) and the first empty slot
+local function specialRoom()
+  local out, busy = {}, false
+  for _, bag in ipairs(BAR) do
+    local sp = B.SpecialOf(bag)
+    if sp then
+      local r = { bag = bag, sp = sp, partial = {} }
+      for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
+        local it = C_Container.GetContainerItemInfo(bag, slot)
+        if it and it.itemID then
+          if it.isLocked then busy = true
+          else
+            local max = select(8, ns.GetInfo(it.hyperlink or it.itemID))
+            if max and (it.stackCount or 1) < max and not r.partial[it.itemID] then r.partial[it.itemID] = slot end
+          end
+        elseif not r.empty then
+          r.empty = slot
+        end
       end
-    elseif not empty then
-      empty = slot
+      out[#out + 1] = r
     end
   end
-  if busy then return B.AmmoHome() end
-  if not empty and not next(partial) then return end
+  return out, busy
+end
+-- where this item would go: the bag and slot in one of your special bags, or nil
+local function placeFor(rooms, id)
+  local fam = itemFamily(id)
+  if fam == 0 then return nil end
+  for _, r in ipairs(rooms) do
+    if hasBit(fam, r.sp.bit) then
+      local to = r.partial[id] or r.empty
+      if to then return r.bag, to end
+    end
+  end
+end
+-- (for the reagent bag: an item with room in a special bag goes there instead)
+function B.SpecialRoomFor(id)
+  if not DB or DB.specialHome == false then return false end
+  local rooms = specialRoom()
+  return placeFor(rooms, id) ~= nil
+end
+B.specialNo = {}
+function B.SpecialHome()
+  if not DB or DB.specialHome == false then return end
+  if B.specialWait and GetTime() - B.specialWait < 2 then return end
+  B.specialWait = GetTime()
+  C_Timer.After(0.6, B.SpecialStep)
+end
+B.AmmoHome = B.SpecialHome -- (1.9 name)
+function B.SpecialStep()
+  B.specialWait = nil
+  if not DB or DB.specialHome == false then return end
+  if tidying or InCombatLockdown() or CursorHasItem() or (GetCursorInfo and GetCursorInfo()) then return end
+  if SpellIsTargeting and SpellIsTargeting() then return end
+  local rooms, busy = specialRoom()
+  if #rooms == 0 then return end
+  if busy then return B.SpecialHome() end
   for _, bag in ipairs(BAGS) do
-    local fam = bag == 0 and 0 or (select(2, C_Container.GetContainerNumFreeSlots(bag)) or 0)
-    if bag ~= q and bag ~= REAGENT and fam == 0 then
+    if not B.SpecialOf(bag) then -- (ordinary bags and the reagent bag)
       for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
         local it = C_Container.GetContainerItemInfo(bag, slot)
         local id = it and it.itemID
-        if id and not it.isLocked and not B.ammoNo[id] and B.FitsQuiver(id, kind)
+        if id and not it.isLocked and not B.specialNo[id]
           and not (B.BankSlot and B.BankSlot(bag, slot, id))
           and not (ns.Del and ns.Del.SlotJunk and ns.Del.SlotJunk(bag, slot, id)) then
-          local to = partial[id] or empty
-          if to then
-            local sig = bag .. ":" .. slot .. ":" .. id .. ":" .. (it.stackCount or 1) .. ">" .. to
-            if sig == B.ammoLast and GetTime() - (B.ammoLastAt or 0) < 5 then
-              B.ammoNo[id], B.ammoLast = true, nil -- (the game won't do it: not tried again)
+          local tb, to = placeFor(rooms, id)
+          if tb then
+            local sig = bag .. ":" .. slot .. ":" .. id .. ":" .. (it.stackCount or 1) .. ">" .. tb .. ":" .. to
+            if sig == B.specialLast and GetTime() - (B.specialLastAt or 0) < 5 then
+              B.specialNo[id], B.specialLast = true, nil -- (the game won't do it: not tried again)
             else
-              B.ammoLast, B.ammoLastAt = sig, GetTime()
+              B.specialLast, B.specialLastAt = sig, GetTime()
               C_Container.PickupContainerItem(bag, slot)
-              C_Container.PickupContainerItem(q, to)
-              if CursorHasItem() then ClearCursor() B.ammoNo[id] = true end
+              C_Container.PickupContainerItem(tb, to)
+              if CursorHasItem() then ClearCursor() B.specialNo[id] = true end
             end
-            return B.AmmoHome()
+            return B.SpecialHome()
           end
         end
       end
@@ -3290,7 +3398,7 @@ ev:SetScript("OnEvent", function(_, e)
   if e == "PLAYER_LOGOUT" then pcall(B.SaveBags) return end
   if e == "PLAYERBANKSLOTS_CHANGED" then pcall(B.SaveBank) end
   if e == "PLAYERBANKBAGSLOTS_CHANGED" or e == "BANK_TABS_CHANGED" then B.ForgetLocked() B.lockCheck = 2 end
-  if e == "PLAYER_REGEN_ENABLED" then B.ReagentsHome() B.AmmoHome() if pendingDraw then B.Changed() end return end
+  if e == "PLAYER_REGEN_ENABLED" then B.ReagentsHome() B.SpecialHome() if pendingDraw then B.Changed() end return end
   if OPENERS[e] then
     if DB and DB.replace and not f:IsShown() then autoOpened = true B.Open() else B.Changed() end
   elseif CLOSERS[e] then
@@ -3300,8 +3408,8 @@ ev:SetScript("OnEvent", function(_, e)
       pcall(trackNew)
       pcall(B.SaveBags)
       if bankOpen then pcall(B.SaveBank) end
+      B.SpecialHome()
       B.ReagentsHome()
-      B.AmmoHome()
     elseif e == "PLAYER_MONEY" then
       pcall(B.SaveBags)
     end
@@ -3360,8 +3468,8 @@ table.insert(ns.onLogin, function()
   pcall(trackNew)
   pcall(B.SaveBags)
   takeOver()
+  B.SpecialHome()
   B.ReagentsHome()
-  B.AmmoHome()
   -- (the Junk group shows what the trash button shows: hide that button once; "Show button" on the
   -- Clean-up page brings it back)
   if ns.del and not DB.trashHidden then

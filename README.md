@@ -1,6 +1,6 @@
 # Rucksack Forever
 
-**A bag addon for World of Warcraft Forever** (interface 16001). Rucksack is your bag: one window with your items in groups, and beside it a window for each job: **Always sell / delete**, **Sell / delete once**, **Send to bank** and your **Quiver**. It keeps a few bag slots free for you, sells your junk at every vendor, sends stacks to the bank by themselves, and moves your arrows into the quiver. Quest items stay.
+**A bag addon for World of Warcraft Forever** (interface 16001). Rucksack is your bag: one window with your items in groups, and beside it a window for each job: **Always sell / delete**, **Sell / delete once**, **Send to bank** and your **Quiver**. It keeps a few bag slots free for you, sells your junk at every vendor, sends stacks to the bank by themselves, and sorts herbs, shards, ore and arrows into their special bags. Quest items stay.
 
 Extras you can turn on or off: **Rations** eats and drinks with one click, **Darkmoon Faire** tracks your tickets, turn-ins and prizes (one click pins where to get an item on your map), and **Scrolls** lets mages decipher their scrolls with one click.
 
@@ -48,7 +48,9 @@ B, the bag buttons, vendors, mail and trades open Rucksack's bag. Items work as 
 
 **The windows beside the bag:** **Always sell / delete** (every one of an item), **Sell / delete once** (just that stack) and **Send to bank** (those stacks go into your bank when you open it). Drop an item on a window to put it there; **Alt + left-click** sends a stack to the bank, **Alt + right-click** takes an item out of any window. A button in the bags row moves them to any corner of the bag.
 
-**Quiver:** while you wear a quiver or ammo pouch, a fourth window shows it slot by slot with how many arrows you have. Arrows and bullets in your other bags move into it by themselves. Both can be turned off on the Bags page.
+**Quiver:** while you wear a quiver or ammo pouch, a fourth window shows it slot by slot with how many arrows you have.
+
+**Special bags:** herb, soul, mining, enchanting and other special bags (and the quiver) get their slots tinted in their own colour, and their empty slots are their own group ("Empty · Herb bag"). Anything that fits one moves into it by itself when there's room, before the reagent bag. Pick the colours on the Bags page.
 
 **Restock:** the cart next to Hidden holds the things you always want on you. Pull an item in, type how many to carry, and a vendor that sells it tops you up. It never spends below the gold you choose to keep, and when money is short it buys a bit of everything or fills the top of your list first.
 

@@ -175,7 +175,7 @@ local BOXES = {
       "Alt + left-click an item in your bag: that stack goes here (at the bank: straight in). Alt + right-click it: back in your bag." } },
   { key = "quiver", name = "Quiver", color = { 0.72, 0.88, 0.5 }, quiver = true,
     tip = { "The quiver or ammo pouch you wear, slot by slot.",
-      "Arrows and bullets in your other bags move in here by themselves when there's room (a switch on the Bags page).",
+      "Arrows and bullets in your other bags move in here by themselves when there's room (\"Sort into special bags\" on the Bags page).",
       "Drop ammo on this window to put it in." } },
 }
 local HOWTO = "Drop an item on the box to put it here. To take it out: Alt + right-click it, or pick it up and drop it on the green slot that shows up in the box."
@@ -577,7 +577,7 @@ function B.DrawSide(st, text)
         slotOn = n == 0
         local ammo = 0
         for _, e in ipairs(list) do if not e.empty then ammo = ammo + (e.total or e.count or 0) end end
-        local c = def.color
+        local c = B.SpecialColor and B.SpecialColor(qkind == 2 and "ammo" or "quiver") or def.color
         box.title:SetText(("|cff%02x%02x%02x%s|r  |cffffffff%d|r"):format(math.floor(c[1] * 255), math.floor(c[2] * 255), math.floor(c[3] * 255),
           qkind == 2 and "Ammo pouch" or "Quiver", ammo))
       end

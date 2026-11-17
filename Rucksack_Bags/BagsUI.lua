@@ -35,8 +35,8 @@ y = y - 24
 -- (1.9) the quiver
 p:Add(Check(p, 0, y, "Quiver beside the bag", "While you wear a quiver or ammo pouch, it gets its own window beside the bag, under Send to bank: your arrows slot by slot and how many you have.",
   function() return D().showQuiver ~= false end, function(v) D().showQuiver = v and true or false B.Changed() end, "GameFontHighlightSmall"))
-p:Add(Check(p, 330, y, "Arrows and bullets into the quiver", "Ammo lying in one of your ordinary bags moves into your quiver or ammo pouch by itself when there's room (onto a half-full stack first, then an empty slot). Never in a fight, never while you hold an item.",
-  function() return D().ammoHome ~= false end, function(v) D().ammoHome = v and true or false if v then B.AmmoHome() end end, "GameFontHighlightSmall"))
+p:Add(Check(p, 330, y, "Sort into special bags", "An item that fits one of your special bags (arrows in the quiver, shards in the soul bag, herbs in the herb bag, ore in the mining bag...) moves there by itself when there's room: onto a half-full stack first, then an empty slot. Special bags come before the reagent bag. Never in a fight, never while you hold an item.",
+  function() return D().specialHome ~= false end, function(v) D().specialHome = v and true or false if v then B.SpecialHome() end end, "GameFontHighlightSmall"))
 y = y - 32
 
 -- a row of small buttons, the one in use lit gold
@@ -146,3 +146,76 @@ for _, c in ipairs(B.CATS) do
     n = n + 1
   end
 end
+
+-- (1.9.1) special bag colours: a square per kind; click it for a small palette (the game's own colour
+-- picker is a game window, and Rucksack never opens those)
+y = y - math.ceil(n / 4) * 24 - 6
+local cl = Text(p, 0, y, "GameFontNormal")
+cl:SetText("Special bag colours")
+Text(p, 150, y - 1, "GameFontDisableSmall", 480):SetText("the tint and border of their slots in your bag")
+p:Add(Check(p, 470, y + 3, "Colour their slots", "Slots in a special bag get a light tint and a thin border in its colour, so you see at a glance which bag they're in.",
+  function() return D().specialTint ~= false end, function(v) D().specialTint = v and true or false B.Draw() end, "GameFontHighlightSmall"))
+y = y - 21
+local PICK = { { 0.35, 0.82, 0.38 }, { 0.20, 0.60, 0.25 }, { 0.66, 0.38, 0.95 }, { 0.85, 0.40, 0.85 },
+  { 0.38, 0.58, 1 }, { 0.32, 0.86, 0.90 }, { 0.20, 0.40, 0.80 }, { 1, 0.82, 0.25 },
+  { 1, 0.58, 0.18 }, { 0.86, 0.52, 0.30 }, { 0.62, 0.44, 0.27 }, { 0.80, 0.63, 0.40 },
+  { 0.95, 0.35, 0.35 }, { 0.90, 0.84, 0.58 }, { 0.68, 0.68, 0.74 }, { 0.95, 0.95, 0.95 } }
+local palette
+local swatches = {}
+local function paintSwatches()
+  for _, w in ipairs(swatches) do local c = B.SpecialColor(w.key) w.fill:SetColorTexture(c[1], c[2], c[3], 1) end
+end
+local function setColor(key, c)
+  local db = D()
+  db.specColors = db.specColors or {}
+  db.specColors[key] = c and { c[1], c[2], c[3] } or nil
+  if B.RebuildCats then B.RebuildCats() end
+  paintSwatches()
+  B.Changed()
+end
+local function openPalette(w)
+  if not palette then
+    palette = CreateFrame("Frame", "RucksackSpecialPalette", p, ns.BACKDROP_TMPL)
+    palette:SetFrameStrata("DIALOG")
+    palette:SetSize(8 * 22 + 16, 2 * 22 + 46)
+    if palette.SetBackdrop then palette:SetBackdrop(ns.DIALOG_BACKDROP or { bgFile = "Interface\\ChatFrame\\ChatFrameBackground", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } }) end
+    palette:EnableMouse(true)
+    palette.cells = {}
+    for i, c in ipairs(PICK) do
+      local b = CreateFrame("Button", nil, palette)
+      b:SetSize(18, 18)
+      b:SetPoint("TOPLEFT", 8 + ((i - 1) % 8) * 22, -8 - math.floor((i - 1) / 8) * 22)
+      local t = b:CreateTexture(nil, "ARTWORK") t:SetAllPoints() t:SetColorTexture(c[1], c[2], c[3], 1)
+      b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+      b:SetScript("OnClick", function() setColor(palette.key, c) palette:Hide() end)
+    end
+    local def = CreateFrame("Button", nil, palette, "UIPanelButtonTemplate")
+    def:SetSize(80, 20) def:SetPoint("BOTTOMLEFT", 8, 8) def:SetText("Default")
+    def:SetScript("OnClick", function() setColor(palette.key, nil) palette:Hide() end)
+    local close = CreateFrame("Button", nil, palette, "UIPanelButtonTemplate")
+    close:SetSize(70, 20) close:SetPoint("BOTTOMRIGHT", -8, 8) close:SetText("Close")
+    close:SetScript("OnClick", function() palette:Hide() end)
+  end
+  palette.key = w.key
+  palette:ClearAllPoints()
+  palette:SetPoint("TOPLEFT", w, "BOTTOMLEFT", 0, -4)
+  palette:Show()
+end
+for i, sp in ipairs(B.SPECIAL) do
+  local x, yy = ((i - 1) % 5) * 138, y - math.floor((i - 1) / 5) * 22
+  local w = CreateFrame("Button", nil, p)
+  w:SetSize(16, 16)
+  w:SetPoint("TOPLEFT", p, "TOPLEFT", x, yy)
+  w.key = sp.key
+  local edge = w:CreateTexture(nil, "BACKGROUND") edge:SetAllPoints() edge:SetColorTexture(0, 0, 0, 1)
+  w.fill = w:CreateTexture(nil, "ARTWORK") w.fill:SetPoint("TOPLEFT", 1, -1) w.fill:SetPoint("BOTTOMRIGHT", -1, 1)
+  w:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+  w:SetScript("OnClick", function(self) if palette and palette:IsShown() and palette.key == self.key then palette:Hide() else openPalette(self) end end)
+  tip(w, sp.name, "Click to pick its colour.")
+  local label = Text(p, x + 22, yy - 1, "GameFontHighlightSmall")
+  label:SetText(sp.name)
+  swatches[#swatches + 1] = w
+end
+paintSwatches()
+p:HookScript("OnShow", paintSwatches)
+B.uiBottom = y - 22 - 16 -- (for the test scripts: the page must end above -552)

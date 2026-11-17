@@ -1,3 +1,11 @@
+# Rucksack 1.9.1
+
+### New
+- **Special bags:** herb, soul, mining, enchanting, leatherworking, engineering, gem and inscription bags, quivers and ammo pouches.
+  - Their slots are tinted with a thin border in that bag's colour, and their empty slots are their own group, named after the bag ("Empty · Herb bag").
+  - **Items sort into them by themselves:** anything that fits a special bag with room moves there (half-full stacks first). Special bags come before the reagent bag. "Sort into special bags" on the Bags page (on to start) replaces the arrows-only switch.
+  - **Pick the colours:** "Special bag colours" at the bottom of the Bags page, a square per kind with a small palette and Default. "Colour their slots" turns the tint off.
+
 # Rucksack 1.9.0
 
 **Rucksack is now a bag addon.** Selling, deleting and sending to the bank are part of Rucksack's own bag.
