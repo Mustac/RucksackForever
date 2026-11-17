@@ -1,8 +1,12 @@
 # Rucksack Forever
 
-**A bag addon for World of Warcraft Forever** (interface 16001). Rucksack is your bag: one window with your items in groups, and beside it a window for each job: **Always sell / delete**, **Sell / delete once**, **Send to bank** and your **Quiver**. It keeps a few bag slots free for you, sells your junk at every vendor, sends stacks to the bank by themselves, and sorts herbs, shards, ore and arrows into their special bags. Quest items stay.
+**A bag addon for World of Warcraft Forever** (interface 16001), with extra features you can turn on or off.
 
-Extras you can turn on or off: **Rations** eats and drinks with one click, **Darkmoon Faire** tracks your tickets, turn-ins and prizes (one click pins where to get an item on your map), and **Scrolls** lets mages decipher their scrolls with one click.
+![Rucksack's bag: items in groups, quest marks, and the Always sell / delete, Sell / delete once and Send to bank windows beside it](https://raw.githubusercontent.com/Mustac/RucksackForever/main/screenshots/0-bag.jpg)
+
+**The bag:** one window with your items in groups you choose, and beside it a window for each job: **Always sell / delete**, **Sell / delete once**, **Send to bank** and your **Quiver**. It keeps a few bag slots free for you, sells your junk at every vendor, sends stacks to the bank by themselves, and sorts herbs, shards, ore and arrows into their special bags. Quest items are marked and kept. It also shows your bank and your other characters.
+
+**Extras (modules you turn on or off in Settings):** **Rations** eats and drinks with one click, **Darkmoon Faire** tracks your tickets, turn-ins and prizes (one click pins where to get an item on your map), and **Scrolls** lets mages decipher their scrolls with one click. A module that's off isn't loaded at all.
 
 Everything is in one window (`/ruck`), with a small on-screen Pocket that shows bag space, your next meal and what a vendor would pay.
 
