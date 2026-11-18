@@ -1,3 +1,8 @@
+# Rucksack 1.9.11
+
+### New
+- **Take a bag out even when it's full:** click (or drag) a bag in the bags row. Rucksack moves its items into your other bags first (and into the bank while it's open), then puts the bag in a free slot. Not enough room? It tells you how many slots are missing and offers to delete junk.
+
 # Rucksack 1.9.10
 
 ### Changed
