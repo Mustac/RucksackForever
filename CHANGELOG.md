@@ -1,3 +1,8 @@
+# Rucksack 1.9.4
+
+### Fixed
+- **"Only soul shards can go in that" at login:** sorting into special bags tried to put a spare bag (a soul pouch, a quiver) into the matching special bag. Bags are never moved into special bags now, and if the game ever refuses a move, Rucksack stops trying that item.
+
 # Rucksack 1.9.3
 
 ### New

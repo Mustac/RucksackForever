@@ -3268,6 +3268,11 @@ end
 local function itemFamily(id)
   local getFamily = (C_Item and C_Item.GetItemFamily) or GetItemFamily
   if not getFamily or not id then return 0 end
+  -- (18 Nov) a bag itself (a spare soul pouch, a quiver...) reports the kind it holds, not where it
+  -- goes: the game said "only soul shards can go in that". Bags never move into special bags.
+  local inst = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+  local classID = inst and select(6, inst(id))
+  if classID == 1 or classID == 11 then return 0 end
   local ok, fam = pcall(getFamily, id)
   return ok and fam or 0
 end
@@ -3329,6 +3334,17 @@ function B.SpecialHome()
   C_Timer.After(0.6, B.SpecialStep)
 end
 B.AmmoHome = B.SpecialHome -- (1.9 name)
+-- (18 Nov) if the game refuses a move ("only soul shards can go in that"...), that item is never tried again
+do
+  local guard = CreateFrame("Frame")
+  guard:RegisterEvent("UI_ERROR_MESSAGE")
+  guard:SetScript("OnEvent", function()
+    if B.specialMoving and GetTime() - (B.specialMovingAt or 0) < 1 then
+      B.specialNo[B.specialMoving] = true
+      B.specialMoving = nil
+    end
+  end)
+end
 function B.SpecialStep()
   B.specialWait = nil
   if not DB or DB.specialHome == false then return end
@@ -3352,6 +3368,7 @@ function B.SpecialStep()
               B.specialNo[id], B.specialLast = true, nil -- (the game won't do it: not tried again)
             else
               B.specialLast, B.specialLastAt = sig, GetTime()
+              B.specialMoving, B.specialMovingAt = id, GetTime()
               C_Container.PickupContainerItem(bag, slot)
               C_Container.PickupContainerItem(tb, to)
               if CursorHasItem() then ClearCursor() B.specialNo[id] = true end
