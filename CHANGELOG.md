@@ -1,3 +1,8 @@
+# Rucksack 1.9.5
+
+### Fixed
+- **Soul bags (and other special bags) not recognised:** some bags were treated as ordinary bags, so "Delete extra soul shards" stayed greyed out and shards weren't sorted into the soul bag. Rucksack now also recognises a special bag by the bag itself.
+
 # Rucksack 1.9.4
 
 ### Fixed

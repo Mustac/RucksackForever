@@ -3258,12 +3258,30 @@ function B.SpecialColor(key)
   return mine or (byKey[key] and byKey[key].color) or { 0.5, 0.5, 0.5 }
 end
 -- what kind of special bag this bag is (nil: an ordinary bag, the backpack or the reagent bag)
+-- (18 Nov) the bag item's own kind, for when the game reports no family for the bag (his friend's soul
+-- bag: "the option ... is disabled for him"). Container subclasses and quiver subclasses.
+local SUBKIND = { [1] = { [1] = "soul", [2] = "herb", [3] = "enchant", [4] = "engineer", [5] = "gem", [6] = "mining", [7] = "leather", [8] = "inscribe" },
+  [11] = { [2] = "quiver", [3] = "ammo" } }
+local function kindOfBagItem(bag)
+  local toInv = C_Container.ContainerIDToInventoryID or ContainerIDToInventoryID
+  if not toInv then return nil end
+  local ok, inv = pcall(toInv, bag)
+  local itemID = ok and inv and GetInventoryItemID("player", inv)
+  if not itemID then return nil end
+  local inst = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+  if not inst then return nil end
+  local classID, subID = select(6, inst(itemID))
+  local key = SUBKIND[classID] and SUBKIND[classID][subID]
+  return key and byKey[key] or nil
+end
 function B.SpecialOf(bag)
   if not bag or bag == 0 or bag == REAGENT then return nil end
   if not C_Container.GetContainerNumFreeSlots or (C_Container.GetContainerNumSlots(bag) or 0) == 0 then return nil end
   local fam = select(2, C_Container.GetContainerNumFreeSlots(bag)) or 0
-  if fam == 0 then return nil end
-  for _, sp in ipairs(B.SPECIAL) do if hasBit(fam, sp.bit) then return sp end end
+  if fam ~= 0 then
+    for _, sp in ipairs(B.SPECIAL) do if hasBit(fam, sp.bit) then return sp end end
+  end
+  return kindOfBagItem(bag)
 end
 local function itemFamily(id)
   local getFamily = (C_Item and C_Item.GetItemFamily) or GetItemFamily
@@ -3310,11 +3328,12 @@ local function specialRoom()
   return out, busy
 end
 -- where this item would go: the bag and slot in one of your special bags, or nil
+local SHARD = 6265
 local function placeFor(rooms, id)
   local fam = itemFamily(id)
-  if fam == 0 then return nil end
+  if fam == 0 and id ~= SHARD then return nil end
   for _, r in ipairs(rooms) do
-    if hasBit(fam, r.sp.bit) then
+    if hasBit(fam, r.sp.bit) or (id == SHARD and r.sp.key == "soul") then -- (a shard always fits a soul bag)
       local to = r.partial[id] or r.empty
       if to then return r.bag, to end
     end
