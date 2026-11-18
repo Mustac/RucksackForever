@@ -686,7 +686,8 @@ for i, bag in ipairs(BAR) do
     if self.has and inv and GameTooltip.SetInventoryItem then
       GameTooltip:SetInventoryItem("player", inv)
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine((self.free or 0) .. " of " .. (self.size or 0) .. " slots free" .. (bag == REAGENT and " (reagents only)" or ""), 1, 1, 1)
+      local sp = B.SpecialOf and B.SpecialOf(bag)
+      GameTooltip:AddLine((self.free or 0) .. " of " .. (self.size or 0) .. " slots free" .. (sp and (" (" .. sp.name .. ")") or (bag == REAGENT and " (reagents only)") or ""), 1, 1, 1)
       GameTooltip:AddLine("Drop another bag on it to swap. Click to pick it up.", 0.7, 0.7, 0.7, true)
     else
       GameTooltip:AddLine(bag == REAGENT and "Empty reagent bag slot" or "Empty bag slot")
@@ -993,6 +994,7 @@ end
 ---------------------------------------------------------------------------
 local function sellPrice(id) return (select(11, ns.GetInfo(id))) or 0 end
 local function bagKind(bag)
+  if IS_BAG[bag] and B.SpecialOf and B.SpecialOf(bag) then return "S" end -- (18 Nov: a soul bag in the reagent slot is a soul bag)
   if bag == REAGENT then return "R" end
   local family = 0
   if IS_BAG[bag] and bag ~= 0 and C_Container.GetContainerNumFreeSlots then family = select(2, C_Container.GetContainerNumFreeSlots(bag)) or 0 end
@@ -3189,6 +3191,7 @@ end
 function B.ReagentStep()
   B.reagentWait = nil
   if not DB or DB.reagentHome == false or not REAGENT then return end
+  if B.SpecialOf and B.SpecialOf(REAGENT) then return end -- (18 Nov: a soul bag sits in the reagent slot: no reagents go there)
   if tidying or InCombatLockdown() or CursorHasItem() or (GetCursorInfo and GetCursorInfo()) then return end
   if SpellIsTargeting and SpellIsTargeting() then return end
   local n = C_Container.GetContainerNumSlots(REAGENT) or 0
@@ -3260,9 +3263,9 @@ end
 -- what kind of special bag this bag is (nil: an ordinary bag, the backpack or the reagent bag)
 -- (18 Nov) the bag item's own kind, for when the game reports no family for the bag (his friend's soul
 -- bag: "the option ... is disabled for him"). Container subclasses and quiver subclasses.
-local SUBKIND = { [1] = { [1] = "soul", [2] = "herb", [3] = "enchant", [4] = "engineer", [5] = "gem", [6] = "mining", [7] = "leather", [8] = "inscribe" },
+B.SUBKIND = { [1] = { [1] = "soul", [2] = "herb", [3] = "enchant", [4] = "engineer", [5] = "gem", [6] = "mining", [7] = "leather", [8] = "inscribe" },
   [11] = { [2] = "quiver", [3] = "ammo" } }
-local function kindOfBagItem(bag)
+function B.KindOfBagItem(bag)
   local toInv = C_Container.ContainerIDToInventoryID or ContainerIDToInventoryID
   if not toInv then return nil end
   local ok, inv = pcall(toInv, bag)
@@ -3271,17 +3274,44 @@ local function kindOfBagItem(bag)
   local inst = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
   if not inst then return nil end
   local classID, subID = select(6, inst(itemID))
-  local key = SUBKIND[classID] and SUBKIND[classID][subID]
+  local key = B.SUBKIND[classID] and B.SUBKIND[classID][subID]
   return key and byKey[key] or nil
 end
+-- (18 Nov) on Forever a warlock can put the soul bag in the reagent slot (his friend's was there, and
+-- Rucksack thought it was a reagent bag: it even tried to put reagents in it, "only soul shards can go
+-- in that"). The reagent slot counts as special only for a soul bag.
+B.SOULBAGS = { [22243] = true, [22244] = true, [21340] = true, [21341] = true, [21342] = true, [21872] = true }
+function B.SoulByItem(bag)
+  local toInv = C_Container.ContainerIDToInventoryID or ContainerIDToInventoryID
+  if not toInv then return nil end
+  local ok, inv = pcall(toInv, bag)
+  local itemID = ok and inv and GetInventoryItemID("player", inv)
+  if not itemID then return nil end
+  if B.SOULBAGS[itemID] then return byKey.soul end
+  local name = GetItemInfo and GetItemInfo(itemID)
+  if name and (name:find("Soul") or name:find("Felcloth") or name:find("Shadowbag")) then return byKey.soul end
+end
 function B.SpecialOf(bag)
-  if not bag or bag == 0 or bag == REAGENT then return nil end
+  if not bag or bag == 0 then return nil end
   if not C_Container.GetContainerNumFreeSlots or (C_Container.GetContainerNumSlots(bag) or 0) == 0 then return nil end
   local fam = select(2, C_Container.GetContainerNumFreeSlots(bag)) or 0
+  if bag == REAGENT then
+    if hasBit(fam, 4) then return byKey.soul end
+    local k = B.KindOfBagItem(bag)
+    if k and k.key == "soul" then return k end
+    return B.SoulByItem(bag)
+  end
   if fam ~= 0 then
     for _, sp in ipairs(B.SPECIAL) do if hasBit(fam, sp.bit) then return sp end end
   end
-  return kindOfBagItem(bag)
+  return B.KindOfBagItem(bag) or B.SoulByItem(bag)
+end
+-- do you wear a special bag of this kind (any bag slot, the reagent slot too)?
+function B.HasSpecial(key)
+  for _, bag in ipairs(BAR) do
+    local sp = B.SpecialOf(bag)
+    if sp and sp.key == key then return bag end
+  end
 end
 local function itemFamily(id)
   local getFamily = (C_Item and C_Item.GetItemFamily) or GetItemFamily

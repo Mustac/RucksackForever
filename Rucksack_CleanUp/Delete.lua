@@ -213,12 +213,7 @@ local function extraShard(id, bag)
   local B = ns.Bags
   local sp = B.SpecialOf(bag)
   if sp and sp.key == "soul" then return false end
-  local hasSoul = false
-  for b = 1, ns.NUM_BAGS do
-    local s2 = B.SpecialOf(b)
-    if s2 and s2.key == "soul" then hasSoul = true break end
-  end
-  if not hasSoul then return false end
+  if not (B.HasSpecial and B.HasSpecial("soul")) then return false end -- (any slot, the reagent slot too)
   if B.SpecialRoomFor and B.SpecialRoomFor(SHARD, true) then return false end
   return true
 end

@@ -1,3 +1,8 @@
+# Rucksack 1.9.6
+
+### Fixed
+- **Soul bag in the reagent bag slot:** on Forever a warlock can put the soul bag there, and Rucksack took it for a reagent bag. "Delete extra soul shards" stayed greyed out, shards weren't sorted into it, and Rucksack tried to put reagents in it ("only soul shards can go in that"). A soul bag is now recognised in any slot, and no reagents are moved into it.
+
 # Rucksack 1.9.5
 
 ### Fixed

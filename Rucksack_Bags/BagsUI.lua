@@ -45,11 +45,7 @@ do
   local plain = cb.Update
   cb.Update = function()
     plain()
-    local soul = false
-    for bag = 1, ns.NUM_BAGS or 4 do
-      local sp = B.SpecialOf and B.SpecialOf(bag)
-      if sp and sp.key == "soul" then soul = true break end
-    end
+    local soul = B.HasSpecial and B.HasSpecial("soul") and true or false -- (any slot, the reagent slot too)
     -- (he: "uncheck if you remove soul bag, its automatically on") on to start; without a soul bag it shows
     -- unticked and greyed out, and your choice comes back with the bag
     if soul then cb:Enable() cb.label:SetTextColor(1, 1, 1) else cb:SetChecked(false) cb:Disable() cb.label:SetTextColor(0.5, 0.5, 0.5) end
