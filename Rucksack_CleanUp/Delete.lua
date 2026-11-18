@@ -1062,6 +1062,7 @@ local function ShowAsk(id, link, which, uses)
   btnNo:SetPoint("LEFT", btnYes, "RIGHT", 8, 0)
   btnYes:GetFontString():SetTextColor(1, 0.82, 0)
   ask:SetHeight(150)
+  ask:SetWidth(480)
   if uses then
     -- (17 Nov 15:41) one simple question, he: "Just ask Delete Linen Cloth x14 / - its used for quest
     -- this and that / Delete Cancel ... no confirmation after". Delete deletes it right now (it's the
@@ -1071,14 +1072,27 @@ local function ShowAsk(id, link, which, uses)
     askHint:SetText(#uses > 0 and ("|cffffffff- " .. table.concat(uses, "\n- ") .. "|r") or "")
     askWarn:SetText("")
     btnAlways:Hide()
-    btnYes:SetText("Delete") btnYes:SetWidth(130)
+    btnYes:SetText("Delete") btnYes:SetWidth(100)
     btnYes:GetFontString():SetTextColor(1, 0.35, 0.35)
+    -- (17 Nov) "too wide": as wide as its text needs, the two buttons in the middle
+    local textW = askText:GetStringWidth() or 200
+    local hintW = 0
+    for _, u in ipairs(uses) do
+      askWarn:SetText("- " .. u) -- (measured on a spare line, then cleared)
+      hintW = math.max(hintW, (askWarn:GetStringWidth() or 0) * 0.9)
+    end
+    askWarn:SetText("")
+    ask:SetWidth(math.max(300, math.min(480, math.max(textW, hintW) + 160)))
     btnYes:ClearAllPoints()
-    btnYes:SetPoint("BOTTOMLEFT", ask, "BOTTOMLEFT", 70, 18)
-    ask:SetHeight(110 + 14 * #uses)
+    btnYes:SetPoint("BOTTOMRIGHT", ask, "BOTTOM", -4, 16)
+    btnNo:ClearAllPoints()
+    btnNo:SetPoint("LEFT", btnYes, "RIGHT", 8, 0)
+    btnNo:SetWidth(100)
+    ask:SetHeight(#uses > 0 and (108 + 14 * #uses) or 110)
   else
     btnYes:ClearAllPoints()
     btnYes:SetPoint("LEFT", btnAlways, "RIGHT", 8, 0)
+    btnNo:SetWidth(96)
   end
   ask:Show()
   ask:Raise()

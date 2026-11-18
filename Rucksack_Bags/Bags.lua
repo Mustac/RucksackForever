@@ -455,7 +455,8 @@ if f.SetBackdrop then
 end
 f:Hide()
 tinsert(UISpecialFrames, "RucksackBagsFrame")
-f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+-- (17 Nov) the pin on the left of the bags row keeps the window where it is (DB.pinned)
+f:SetScript("OnDragStart", function(self) if DB and DB.pinned then return end self:StartMoving() end)
 -- (kept by its top left corner, so the bags row opens downwards)
 local function pinTopLeft()
   local l, t = f:GetLeft(), f:GetTop()
@@ -594,7 +595,7 @@ local bankBtn = iconButton(f, 22, "bank", "Your bank", function()
 end, function() B.ShowView(nil, "bank") end)
 bankBtn:SetPoint("RIGHT", tidyBtn, "LEFT", -3, 0)
 local whoBtn = iconButton(f, 22, "chars", "Your characters",
-  "Click: pick one of your other characters (each one you've played with Bags on). Their bags and bank open in their own window, faded: you can look, not use.",
+  "Click: your characters (each one you've played with Bags on). Point at one, then pick Inventory or Bank: it opens in its own window. Other characters' are faded: you can look, not use.",
   function(self) B.WhoMenu(self) end)
 whoBtn:SetPoint("RIGHT", bankBtn, "LEFT", -3, 0)
 local search = CreateFrame("EditBox", "RucksackBagsSearch", f, "InputBoxTemplate")
@@ -651,7 +652,7 @@ local barBtns = {}
 for i, bag in ipairs(BAR) do
   local b = CreateFrame("Button", "RucksackBagSlot" .. bag, barIn, ns.BACKDROP_TMPL)
   b:SetSize(30, 30)
-  b:SetPoint("LEFT", (i - 1) * 33 + (bag == REAGENT and 10 or 0), -2)
+  b:SetPoint("LEFT", 36 + (i - 1) * 33 + (bag == REAGENT and 10 or 0), -2) -- (36: the pin is first)
   if b.SetBackdrop then
     b:SetBackdrop(ns.SLOT_BACKDROP)
     b:SetBackdropColor(0.06, 0.05, 0.04, 0.95)
@@ -712,6 +713,19 @@ local function drawBar(st)
     b.count:SetText(tex and ((b.free == 0 and "|cffff5a50" or "|cffffffff") .. b.free .. "|r") or "")
   end
 end
+-- (17 Nov) the pin, first on the left of the row: keeps the bag window where it is (he: "place a lock on
+-- leftest side, it cant be standard lock because we already have that, it needs to be about locking a
+-- position of window of the bag"). A pushpin, so it doesn't look like the group padlock.
+B.pinBtn = iconButton(barIn, 30, "unpinned", function() return DB and DB.pinned and "Window pinned" or "Window not pinned" end, function()
+  return DB and DB.pinned and "The bag window stays where it is: dragging it does nothing.\n\nClick to let it move again." or
+    "Drag the bag window anywhere by its edge or empty space.\n\nClick to pin it where it is, so it can't be moved by accident."
+end, function(self)
+  if not DB then return end
+  DB.pinned = not DB.pinned or nil
+  B.Draw()
+  if GameTooltip:IsOwned(self) and self:GetScript("OnEnter") then self:GetScript("OnEnter")(self) end
+end, "RucksackBagsPin")
+B.pinBtn:SetPoint("LEFT", 0, -2)
 -- the three tools on the right of the row: the same size as the bags, pictures centred
 local lockBtn = iconButton(barIn, 30, "unlocked", function() return DB and DB.locked and "Locked" or "Unlocked" end, function()
   return DB and DB.locked and "Groups stay where they are: no moving them, no + slots, no new groups. Your items work as always.\n\nClick to unlock." or
@@ -809,9 +823,9 @@ local function decorate(b)
   d.quest:SetPoint("TOPRIGHT", -1, -1)
   d.quest:SetText("|cffffe45c!|r")
   d.needed = b:CreateTexture(nil, "OVERLAY", nil, 6) -- (16 Nov) a quest you have needs it: kept, not sold
-  d.needed:SetTexture("Interface\\ContainerFrame\\UI-Icon-QuestBang")
-  d.needed:SetSize(17, 17)
-  d.needed:SetPoint("TOPRIGHT", 3, 3)
+  d.needed:SetTexture(ICONS .. "questbang") -- (17 Nov: our own big "!", no yellow square)
+  d.needed:SetSize(20, 20)
+  d.needed:SetPoint("TOPRIGHT", 3, 2)
   d.tag = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall") -- "BoE", "open"
   d.tag:SetPoint("TOPLEFT", 1, -1)
   local font = d.tag:GetFont()
@@ -1429,9 +1443,56 @@ if menu.SetBackdrop then
 end
 menu:Hide()
 menu.rows, menu.dots = {}, {}
-menu:SetScript("OnEvent", function(self) if not self:IsMouseOver() then self:Hide() end end)
+-- (18 Nov) a second, small menu to the right of a row with ">" (a character: Inventory / Bank). Its own
+-- frame, not a child of the menu, so a click in it still lands when the menu closes.
+B.subMenu = CreateFrame("Frame", "RucksackBagsSubMenu", f, ns.BACKDROP_TMPL)
+B.subMenu:SetFrameStrata("DIALOG")
+B.subMenu:SetFrameLevel(menu:GetFrameLevel() + 20)
+B.subMenu:EnableMouse(true)
+if B.subMenu.SetBackdrop then
+  B.subMenu:SetBackdrop(ns.SLOT_BACKDROP)
+  B.subMenu:SetBackdropColor(0.07, 0.06, 0.04, 0.98)
+  B.subMenu:SetBackdropBorderColor(0.62, 0.5, 0.3)
+end
+B.subMenu:Hide()
+B.subMenu.rows = {}
+menu:SetScript("OnEvent", function(self) if not self:IsMouseOver() and not B.subMenu:IsMouseOver() then self:Hide() end end)
 menu:SetScript("OnShow", function(self) pcall(self.RegisterEvent, self, "GLOBAL_MOUSE_DOWN") end)
-menu:SetScript("OnHide", function(self) pcall(self.UnregisterEvent, self, "GLOBAL_MOUSE_DOWN") end)
+menu:SetScript("OnHide", function(self) pcall(self.UnregisterEvent, self, "GLOBAL_MOUSE_DOWN") B.subMenu:Hide() end)
+function B.ShowSubMenu(row, subs)
+  local sm = B.subMenu
+  for _, r in ipairs(sm.rows) do r:Hide() end
+  local y, w = -6, 90
+  for i, e in ipairs(subs) do
+    local r = sm.rows[i]
+    if not r then
+      r = CreateFrame("Button", nil, sm)
+      r:SetHeight(18)
+      r.text = r:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+      r.text:SetPoint("LEFT", 2, 0)
+      r.sub = r:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+      r.sub:SetPoint("RIGHT", -2, 0)
+      local hl = r:CreateTexture(nil, "HIGHLIGHT")
+      hl:SetAllPoints()
+      hl:SetColorTexture(1, 1, 1, 0.08)
+      r:SetScript("OnClick", function(self) menu:Hide() B.subMenu:Hide() if self.onClick then self.onClick() end end)
+      sm.rows[i] = r
+    end
+    r:ClearAllPoints()
+    r:SetPoint("TOPLEFT", 6, y)
+    r:SetPoint("RIGHT", -6, 0)
+    r.text:SetText(e.text or "")
+    r.sub:SetText(e.sub or "")
+    r.onClick = e.onClick
+    r:Show()
+    w = math.max(w, (r.text:GetStringWidth() or 0) + (r.sub:GetStringWidth() or 0) + 30)
+    y = y - 18
+  end
+  sm:SetSize(w, -y + 6)
+  sm:ClearAllPoints()
+  sm:SetPoint("TOPLEFT", row, "TOPRIGHT", 8, 6)
+  sm:Show()
+end
 local function menuRow(i)
   if menu.rows[i] then return menu.rows[i] end
   local r = CreateFrame("Button", nil, menu)
@@ -1449,9 +1510,11 @@ local function menuRow(i)
   r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   r:SetScript("OnClick", function(self, button)
     if button == "RightButton" then if self.onRight then menu:Hide() self.onRight() end return end
+    if self.subs then B.ShowSubMenu(self, self.subs) return end
     if self.onClick then menu:Hide() self.onClick() end
   end)
   r:SetScript("OnEnter", function(self)
+    if self.subs then B.ShowSubMenu(self, self.subs) else B.subMenu:Hide() end
     if not self.tip then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:AddLine(self.tip, 1, 1, 1, true)
@@ -1491,7 +1554,8 @@ function B.ShowMenu(anchor, entries)
       r:SetPoint("RIGHT", -6, 0)
       r.text:SetText(e.text or "")
       r.sub:SetText(e.sub or "")
-      r.onClick, r.onRight, r.tip = e.onClick, e.onRight, e.tip
+      r.onClick, r.onRight, r.tip, r.subs = e.onClick, e.onRight, e.tip, e.subs
+      if e.subs then r.sub:SetText((e.sub and e.sub ~= "" and (e.sub .. "  ") or "") .. "|cffffd100>|r") end
       r:Show()
       w = math.max(w, (r.text:GetStringWidth() or 0) + (r.sub:GetStringWidth() or 0) + 30)
       y = y - 18
@@ -1520,12 +1584,19 @@ function B.WhoMenu(anchor)
   for k in pairs(DB.chars or {}) do if k ~= me then keys[#keys + 1] = k end end
   table.sort(keys)
   local mine = DB.chars and DB.chars[me]
-  local entries = { { text = "|cffffd100Your bank|r", sub = mine and mine.bankSeen and ago(mine.bankSeen) or "", onClick = function() B.ShowView(nil, "bank") end } }
+  -- (18 Nov) he: "button your characters should show characters then it shows > and we can choose
+  -- inventory or bank". You first, then the others; each opens a small menu: Inventory / Bank.
+  local myName = (mine and mine.name) or UnitName("player") or "You"
+  local _, myClass = UnitClass("player")
+  local entries = { { text = classColor(myClass) .. myName .. "|r |cff8a8a8a(you)|r",
+    subs = { { text = "Inventory", onClick = function() B.Open() end },
+             { text = "Bank", sub = mine and mine.bankSeen and ago(mine.bankSeen) or "", onClick = function() B.ShowView(nil, "bank") end } } } }
   for _, k in ipairs(keys) do
     local r = DB.chars[k]
     entries[#entries + 1] = { text = classColor(r.class) .. (r.name or k) .. "|r" .. ((r.realm and mine and r.realm ~= mine.realm) and ("|cff8a8a8a-" .. r.realm .. "|r") or ""),
-      sub = ago(r.seen), tip = "Click: " .. (r.name or k) .. "'s bags in their own window (the bank icon there switches to their bank).\nRight-click: forget this character.",
-      onClick = function() B.ShowView(k, "bags") end,
+      sub = ago(r.seen), tip = "Pick Inventory or Bank: it opens in its own window, faded (you can look, not use).\nRight-click: forget this character.",
+      subs = { { text = "Inventory", onClick = function() B.ShowView(k, "bags") end },
+               { text = "Bank", sub = r.bankSeen and ago(r.bankSeen) or "", onClick = function() B.ShowView(k, "bank") end } },
       onRight = function() local dlg = StaticPopup_Show("RUCKSACK_BAGS_FORGET", "Forget " .. (r.name or k) .. "? Rucksack learns them again when you log in with them.") if dlg then dlg.data = k end end }
   end
   if #keys == 0 then entries[#entries + 1] = { text = "|cff8a8a8aLog in with your other characters once and they show here.|r" } end
@@ -1971,12 +2042,16 @@ local function show(e, x, y, text, withDot)
   end
   -- (16 Nov) a current quest needs it (he: "if it is current quest item place yellow circle ! in top
   -- right corner on top"): that's why it isn't sold or thrown away. Not on the Quest group's own items.
-  local needed = false
-  if not e.empty and e.id and e.cat ~= "quest" and hasClean() and ns.Del.QuestNeed then
-    local okN, n = pcall(ns.Del.QuestNeed, e.id, e.link)
-    needed = okN and n and n > 0 or false
+  -- (17 Nov) he: "remove that yellow square, make ! bigger to see easily quest item, and make !? sign
+  -- for a item that we use in the quest but its not specified as quest item". So: "!" on a quest item
+  -- (the game calls it one), "!?" on an ordinary item a quest you have needs (it's kept for it).
+  local needed = not e.empty and B.QuestMark(e.id, e.link) or false
+  if needed and d.neededKind ~= needed then
+    d.neededKind = needed
+    d.needed:SetTexture(ICONS .. (needed == "bang" and "questbang" or "questmaybe"))
+    if needed == "bang" then d.needed:SetSize(20, 20) else d.needed:SetSize(26, 26) end
   end
-  d.needed:SetShown(needed)
+  d.needed:SetShown(needed and true or false)
   d.mark:SetShown(e.cat == "junk" and not needed)
   d.coin:SetShown(e.cat == "sell" and not needed)
   d.arrow:SetShown(e.upgrade and true or false)
@@ -2002,6 +2077,18 @@ local function show(e, x, y, text, withDot)
   end
 end
 
+-- (17 Nov) "bang": a quest item (the game calls it one); "maybe": an ordinary item a quest you have
+-- needs; nil: neither
+function B.QuestMark(id, link)
+  if not id then return nil end
+  local classID = C_Item and C_Item.GetItemInfoInstant and select(6, C_Item.GetItemInfoInstant(id))
+  if classID == nil and GetItemInfoInstant then classID = select(6, GetItemInfoInstant(id)) end
+  if classID == 12 then return "bang" end
+  if hasClean() and ns.Del and ns.Del.QuestNeed then
+    local ok, n = pcall(ns.Del.QuestNeed, id, link)
+    if ok and n and n > 0 then return "maybe" end
+  end
+end
 -- (15 Nov) for Side.lua: a button painted like an empty bag slot (the slot you drop items on)
 function B.PaintEmpty(b) return pcall(paint, b, { bag = 0, slot = 0 }) end
 -- (15 Nov) for Side.lua: put a cell in another pane (the column on the right of the bag)
@@ -2057,6 +2144,8 @@ local function drawTop(st)
   lightUp(whoBtn, v2 and v2.who and B.VIEW.frame:IsShown() or false)
   drawBar(st)
   setIcon(lockBtn, DB.locked and "locked" or "unlocked")
+  setIcon(B.pinBtn, DB.pinned and "pinned" or "unpinned")
+  lightUp(B.pinBtn, DB.pinned)
   setIcon(B.sideBtn, "side_" .. (DB.sidePos or "tr"))
   lightUp(lockBtn, DB.locked)
   local off = DB.locked or oneBag
@@ -2522,7 +2611,7 @@ function B.Draw()
   B.curW = W
   -- (a narrow bag: the tools on the right of the bags row shrink a little so they don't cover the bags)
   -- (15 Nov: six tools now; they shrink just enough to leave the bags room: 5 bags + the gap = 179)
-  local toolScale = math.max(0.6, math.min(1, (W - 179) / (6 * 33 + 8)))
+  local toolScale = math.max(0.5, math.min(1, (W - 215) / (6 * 33 + 8))) -- (215: the pin is on the left now)
   for _, tb in ipairs(B.toolBtns) do tb:SetScale(toolScale) end
   searchHint:SetShown(text == "" and not search:HasFocus())
   wipe(used)

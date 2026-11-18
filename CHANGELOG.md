@@ -1,3 +1,13 @@
+# Rucksack 1.9.2
+
+### New
+- **Pin the bag window:** a pushpin, first on the left of the bags row. Pinned, the window can't be dragged by accident; click it again to move it.
+- **Your characters:** the characters button lists you and your other characters. Point at one and pick **Inventory** or **Bank**.
+- **Clearer quest marks:** a big yellow **!** on quest items (the game's small yellow square is gone), and **!?** on ordinary items one of your quests needs.
+
+### Changed
+- The delete question ("Delete Linen Cloth x14?") is a smaller box, as wide as its text, with Delete and Cancel side by side.
+
 # Rucksack 1.9.1
 
 ### New
