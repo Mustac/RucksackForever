@@ -87,13 +87,8 @@ local function choice(label, tipTitle, tipText, opts, get, set, x0)
 end
 choice("Look", "Look", "How the bag is laid out.", {
   { "groups", "Groups", 96, "Your items in labelled groups: Weapons, Armour, Food and water, Trade goods, your own groups..." },
-  { "grid", "One bag", 96, "No groups: everything in one bag, sorted (see Sort): new items first, the empty slots last. The boxes on the right stay the same." },
+  { "grid", "One bag", 96, "No groups: your items where they really are. Nothing moves by itself; the Tidy button at the top sorts them once. The boxes on the right stay the same." },
 }, function() return D().style end, function(v) D().style = v end)
-choice("Sort", "Sort", "How One bag sorts your items.", {
-  { "kind", "Kind", 96, "Weapons, armour, food and water, potions, trade goods, quest items, the rest; in each, the best quality first, then by name." },
-  { "quality", "Quality", 96, "The best quality first (epic, rare, uncommon...), then by name." },
-  { "name", "Name", 96, "A to Z." },
-}, function() return D().sortBy end, function(v) D().sortBy = v end)
 choice("Groups", "Groups", "With the Groups look: each group on its own row, or side by side.", {
   { "rows", "Rows", 96, "Each group starts on a new row. Easy to read, and to move a group up or down." },
   { "packed", "Packed", 96, "Small groups side by side: a smaller bag." },

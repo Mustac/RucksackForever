@@ -576,12 +576,12 @@ chev:HookScript("OnLeave", function() C_Timer.After(0.25, chevCheck) end)
 local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
 close:SetSize(24, 24)
 close:SetPoint("TOPRIGHT", -2, -4)
-local optBtn = iconButton(f, 22, "gear", "Settings", "Columns, size, Rows or Packed, how One bag sorts, which groups show, and more.",
+local optBtn = iconButton(f, 22, "gear", "Settings", "Columns, size, Rows or Packed, which groups show, and more.",
   function() Rucksack_Open("bags") end)
 optBtn:SetPoint("RIGHT", close, "LEFT", -1, 0)
 local lookBtn = iconButton(f, 22, "groups", function() return DB and DB.style == "grid" and "Look: One bag" or "Look: Groups" end, function()
-  return DB and DB.style == "grid" and "No groups: everything in one bag, sorted (by kind, quality or name: see Settings). Junk sits under it, at the bottom.\n\nClick: Groups." or
-    "Your items in labelled groups (Weapons, Armour, Food and water... and your own), each on its own row or side by side.\n\nClick: One bag (no groups, just sorted)."
+  return DB and DB.style == "grid" and "No groups: your items as they really sit in your bags. Nothing moves by itself; click Tidy to sort them once.\n\nClick: Groups." or
+    "Your items in labelled groups (Weapons, Armour, Food and water... and your own), each on its own row or side by side, sorted for you. Your real bags aren't touched.\n\nClick: One bag (no groups, items where you put them)."
 end, function() DB.style = DB.style == "grid" and "groups" or "grid" B.Changed() end)
 lookBtn:SetPoint("RIGHT", optBtn, "LEFT", -3, 0)
 local stackBtn = iconButton(f, 22, "merged", function() return DB and DB.merged and "Stacks: Merged" or "Stacks: Separate" end, function()
@@ -590,22 +590,18 @@ local stackBtn = iconButton(f, 22, "merged", function() return DB and DB.merged 
 end, function() DB.merged = not DB.merged B.Changed() end)
 stackBtn:SetPoint("RIGHT", lookBtn, "LEFT", -3, 0)
 local tidyBtn = iconButton(f, 22, "tidy", "Tidy", function()
-    if DB and DB.style == "grid" and DB.free then
+    if DB and DB.style == "grid" then
       return "Sorts your bags once and puts half-full stacks together (the game's own sort: the items really move). After that they stay where they are again. Not in a fight."
     end
     return "Puts half-full stacks of the same item together (7 + 13 ore becomes one stack of 20), which frees bag slots. Not in a fight."
   end,
   function() B.Tidy() end)
 tidyBtn:SetPoint("RIGHT", stackBtn, "LEFT", -3, 0)
--- (1.8.4) One bag, two ways: Tidy (Rucksack sorts what you see and merges stacks) or Free (nothing is
--- sorted: every item sits in its real slot, in order, and you put things where you like)
-B.freeBtn = iconButton(f, 22, "free", function() return DB and DB.free and "One bag: Free" or "One bag: Tidy" end, function()
-  return DB and DB.free and "Free: nothing is sorted. Every item stays in the slot you put it in; drag items onto any slot. The Tidy button next to this sorts them once.\n\nClick: Tidy (always sorted)."
-    or "Tidy: your bag is always shown sorted, with stacks put together.\n\nClick: Free (items stay where you put them)."
-end, function() DB.free = not DB.free B.Changed() end, "RucksackBagsFreeButton")
-B.freeBtn:SetPoint("RIGHT", tidyBtn, "LEFT", -3, 0)
-B.freeBtn:Hide()
-function B.FreeNow(v) return DB and DB.style == "grid" and DB.free and (v == nil or v == B.MAINVIEW) and true or false end
+-- (1.8.4) One bag had two ways, Tidy (always shown sorted) and Free. (18 Nov) Only Free now, no switch
+-- (he: "when we are in one bag its unorganized until we click to tidy it up", "its not toggle just one
+-- click", "remove button to toggle it"): every item sits in its real slot; Tidy sorts once with the
+-- game's own sort. Groups stays sorted for you (it never moves anything in your real bags).
+function B.FreeNow(v) return DB and DB.style == "grid" and (v == nil or v == B.MAINVIEW) and true or false end
 local bankBtn = iconButton(f, 22, "bank", "Your bank", function()
   return (bankOpen and "Your bank is open: in its own window it's live, drag items between it and your bags." or
     "Opens your bank in its own window, as it was when you last opened it. At a banker it opens by itself, live.") ..
@@ -2184,11 +2180,9 @@ local function drawTop(st)
   local oneBag = DB.style == "grid"
   setIcon(lookBtn, oneBag and "onebag" or "groups")
   setIcon(stackBtn, DB.merged and "merged" or "separate")
-  B.freeBtn:SetShown(oneBag)
-  lightUp(B.freeBtn, oneBag and DB.free)
-  stackBtn:SetAlpha(oneBag and DB.free and 0.35 or 1) -- (Free shows the real stacks)
+  stackBtn:SetAlpha(oneBag and 0.35 or 1) -- (One bag shows the real stacks)
   bankBtn:ClearAllPoints()
-  bankBtn:SetPoint("RIGHT", oneBag and B.freeBtn or tidyBtn, "LEFT", -3, 0)
+  bankBtn:SetPoint("RIGHT", tidyBtn, "LEFT", -3, 0)
   local v2 = B.view2
   lightUp(bankBtn, v2 and v2.kind == "bank" and not v2.who and B.VIEW.frame:IsShown() or false)
   lightUp(whoBtn, v2 and v2.who and B.VIEW.frame:IsShown() or false)

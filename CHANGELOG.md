@@ -1,3 +1,8 @@
+# Rucksack 1.9.10
+
+### Changed
+- **One bag never sorts by itself:** your items stay in the slots you put them in, also after switching to Groups and back. Click **Tidy** to sort them once. The Free / Tidy switch and the "Sort" setting are gone. Groups is still sorted for you, as before.
+
 # Rucksack 1.9.9
 
 ### New
