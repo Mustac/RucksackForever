@@ -27,7 +27,7 @@ p:Add(Check(p, 470, y, "Bag sounds", "The game's own sound when the bag opens an
 p:Add(Check(p, 330, y, "\"New\" group", "Items you just got sit in a New group at the front, with a gold frame, until you've pointed at them or closed the bag.",
   function() return D().showNew ~= false end, function(v) D().showNew = v and true or false B.Draw() end, "GameFontHighlightSmall"))
 y = y - 24
-p:Add(Check(p, 0, y, "Reagents into the reagent bag", "A reagent lying in one of your ordinary bags is moved into your reagent bag by itself when there's room there (onto a half-full stack of it first, then an empty slot). Never in a fight, never while you hold an item.",
+p:Add(Check(p, 0, y, "Reagents into the reagent bag", "A reagent lying in one of your ordinary bags is moved into your reagent bag by itself when there's room there (onto a half-full stack of it first, then an empty slot). Only in Groups: in One bag nothing moves by itself. Never in a fight, never while you hold an item.",
   function() return D().reagentHome ~= false end, function(v) D().reagentHome = v and true or false if v then B.ReagentsHome() end end, "GameFontHighlightSmall"))
 p:Add(Check(p, 330, y, "Restock by itself at vendors", "With this on, a vendor that sells something on your Restock list tops you up as soon as you open the vendor. Off: click Buy now in the Restock bag (the cart next to your bags).",
   function() return D().restockAuto ~= false end, function(v) D().restockAuto = v and true or false end, "GameFontHighlightSmall"))

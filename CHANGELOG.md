@@ -1,3 +1,9 @@
+# Rucksack 1.9.12
+
+### Changed
+- **One bag moves no reagents by itself:** reagents stay where you put them (Groups still moves them into the reagent bag).
+- **The reagent bag's slots are green** in One bag, so you can see which slots are the reagent bag.
+
 # Rucksack 1.9.11
 
 ### New

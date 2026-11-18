@@ -58,7 +58,7 @@ B, the bag buttons, vendors, mail and trades open Rucksack's bag. Items work as 
 
 **Restock:** the cart next to Hidden holds the things you always want on you. Pull an item in, type how many to carry, and a vendor that sells it tops you up. It never spends below the gold you choose to keep, and when money is short it buys a bit of everything or fills the top of your list first.
 
-**Bank:** at a banker your bank opens in Rucksack, with its bag slots on top: click the next locked slot to buy it. **Reagents** lying in an ordinary bag move into your reagent bag by themselves. What sits in the reagent bag is sold and deleted like everything else.
+**Bank:** at a banker your bank opens in Rucksack, with its bag slots on top: click the next locked slot to buy it. **Reagents** lying in an ordinary bag move into your reagent bag by themselves (in Groups; in One bag nothing moves by itself, and the reagent bag's slots are green). What sits in the reagent bag is sold and deleted like everything else.
 
 - **Groups:** Weapons, Armour, Food and water, Potions, Trade goods, Quest, Everything else and your own groups, each on its own row (or Packed side by side). Drag a group by its name to move it; the others slide out of the way.
 - **Put an item in a group:** pick it up and every group gets a green **+**. Drop it there and all its stacks go there from now on. Drop it on its own group again to undo.

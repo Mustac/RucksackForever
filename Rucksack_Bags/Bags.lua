@@ -2122,6 +2122,11 @@ local function show(e, x, y, text, withDot)
     d.tint:SetColorTexture(sc[1], sc[2], sc[3], e.empty and 0.28 or 0.14)
     d.tint:Show()
     for _, t in ipairs(d.lines) do t:SetColorTexture(sc[1], sc[2], sc[3], 0.9) t:Show() end
+  elseif REAGENT and e.bag == REAGENT and DB.style == "grid" then
+    -- (18 Nov) One bag: the reagent bag's slots in green (he: "mark reagent bag slots green")
+    d.tint:SetColorTexture(0.3, 0.85, 0.35, e.empty and 0.28 or 0.14)
+    d.tint:Show()
+    for _, t in ipairs(d.lines) do t:SetColorTexture(0.3, 0.85, 0.35, 0.9) t:Show() end
   else
     d.tint:Hide()
     for _, t in ipairs(d.lines) do t:Hide() end
@@ -3245,6 +3250,7 @@ function B.ReagentStep()
   B.reagentWait = nil
   if B.swap then return end -- (18 Nov: a bag swap is moving things)
   if not DB or DB.reagentHome == false or not REAGENT then return end
+  if DB.style == "grid" then return end -- (18 Nov: One bag moves nothing by itself, reagents neither)
   if B.SpecialOf and B.SpecialOf(REAGENT) then return end -- (18 Nov: a soul bag sits in the reagent slot: no reagents go there)
   if tidying or InCombatLockdown() or CursorHasItem() or (GetCursorInfo and GetCursorInfo()) then return end
   if SpellIsTargeting and SpellIsTargeting() then return end
