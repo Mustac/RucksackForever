@@ -1,3 +1,13 @@
+# Rucksack 1.9.9
+
+### New
+- **Swap a bag that still has items:** drop the new bag on the old one in the bags row. Rucksack moves the old bag's items into your other bags first (and into the bank while it's open), then puts the new bag in. Not enough room? It tells you how many slots are missing and offers to delete junk or use an empty bag slot.
+- **Why an item isn't sold:** its tooltip says so when a quest you have still needs it.
+
+### Fixed
+- **Items in the reagent bag weren't sold or deleted:** selling, deleting and the vendor's "not sold" lines never looked in the reagent bag. They do now.
+- An error in Free mode about GetItemInfo (an empty slot).
+
 # Rucksack 1.9.8
 
 ### Changed

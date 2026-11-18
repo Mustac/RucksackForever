@@ -123,7 +123,7 @@ function Sell.Items()
   local out, value = {}, 0
   if not DB or not DB.enabled or not (DB.sellGrey or DB.sellList or DB.sellGear) then return out, 0 end
   local byID, order = {}, {}
-  for bag = 0, ns.NUM_BAGS do
+  for bag = 0, ns.LAST_BAG do
     for slot = 1, (ns.GetNumSlots(bag) or 0) do
       local id, count, link, _, locked = ns.SlotInfo(bag, slot)
       local marked = ns.Del.SlotSell and ns.Del.SlotSell(bag, slot, id) -- (15 Nov: this very stack is marked for sale)
@@ -215,7 +215,7 @@ function Sell.Report()
   local selling = {}
   for _, s in ipairs((Sell.Items())) do selling[s.bag .. ":" .. s.slot] = true end
   local lines = 0
-  for bag = 0, ns.NUM_BAGS do
+  for bag = 0, ns.LAST_BAG do
     for slot = 1, (ns.GetNumSlots(bag) or 0) do
       local id, count, link = ns.SlotInfo(bag, slot)
       if id and not told[id] and not selling[bag .. ":" .. slot] then

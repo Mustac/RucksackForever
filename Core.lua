@@ -126,10 +126,23 @@ ns.PickupBagItem = (C and C.PickupContainerItem) or PickupContainerItem
 ns.SplitBagItem = (C and C.SplitContainerItem) or SplitContainerItem
 ns.GetQuestInfo = (C and C.GetContainerItemQuestInfo) or GetContainerItemQuestInfo
 ns.GetFree = (C and C.GetContainerNumFreeSlots) or GetContainerNumFreeSlots
-ns.GetInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+do
+  -- (18 Nov) the game throws an error on GetItemInfo(nil) instead of returning nothing
+  local gi = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+  ns.GetInfo = function(item, ...) if item == nil then return nil end return gi(item, ...) end
+end
 ns.GetIcon = (C_Item and C_Item.GetItemIconByID) or GetItemIcon
 ns.GetCount = (C_Item and C_Item.GetItemCount) or GetItemCount
 ns.NUM_BAGS = NUM_BAG_SLOTS or 4
+-- (18 Nov) the last bag your items can be in: WoW Forever's reagent bag comes right after the four bag
+-- slots. He: "not saying anything and not selling" (Spider Ichor and Lean Wolf Flank sat in the
+-- reagent bag, which selling, deleting and the vendor's "not sold" lines never looked at).
+-- Free-slot counts still use NUM_BAGS: only reagents fit in that bag.
+do
+  local rb = Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag
+  local ic = Constants and Constants.InventoryConstants
+  ns.LAST_BAG = (rb == ns.NUM_BAGS + 1 and ic and (ic.NumReagentBagSlots or 0) > 0) and rb or ns.NUM_BAGS
+end
 
 function ns.SlotInfo(bag, slot)
   if C and C.GetContainerItemInfo then
@@ -166,6 +179,7 @@ function ns.NameOf(id, link)
   if fromLink and fromLink ~= "" then return fromLink end
   local meta = ns.del and ns.del.meta and ns.del.meta[id]
   if meta and meta.name and meta.name ~= "" then return meta.name end
+  if not id then return nil end -- (18 Nov: the game errors on GetItemInfo(nil); an empty slot has no item)
   local name = ns.GetInfo(id)
   return name or (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id)) or ("item " .. tostring(id))
 end

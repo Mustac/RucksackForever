@@ -397,7 +397,24 @@ function B.Where(id)
   return out
 end
 local function addWhere(tt, id)
-  if not DB or DB.tipWhere == false or not id or not tt or not tt.AddLine then return end
+  if not DB or not id or not tt or not tt.AddLine then return end
+  -- (18 Nov) why an item with "!?" is kept: the quest that needs it (he: "say reason why it does not
+  -- sell, maybe like part of quest this and that")
+  local Del = ns.Del
+  if Del and Del.QuestNeed then
+    local ok, need = pcall(Del.QuestNeed, id)
+    if ok and need and need > 0 then
+      local nm = ns.NameOf(id)
+      local titles = nm and Del.questTitles and Del.questTitles[nm:lower()]
+      if need == math.huge then
+        tt:AddLine("Rucksack: it starts a quest, so it's kept.", 1, 0.82, 0, true)
+      else
+        tt:AddLine("Rucksack: kept for " .. (titles and titles[1] and ("the quest \"" .. table.concat(titles, "\", \"") .. "\"") or "a quest you have") ..
+          " (needs " .. need .. "). Only what's over that is sold.", 1, 0.82, 0, true)
+      end
+    end
+  end
+  if DB.tipWhere == false then return end
   local parts = B.Where(id)
   if #parts == 0 then return end
   tt:AddLine("Also: " .. table.concat(parts, " · "), 0.5, 0.83, 1, true)
@@ -675,7 +692,12 @@ for i, bag in ipairs(BAR) do
   b:RegisterForClicks("LeftButtonUp")
   b:RegisterForDrag("LeftButton")
   local function fight() if InCombatLockdown() then Print("bags can't be changed in a fight.") return true end end
-  local function put() local inv = invSlot(bag) if inv and not fight() then PutItemInBag(inv) end end
+  local function put()
+    local inv = invSlot(bag)
+    if not inv or fight() then return end
+    if B.TrySwap and B.TrySwap(bag, inv) then return end -- (18 Nov: the old bag still has items)
+    PutItemInBag(inv)
+  end
   local function take() local inv = invSlot(bag) if inv and not fight() and b.has then PickupBagFromSlot(inv) end end
   b:SetScript("OnClick", function() if CursorHasItem() then put() else take() end end)
   b:SetScript("OnReceiveDrag", put)
@@ -689,7 +711,7 @@ for i, bag in ipairs(BAR) do
       GameTooltip:AddLine(" ")
       local sp = B.SpecialOf and B.SpecialOf(bag)
       GameTooltip:AddLine((self.free or 0) .. " of " .. (self.size or 0) .. " slots free" .. (sp and (" (" .. sp.name .. ")") or (bag == REAGENT and " (reagents only)") or ""), 1, 1, 1)
-      GameTooltip:AddLine("Drop another bag on it to swap. Click to pick it up.", 0.7, 0.7, 0.7, true)
+      GameTooltip:AddLine("Drop another bag on it to swap (its items are moved out first). Click to pick it up.", 0.7, 0.7, 0.7, true)
     else
       GameTooltip:AddLine(bag == REAGENT and "Empty reagent bag slot" or "Empty bag slot")
       GameTooltip:AddLine(bag == REAGENT and "Drop a reagent bag here." or "Drop a bag here.", 1, 1, 1)
@@ -2215,8 +2237,12 @@ local function drawOneBag(byCat, text, cols, W, st, canDrop)
     if not B.bagRank then B.bagRank = {} for i, b in ipairs(BAGS) do B.bagRank[b] = i end end
   end
   for _, e in ipairs(items) do
-    if not e.kind then local ok, k = pcall(B.Category, e.id, e.link, e.bag, e.slot, true) e.kind = ok and k or "other" end
-    e.sortName = e.sortName or ns.NameOf(e.id, e.link) or ""
+    if e.id then -- (18 Nov: in Free mode the empty slots are in this list too; they have no item)
+      if not e.kind then local ok, k = pcall(B.Category, e.id, e.link, e.bag, e.slot, true) e.kind = ok and k or "other" end
+      e.sortName = e.sortName or ns.NameOf(e.id, e.link) or ""
+    else
+      e.kind, e.sortName = e.kind or "other", e.sortName or ""
+    end
   end
   table.sort(items, function(a, b)
     if by == "slot" then
@@ -2833,7 +2859,7 @@ for i = 1, 12 do
       GameTooltip:SetInventoryItem("player", inv)
       GameTooltip:AddLine(" ")
       GameTooltip:AddLine((self.free or 0) .. " of " .. (self.size or 0) .. " slots free", 1, 1, 1)
-      GameTooltip:AddLine("Drop another bag on it to swap. Click to pick it up.", 0.7, 0.7, 0.7, true)
+      GameTooltip:AddLine("Drop another bag on it to swap (its items are moved out first). Click to pick it up.", 0.7, 0.7, 0.7, true)
     elseif self.owned then
       GameTooltip:AddLine("Empty bank bag slot")
       GameTooltip:AddLine("Drop a bag here (from your bags or one you're holding).", 1, 1, 1, true)
@@ -3152,7 +3178,7 @@ end)
 -- Tidy: put half-full stacks of the same item together, a few moves at a time
 local tidying
 local function tidyStep()
-  if InCombatLockdown() or CursorHasItem() then tidying = nil return end
+  if InCombatLockdown() or CursorHasItem() or B.swap then tidying = nil return end
   local parts = {}
   for _, bag in ipairs(BAGS) do
     local kind = bagKind(bag)
@@ -3218,6 +3244,7 @@ function B.ReagentsHome()
 end
 function B.ReagentStep()
   B.reagentWait = nil
+  if B.swap then return end -- (18 Nov: a bag swap is moving things)
   if not DB or DB.reagentHome == false or not REAGENT then return end
   if B.SpecialOf and B.SpecialOf(REAGENT) then return end -- (18 Nov: a soul bag sits in the reagent slot: no reagents go there)
   if tidying or InCombatLockdown() or CursorHasItem() or (GetCursorInfo and GetCursorInfo()) then return end
@@ -3427,6 +3454,7 @@ do
 end
 function B.SpecialStep()
   B.specialWait = nil
+  if B.swap then return end -- (18 Nov: a bag swap is moving things)
   if not DB or DB.specialHome == false then return end
   if tidying or InCombatLockdown() or CursorHasItem() or (GetCursorInfo and GetCursorInfo()) then return end
   if SpellIsTargeting and SpellIsTargeting() then return end
@@ -3737,3 +3765,288 @@ SlashCmdList.RUCKBANK = function()
   table.sort(api)
   say("game's bank functions: " .. table.concat(api, ", "))
 end
+
+---------------------------------------------------------------------------
+-- (18 Nov) Swapping a bag that still has items in it. He: "I need to change a bag and sometimes it
+-- wont let me if I dont have enough slots, can it still be done?" The game only takes a new bag on a
+-- slot whose bag is empty. Drop the new bag on that slot in the bags row: Rucksack moves the old
+-- bag's items into your other bags (and the bank while it's open), a few at a time, then puts the new
+-- bag in; the old bag lands where the new one was. Without room it says how many slots are missing
+-- and offers: delete junk, or put the new bag in an empty bag slot.
+---------------------------------------------------------------------------
+-- (in a function of its own: the file is at Lua's limit of 200 locals)
+;(function()
+  local function slotsOf(bag) return C_Container.GetContainerNumSlots(bag) or 0 end
+  local function isBagItem(id)
+    if not id or not C_Item or not C_Item.GetItemInfoInstant then return false end
+    local ok, _, _, _, _, _, class = pcall(C_Item.GetItemInfoInstant, id)
+    return ok and (class == 1 or class == 11) or false
+  end
+  local function maxStack(id, link)
+    local ok, m = pcall(function() return (select(8, ns.GetInfo(link or id))) end)
+    return ok and m or 1
+  end
+  -- can this item go into that bag? (special bags only take their own kind: left alone here)
+  local function takes(bag, id)
+    if B.SpecialOf and B.SpecialOf(bag) then return false end
+    if bag == REAGENT then return B.IsReagent(id) and true or false end
+    return true
+  end
+  local function dests(target)
+    local list = {}
+    for _, bag in ipairs(BAGS) do if bag ~= target then list[#list + 1] = bag end end
+    if bankOpen then for _, bag in ipairs(bankIDs()) do list[#list + 1] = bag end end
+    return list
+  end
+  -- where each item in the old bag would go: the moves, how many have nowhere to go, how many items
+  local function plan(target)
+    local spots, partial = {}, {}
+    for _, bag in ipairs(dests(target)) do
+      for slot = 1, slotsOf(bag) do
+        local it = C_Container.GetContainerItemInfo(bag, slot)
+        if not it or not it.itemID then
+          if not B.IsLockedSlot(bag, slot) then spots[#spots + 1] = { bag = bag, slot = slot } end
+        elseif not it.isLocked then
+          local room = maxStack(it.itemID, it.hyperlink) - (it.stackCount or 1)
+          if room > 0 then partial[#partial + 1] = { bag = bag, slot = slot, id = it.itemID, room = room } end
+        end
+      end
+    end
+    local moves, missing, count = {}, 0, 0
+    for slot = 1, slotsOf(target) do
+      local it = C_Container.GetContainerItemInfo(target, slot)
+      if it and it.itemID then
+        count = count + 1
+        local n, to = it.stackCount or 1, nil
+        for _, p in ipairs(partial) do
+          if p.id == it.itemID and p.room >= n and takes(p.bag, it.itemID) then to = p p.room = p.room - n break end
+        end
+        if not to then
+          for i, sp in ipairs(spots) do
+            if takes(sp.bag, it.itemID) then to = table.remove(spots, i) break end
+          end
+        end
+        if to then
+          moves[#moves + 1] = { from = slot, id = it.itemID, link = it.hyperlink, bag = to.bag, slot = to.slot, locked = it.isLocked }
+        else
+          missing = missing + 1
+        end
+      end
+    end
+    return moves, missing, count
+  end
+  B.SwapPlan = plan
+  -- a stack's sell / delete-once / bank mark goes with it
+  local function carryMarks(fromKey, toKey, id)
+    local c = ns.char
+    if not c then return end
+    for _, k in ipairs({ "bankSlots", "sellSlots", "junkSlots" }) do
+      local m = c[k]
+      if type(m) == "table" and m[fromKey] == id then m[fromKey] = nil m[toKey] = id end
+    end
+  end
+  local S -- the swap on its way
+  local function finish(msg)
+    if S and S.ticker then S.ticker:Cancel() end
+    S, B.swap = nil, nil
+    if msg then Print(msg) end
+    B.Changed()
+  end
+  -- where the new bag is now
+  local function findNew(st)
+    if st.fromBag and st.fromBag ~= st.target then
+      local it = C_Container.GetContainerItemInfo(st.fromBag, st.fromSlot)
+      if it and it.itemID == st.id then return st.fromBag, st.fromSlot end
+    end
+    for _, bag in ipairs(dests(st.target)) do
+      for slot = 1, slotsOf(bag) do
+        local it = C_Container.GetContainerItemInfo(bag, slot)
+        if it and it.itemID == st.id then return bag, slot end
+      end
+    end
+  end
+  B.SwapFindNew = findNew
+  local function step()
+    if not S then return end
+    S.tries = S.tries + 1
+    if S.putAt then -- the new bag was put in: did it go?
+      if GetInventoryItemID("player", S.inv) == S.id then
+        local name = ns.NameOf(S.id) or "the new bag"
+        return finish("bag swapped: " .. name .. " is in.")
+      end
+      if GetTime() - S.putAt > 1.5 then
+        if CursorHasItem() then ClearCursor() end
+        return finish("the game didn't take the new bag. Your items are out of the old one, so try dropping it again.")
+      end
+      return
+    end
+    if InCombatLockdown() then return finish("bag swap stopped: you're in a fight. Drop the bag again after it.") end
+    if S.tries > 240 then return finish("bag swap stopped: it took too long.") end
+    if CursorHasItem() or (GetCursorInfo and GetCursorInfo()) then return end
+    if S.movedAt and GetTime() - S.movedAt < 0.3 then return end
+    local moves, missing, count = plan(S.target)
+    if count == 0 then
+      -- the old bag is empty: in goes the new one
+      local b, sl = findNew(S)
+      if not b then return finish("bag swap stopped: the new bag isn't in your bags any more.") end
+      C_Container.PickupContainerItem(b, sl)
+      if not CursorHasItem() then return end -- (still on its way: next time)
+      PutItemInBag(S.inv)
+      S.putAt = GetTime()
+      return
+    end
+    local m
+    for _, x in ipairs(moves) do if not x.locked then m = x break end end
+    if not m then
+      if missing > 0 and #moves == 0 then
+        local st = S
+        finish(nil)
+        return B.SwapAsk(st.target, st.inv, st.id, missing, st.fromBag, st.fromSlot)
+      end
+      return -- (a move is still on its way)
+    end
+    local sig = m.from .. ">" .. m.bag .. ":" .. m.slot .. ":" .. m.id
+    if sig == S.last then
+      S.fails = S.fails + 1
+      if S.fails > 3 then return finish("bag swap stopped: the game wouldn't move " .. (m.link or ns.NameOf(m.id) or "an item") .. ".") end
+    end
+    S.last = sig
+    C_Container.PickupContainerItem(S.target, m.from)
+    C_Container.PickupContainerItem(m.bag, m.slot)
+    if CursorHasItem() then
+      ClearCursor()
+      S.fails = S.fails + 1
+    else
+      carryMarks(S.target .. ":" .. m.from, m.bag .. ":" .. m.slot, m.id)
+    end
+    S.movedAt = GetTime()
+  end
+  function B.StartSwap(target, inv, id, fromBag, fromSlot)
+    if InCombatLockdown() then Print("bags can't be changed in a fight.") return end
+    if S then return end
+    local _, _, count = plan(target)
+    S = { target = target, inv = inv, id = id, fromBag = fromBag, fromSlot = fromSlot, tries = 0, fails = 0 }
+    B.swap = S
+    S.ticker = C_Timer.NewTicker(0.25, step)
+    if count > 0 then Print("swapping bags: moving " .. count .. (count == 1 and " item" or " items") .. " out of the old bag first.") end
+    step()
+  end
+  -- called when a bag is dropped on a bag slot in the bags row. true = Rucksack takes care of it.
+  function B.TrySwap(bag, inv)
+    if not IS_BAG[bag] or not GetCursorInfo then return false end
+    local kind, id = GetCursorInfo()
+    if kind ~= "item" or not isBagItem(id) then return false end
+    if not GetInventoryItemID("player", inv) then return false end -- (an empty slot: the game does it)
+    local _, missing, count = plan(bag)
+    if count == 0 then return false end -- (the old bag is empty: the game swaps them)
+    if S then Print("a bag swap is already on its way.") return true end
+    local fb, fs = B.HeldSlot(id)
+    if missing > 0 then
+      -- no room: maybe the game moves the items over itself (a bigger bag); if not, say what's missing
+      PutItemInBag(inv)
+      C_Timer.After(0.6, function()
+        if GetInventoryItemID("player", inv) == id then return end
+        if CursorHasItem() then ClearCursor() end
+        local _, miss = plan(bag)
+        B.SwapAsk(bag, inv, id, miss, fb, fs)
+      end)
+      return true
+    end
+    ClearCursor()
+    B.StartSwap(bag, inv, id, fb, fs)
+    return true
+  end
+
+  -- the box when there's no room
+  local box = CreateFrame("Frame", "RucksackBagSwapAsk", UIParent, ns.BACKDROP_TMPL)
+  box:SetSize(400, 140)
+  box:SetPoint("TOP", UIParent, "TOP", 0, -135)
+  box:SetFrameStrata("FULLSCREEN_DIALOG")
+  box:SetToplevel(true)
+  box:EnableMouse(true)
+  if box.SetBackdrop then box:SetBackdrop(ns.DIALOG_BACKDROP) end
+  box:Hide()
+  tinsert(UISpecialFrames, "RucksackBagSwapAsk")
+  local title = box:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+  title:SetPoint("TOP", 0, -20)
+  title:SetText("Not enough room to swap bags")
+  local text = box:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+  text:SetPoint("TOP", title, "BOTTOM", 0, -10)
+  text:SetWidth(350)
+  local function button(label, w)
+    local b = CreateFrame("Button", nil, box, "UIPanelButtonTemplate")
+    b:SetSize(w, 24)
+    b:SetText(label)
+    return b
+  end
+  local junkBtn, slotBtn, swapBtn, cancelBtn = button("Delete junk", 110), button("Use the empty slot", 140), button("Swap now", 110), button("Cancel", 90)
+  B.swapBox = { frame = box, text = text, junk = junkBtn, slot = slotBtn, swap = swapBtn, cancel = cancelBtn }
+  local function emptyBagSlot()
+    for _, bag in ipairs(BAR) do
+      if bag ~= REAGENT then
+        local inv = invSlot(bag)
+        if inv and not GetInventoryItemID("player", inv) then return bag, inv end
+      end
+    end
+  end
+  local function refresh()
+    local d = box.data
+    if not d then return end
+    local _, missing, count = plan(d.target)
+    d.missing = missing
+    local list = {}
+    if missing > 0 then
+      text:SetText("The old bag has " .. count .. (count == 1 and " item" or " items") .. ", and " .. missing ..
+        (missing == 1 and " has" or " have") .. " nowhere to go. Free " .. missing .. " more " .. (missing == 1 and "slot" or "slots") ..
+        (bankOpen and "." or ", or open your bank: they can go there."))
+      if ns.Del and ns.Del.HasJunk and ns.Del.HasJunk() then list[#list + 1] = junkBtn end
+      if d.id and emptyBagSlot() then list[#list + 1] = slotBtn end
+    else
+      text:SetText("There's room now.")
+      if d.id then list[#list + 1] = swapBtn end
+    end
+    list[#list + 1] = cancelBtn
+    for _, b in ipairs({ junkBtn, slotBtn, swapBtn, cancelBtn }) do b:Hide() b:ClearAllPoints() end
+    local w = 0
+    for _, b in ipairs(list) do w = w + b:GetWidth() end
+    w = w + 8 * (#list - 1)
+    local x = -w / 2
+    for _, b in ipairs(list) do
+      b:SetPoint("BOTTOMLEFT", box, "BOTTOM", x, 18)
+      b:Show()
+      x = x + b:GetWidth() + 8
+    end
+    box:SetHeight(math.max(130, (text:GetStringHeight() or 30) + 100))
+  end
+  B.SwapRefresh = refresh
+  function B.SwapAsk(target, inv, id, missing, fromBag, fromSlot)
+    if not target then return end
+    box.data = { target = target, inv = inv or invSlot(target), id = id, missing = missing, fromBag = fromBag, fromSlot = fromSlot }
+    refresh()
+    box:Show()
+  end
+  junkBtn:SetScript("OnClick", function()
+    if ns.Del and ns.Del.Click then ns.Del.Click() end -- (a click: the game lets an addon delete only then)
+    C_Timer.After(0.5, refresh)
+  end)
+  slotBtn:SetScript("OnClick", function()
+    local d = box.data
+    box:Hide()
+    if not d or InCombatLockdown() then return end
+    local _, inv = emptyBagSlot()
+    local b, sl = findNew(d)
+    if not inv or not b then return end
+    C_Container.PickupContainerItem(b, sl)
+    if CursorHasItem() then PutItemInBag(inv) end
+  end)
+  swapBtn:SetScript("OnClick", function()
+    local d = box.data
+    box:Hide()
+    if d and d.id then B.StartSwap(d.target, d.inv, d.id, d.fromBag, d.fromSlot) end
+  end)
+  cancelBtn:SetScript("OnClick", function() box:Hide() end)
+  box:SetScript("OnHide", function() box.data = nil end)
+  box:RegisterEvent("BAG_UPDATE_DELAYED")
+  box:RegisterEvent("BANKFRAME_OPENED")
+  box:SetScript("OnEvent", function() if box:IsShown() then C_Timer.After(0.1, refresh) end end)
+end)()

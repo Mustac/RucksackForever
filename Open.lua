@@ -117,7 +117,7 @@ end
 -- the first one in the bags, and how many there are
 local function findNext()
   local fb, fs, fid, flink, n = nil, nil, nil, nil, 0
-  for bag = 0, ns.NUM_BAGS do
+  for bag = 0, ns.LAST_BAG do
     for slot = 1, (ns.GetNumSlots(bag) or 0) do
       local id, link = openable(bag, slot)
       if id then

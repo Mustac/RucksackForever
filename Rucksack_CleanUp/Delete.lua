@@ -356,7 +356,7 @@ local function ScanBags(ready)
   local full = BagsNearlyFull()
   local reqMap = GetQuestRequirements()
   local byID = {}
-  for bag = 0, ns.NUM_BAGS do
+  for bag = 0, ns.LAST_BAG do
     for slot = 1, (ns.GetNumSlots(bag) or 0) do
       local id, count, link, icon, locked = SlotInfo(bag, slot)
       if id and onList(id, bag, slot) then
@@ -542,6 +542,12 @@ function Del.Click()
   DeleteOne(true)
 end
 function AutoDelete_DeleteNext() Del.Click() end
+-- (18 Nov) is there something Clean-up would throw away now? (the bag swap box offers "Delete junk")
+function Del.HasJunk()
+  if not DB or InCombatLockdown() then return false end
+  local ok, it = pcall(ScanBags, false)
+  return ok and it and true or false
+end
 -- (15 Nov) right after something goes on the list: look at the bags now, so with nearly full bags
 -- the cheapest waiting stack goes straight away (the usual rule: the cheapest, not always the new
 -- one). Everything that adds to the list is a click, and the game only deletes inside a click.
@@ -616,7 +622,7 @@ pcall(sweeper.RegisterEvent, sweeper, "BAG_UPDATE_DELAYED")
 sweeper:SetScript("OnEvent", function() pcall(sweepSlotMarks) end)
 -- the stack on your cursor: which slot it came from (the game locks that slot while you hold it)
 function Del.HeldSlot(id)
-  for bag = 0, ns.NUM_BAGS do
+  for bag = 0, ns.LAST_BAG do
     for slot = 1, (ns.GetNumSlots(bag) or 0) do
       local sid, _, _, _, locked = SlotInfo(bag, slot)
       if sid == id and locked then return bag, slot end
@@ -643,7 +649,7 @@ end
 -- every stack of it in your bags right now; -> how many stacks, how many items
 function Del.SellAllNow(id)
   local stacks, items, m = 0, 0, slotMarks()
-  for bag = 0, ns.NUM_BAGS do
+  for bag = 0, ns.LAST_BAG do
     for slot = 1, (ns.GetNumSlots(bag) or 0) do
       local sid, count = SlotInfo(bag, slot)
       if sid == id then m[slotKey(bag, slot)] = id stacks, items = stacks + 1, items + (count or 1) end

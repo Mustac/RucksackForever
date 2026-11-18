@@ -58,13 +58,13 @@ B, the bag buttons, vendors, mail and trades open Rucksack's bag. Items work as 
 
 **Restock:** the cart next to Hidden holds the things you always want on you. Pull an item in, type how many to carry, and a vendor that sells it tops you up. It never spends below the gold you choose to keep, and when money is short it buys a bit of everything or fills the top of your list first.
 
-**Bank:** at a banker your bank opens in Rucksack, with its bag slots on top: click the next locked slot to buy it. **Reagents** lying in an ordinary bag move into your reagent bag by themselves.
+**Bank:** at a banker your bank opens in Rucksack, with its bag slots on top: click the next locked slot to buy it. **Reagents** lying in an ordinary bag move into your reagent bag by themselves. What sits in the reagent bag is sold and deleted like everything else.
 
 - **Groups:** Weapons, Armour, Food and water, Potions, Trade goods, Quest, Everything else and your own groups, each on its own row (or Packed side by side). Drag a group by its name to move it; the others slide out of the way.
 - **Put an item in a group:** pick it up and every group gets a green **+**. Drop it there and all its stacks go there from now on. Drop it on its own group again to undo.
 - **Your own groups:** make one with the green + in the bags row (or drop an item on it); right-click a group's name to rename it, change its colour or delete it.
 - **One bag:** no groups, everything sorted by kind, quality or name. Or switch it to **Free**: nothing is sorted, every item stays in the slot you put it in, and Tidy sorts them once when you want.
-- **The bags row:** hover Rucksack in the corner and click the arrow. A pin that keeps the bag window where it is, your four bags and the reagent bag with their free slots (drop a bag on a bag to swap), Hidden, New group, Delete group and a padlock that locks the layout.
+- **The bags row:** hover Rucksack in the corner and click the arrow. A pin that keeps the bag window where it is, your four bags and the reagent bag with their free slots (drop a bag on a bag to swap: even a full one, Rucksack moves its items out first), Hidden, New group, Delete group and a padlock that locks the layout.
 - **Hidden:** a small bag for things you never need to look at (Skinning Knife, Mining Pick, Hearthstone...). Pull them in and the bag stops showing them; they stay usable from there.
 - **Your bank and other characters:** the characters button lists them; point at one and pick **Inventory** or **Bank**. Each opens in its own window, as it was when last seen; at a banker your bank is live. Item tooltips say where else you have an item.
 - **Quest marks:** a yellow **!** on quest items, and **!?** on ordinary items one of your quests needs (they're kept for it).

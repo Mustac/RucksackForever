@@ -127,7 +127,7 @@ end
 function S.Scan()
   local list = {}
   local skill = S.Skill()
-  for bag = 0, ns.NUM_BAGS do
+  for bag = 0, ns.LAST_BAG do
     for slot = 1, (ns.GetNumSlots(bag) or 0) do
       local id, count, link = ns.SlotInfo(bag, slot)
       if id then

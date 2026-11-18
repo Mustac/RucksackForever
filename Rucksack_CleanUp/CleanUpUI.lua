@@ -460,7 +460,7 @@ do
 
     -- 2. Items in bags caught by the quality rule or Rations' rules (or marked Keep)
     do
-      for bag = 0, ns.NUM_BAGS do
+      for bag = 0, ns.LAST_BAG do
         for slot = 1, (ns.GetNumSlots(bag) or 0) do
           local id, _, link = ns.SlotInfo(bag, slot)
           if id and not seenID[id] then
