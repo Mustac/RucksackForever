@@ -532,6 +532,7 @@ function R.Toggle()
   build()
   if win:IsShown() then win:Hide() else win:Show() place() R.Draw() end
   if B.restockBtn and B.LightUp then B.LightUp(B.restockBtn, win:IsShown()) end
+  if B.Draw then B.Draw() end -- (18 Nov: the side windows decide again whether Restock fits beside the bag)
 end
 function R.IsShown() return win and win:IsShown() and true or false end
 

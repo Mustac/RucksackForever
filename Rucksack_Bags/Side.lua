@@ -650,11 +650,24 @@ function B.DrawSide(st, text)
   if onRight then sf:SetPoint(v .. "LEFT", f, v .. "RIGHT", 3, 0) else sf:SetPoint(v .. "RIGHT", f, v .. "LEFT", -3, 0) end
   B.sideOnRight = onRight
   B.sideLeftW = (not onRight) and (sw + 3) or 0 -- (the bank window, opened on the bag's left, moves past them)
-  B.sideRightW = onRight and (sw + 3) or 0       -- (the Restock window, on the bag's right, too)
-  local hf = RucksackBagsHidden
+  -- Hidden and Restock sit on the bag's right. (18 Nov) he: "if there are no bags top right then hidden
+  -- and restock should hug the bag": they move past the windows only when those are at the top right,
+  -- or at the bottom right and too tall to leave room above them.
+  local hf, rw = RucksackBagsHidden, RucksackBagsRestock
+  local shift = 0
+  if onRight then
+    if top then
+      shift = sw + 3
+    else
+      local need = ((hf and hf:IsShown()) and ((hf:GetHeight() or 0) + 3) or 0) + ((rw and rw:IsShown()) and ((rw:GetHeight() or 0) + 3) or 0)
+      local room = (f:GetHeight() or 0) - (sf:GetHeight() or 0) - 3
+      if need > room then shift = sw + 3 end
+    end
+  end
+  B.sideRightW = shift -- (Restock.lua: past the windows only when they'd be in the way)
   if hf and hf.ClearAllPoints then
     hf:ClearAllPoints()
-    hf:SetPoint("TOPLEFT", f, "TOPRIGHT", onRight and (3 + sw + 3) or 3, 0)
+    hf:SetPoint("TOPLEFT", f, "TOPRIGHT", 3 + shift, 0)
   end
   sf:Show()
   if B.PlaceRestock then B.PlaceRestock() end

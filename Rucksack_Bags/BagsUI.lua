@@ -37,6 +37,25 @@ p:Add(Check(p, 0, y, "Quiver beside the bag", "While you wear a quiver or ammo p
   function() return D().showQuiver ~= false end, function(v) D().showQuiver = v and true or false B.Changed() end, "GameFontHighlightSmall"))
 p:Add(Check(p, 330, y, "Sort into special bags", "An item that fits one of your special bags (arrows in the quiver, shards in the soul bag, herbs in the herb bag, ore in the mining bag...) moves there by itself when there's room: onto a half-full stack first, then an empty slot. Special bags come before the reagent bag. Never in a fight, never while you hold an item.",
   function() return D().specialHome ~= false end, function(v) D().specialHome = v and true or false if v then B.SpecialHome() end end, "GameFontHighlightSmall"))
+-- (18 Nov) soul shards your soul bag has no room for are deleted. Everyone sees it; greyed out
+-- without a soul bag (he: "show that to all people but have it grayed out if no soul bag equipped")
+do
+  local cb = Check(p, 520, y, "Delete extra soul shards", "While you wear a soul bag and it's full, a Soul Shard that lands in another bag is deleted at once (on your next key press). While the soul bag has room, shards move into it instead. Shards a quest needs stay.\n\nOn to start. Greyed out and unticked while you're not wearing a soul bag.",
+    function() return D().shardTrim ~= false end, function(v) D().shardTrim = v and true or false if ns.Del and ns.Del.Refresh then ns.Del.Refresh() end B.Changed() end, "GameFontHighlightSmall")
+  local plain = cb.Update
+  cb.Update = function()
+    plain()
+    local soul = false
+    for bag = 1, ns.NUM_BAGS or 4 do
+      local sp = B.SpecialOf and B.SpecialOf(bag)
+      if sp and sp.key == "soul" then soul = true break end
+    end
+    -- (he: "uncheck if you remove soul bag, its automatically on") on to start; without a soul bag it shows
+    -- unticked and greyed out, and your choice comes back with the bag
+    if soul then cb:Enable() cb.label:SetTextColor(1, 1, 1) else cb:SetChecked(false) cb:Disable() cb.label:SetTextColor(0.5, 0.5, 0.5) end
+  end
+  p:Add(cb)
+end
 y = y - 32
 
 -- a row of small buttons, the one in use lit gold

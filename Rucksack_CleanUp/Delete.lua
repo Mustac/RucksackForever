@@ -198,7 +198,33 @@ local function byFood(id)
   return ns.Eat.DeleteReason(id)
 end
 Del.ByFood = function(id) if DB then return byFood(id) end end
+-- (18 Nov) he: "place an option on settings of bag to auto delete soul shards if they are going out
+-- of soul bags" (shown to everyone, greyed out without a soul bag). With "Delete extra soul shards" on, a
+-- Soul Shard outside your soul bags goes as soon as it can (your next key press, like everything that
+-- goes at once), but only while you wear a soul bag and it's full: with room, it moves in instead.
+local SHARD = 6265
+Del.SHARD = SHARD
+local function shardTrimOn()
+  local B = ns.Bags
+  return B and B.db and B.db.shardTrim ~= false and B.SpecialOf and true or false -- (on to start)
+end
+local function extraShard(id, bag)
+  if id ~= SHARD or not bag or not shardTrimOn() then return false end
+  local B = ns.Bags
+  local sp = B.SpecialOf(bag)
+  if sp and sp.key == "soul" then return false end
+  local hasSoul = false
+  for b = 1, ns.NUM_BAGS do
+    local s2 = B.SpecialOf(b)
+    if s2 and s2.key == "soul" then hasSoul = true break end
+  end
+  if not hasSoul then return false end
+  if B.SpecialRoomFor and B.SpecialRoomFor(SHARD, true) then return false end
+  return true
+end
+Del.ExtraShard = extraShard
 local function onList(id, bag, slot)
+  if extraShard(id, bag) then return true end -- (18 Nov: a soul shard your full soul bag has no room for)
   if ns.KeepItem(id) then return false end -- (Darkmoon turn-in items, scrolls... stay)
   if bag and ns.Bags and ns.Bags.BankSlot and ns.Bags.BankSlot(bag, slot, id) then return false end -- (15 Nov: on its way to the bank)
   if bag and ns.AutoOpen and ns.AutoOpen.WillOpen and ns.AutoOpen.WillOpen(bag, slot) then return false end -- (16 Nov: a clam to open first)
@@ -213,6 +239,7 @@ function Del.Reason(id)
   if not DB then return nil end
   if DB.sell[id] then return "sell only: sold at a vendor, never thrown away" end
   if DB.items[id] then return DB.now[id] and "on your list (as soon as you get it)" or "on your list" end
+  if id == SHARD and shardTrimOn() then return "a soul shard your full soul bag has no room for" end
   local junk = byRule(id)
   if junk then return junk end
   local why = byFood(id)
@@ -220,6 +247,7 @@ function Del.Reason(id)
 end
 local function goesNow(id)
   if DB.now[id] then return true end
+  if id == SHARD and shardTrimOn() then return true end
   local why, now = byFood(id)
   return why and now == "now"
 end

@@ -3316,8 +3316,8 @@ local function placeFor(rooms, id)
   end
 end
 -- (for the reagent bag: an item with room in a special bag goes there instead)
-function B.SpecialRoomFor(id)
-  if not DB or DB.specialHome == false then return false end
+function B.SpecialRoomFor(id, evenIfOff) -- (evenIfOff: is there room at all, sorting on or not)
+  if not DB or (DB.specialHome == false and not evenIfOff) then return false end
   local rooms = specialRoom()
   return placeFor(rooms, id) ~= nil
 end

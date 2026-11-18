@@ -1,3 +1,11 @@
+# Rucksack 1.9.3
+
+### New
+- **Delete extra soul shards:** once your soul bag is full, a Soul Shard that lands in another bag is deleted (on your next key press). Shards a quest needs stay. A switch on the Bags page, on to start; greyed out while you don't wear a soul bag.
+
+### Changed
+- **Hidden and Restock sit right against the bag** when nothing is in the way. They only move further out when the sell / delete / bank windows are at the top right, or too close below them.
+
 # Rucksack 1.9.2
 
 ### New
