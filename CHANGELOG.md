@@ -1,3 +1,8 @@
+# Rucksack 1.9.8
+
+### Changed
+- **"A new version is out" only for chosen releases:** Rucksack no longer tells other players about every new version, only about releases picked for it. None is picked right now. Your "Tell me when a new version is out" setting stays.
+
 # Rucksack 1.9.7
 
 ### Changed

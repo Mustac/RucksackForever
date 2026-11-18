@@ -89,7 +89,7 @@ B, the bag buttons, vendors, mail and trades open Rucksack's bag. Items work as 
 - **Home:** bag space, your next food and water, what's waiting to go, and what a vendor would pay right now.
 - **Pocket:** a small window that stays on screen with the same numbers and your Darkmoon prize. Four styles: **Rows**, **Tiles**, **Strip** (just icons and numbers, across or down) and **Ledger** (text only). Right-click it for its settings.
 - **Guide:** every feature explained in the game. Hover any option for a short tip.
-- **New version notice:** when someone in your guild or group has a newer Rucksack, you get a line at login saying so (can be turned off in Settings).
+- **New version notice:** when an important update is out and someone in your guild or group has it, you get a line at login saying so (can be turned off in Settings).
 
 ## Commands
 

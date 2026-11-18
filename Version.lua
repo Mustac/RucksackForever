@@ -1,4 +1,4 @@
--- Rucksack: tells you when a newer Rucksack is out (16 Nov)
+-- Rucksack: tells you when a newer Rucksack is out (16 Nov); since 18 Nov only for releases he picks (ANNOUNCE)
 -- The game can't look on the internet, so the copies tell each other: each says its version, quietly,
 -- to your guild when you log in and to your group when you join one (hidden addon messages, nobody sees
 -- them). A copy that hears an older version answers that player alone with its own. The newest version
@@ -11,6 +11,11 @@ local PREFIX = "Rucksack"
 local meta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
 local MINE = meta and select(2, pcall(meta, "Rucksack", "Version")) or nil
 if type(MINE) ~= "string" then MINE = nil end
+-- (18 Nov) the version we tell other players about: only the releases he picks (he: "lets remove for
+-- now to say to people to notify them on new update, I will tell you specifically which update I want
+-- to notify"). Copies say this instead of their own version, so nobody hears of a release he didn't
+-- pick. To announce a release: set it to that version. 1.8.7 = the first one with this file: no notice.
+local ANNOUNCE = "1.8.7"
 local V = {}
 ns.Version = V
 V.mine = MINE
@@ -47,7 +52,8 @@ V.Tell = tell
 local send = (C_ChatInfo and C_ChatInfo.SendAddonMessage) or SendAddonMessage
 local function say(channel, target)
   if not MINE or not send then return end
-  pcall(send, PREFIX, "V:" .. MINE, channel, target)
+  local v = (ANNOUNCE and V.Newer(MINE, ANNOUNCE)) and ANNOUNCE or MINE -- (never more than we have)
+  pcall(send, PREFIX, "V:" .. v, channel, target)
 end
 
 -- (an older copy says its version: tell that player ours, once per player and session)
@@ -86,7 +92,7 @@ ev:SetScript("OnEvent", function(_, e, a1, a2, a3, a4)
       if not ns.db then return end
       if V.Newer(theirs, ns.db.newestSeen or MINE) or not ns.db.newestSeen then ns.db.newestSeen = theirs end
       tell()
-    elseif V.Newer(MINE, theirs) and type(sender) == "string" and not answered[sender] then
+    elseif V.Newer((ANNOUNCE and V.Newer(MINE, ANNOUNCE)) and ANNOUNCE or MINE, theirs) and type(sender) == "string" and not answered[sender] then
       answered[sender] = true
       C_Timer.After(2 + math.random() * 3, function() say("WHISPER", sender) end)
     end
