@@ -54,7 +54,7 @@ B, the bag buttons, vendors, mail and trades open Rucksack's bag. Items work as 
 
 **Quiver:** while you wear a quiver or ammo pouch, a fourth window shows it slot by slot with how many arrows you have.
 
-**Special bags:** herb, soul, mining, enchanting and other special bags (and the quiver) get their slots tinted in their own colour, and their empty slots are their own group ("Empty · Herb bag"). Anything that fits one moves into it by itself when there's room, before the reagent bag. Pick the colours on the Bags page. With a soul bag, extra soul shards that don't fit in it are deleted (a switch on the Bags page, on to start).
+**Special bags:** herb, soul, mining, enchanting and other special bags (and the quiver) get their slots tinted in their own colour, and each one is its own group in the bag with how full it is ("Soul bag 12/16"): one tile per item with the total, or slot by slot (your choice for each kind of bag). Anything that fits one moves into it by itself when there's room, before the reagent bag. Pick the colours on the Bags page. With a soul bag, extra soul shards that don't fit in it are deleted (a switch on the Bags page, on to start).
 
 **Restock:** the cart next to Hidden holds the things you always want on you. Pull an item in, type how many to carry, and a vendor that sells it tops you up. It never spends below the gold you choose to keep, and when money is short it buys a bit of everything or fills the top of your list first.
 

@@ -166,8 +166,8 @@ end
 -- picker is a game window, and Rucksack never opens those)
 y = y - math.ceil(n / 4) * 24 - 6
 local cl = Text(p, 0, y, "GameFontNormal")
-cl:SetText("Special bag colours")
-Text(p, 150, y - 1, "GameFontDisableSmall", 480):SetText("the tint and border of their slots in your bag")
+cl:SetText("Special bags")
+Text(p, 150, y - 1, "GameFontDisableSmall", 480):SetText("click a colour: its colour, one tile per item or slot by slot")
 p:Add(Check(p, 470, y + 3, "Colour their slots", "Slots in a special bag get a light tint and a thin border in its colour, so you see at a glance which bag they're in.",
   function() return D().specialTint ~= false end, function(v) D().specialTint = v and true or false B.Draw() end, "GameFontHighlightSmall"))
 y = y - 21
@@ -192,7 +192,7 @@ local function openPalette(w)
   if not palette then
     palette = CreateFrame("Frame", "RucksackSpecialPalette", p, ns.BACKDROP_TMPL)
     palette:SetFrameStrata("DIALOG")
-    palette:SetSize(8 * 22 + 16, 2 * 22 + 46)
+    palette:SetSize(8 * 22 + 16, 2 * 22 + 72)
     if palette.SetBackdrop then palette:SetBackdrop(ns.DIALOG_BACKDROP or { bgFile = "Interface\\ChatFrame\\ChatFrameBackground", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } }) end
     palette:EnableMouse(true)
     palette.cells = {}
@@ -204,6 +204,29 @@ local function openPalette(w)
       b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
       b:SetScript("OnClick", function() setColor(palette.key, c) palette:Hide() end)
     end
+    -- (18 Nov) group it up or not, for this kind of bag
+    local g = CreateFrame("CheckButton", nil, palette, "UICheckButtonTemplate")
+    g:SetSize(22, 22)
+    g:SetPoint("BOTTOMLEFT", 6, 32)
+    g.text = g:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    g.text:SetPoint("LEFT", g, "RIGHT", 2, 1)
+    g.text:SetText("One tile per item")
+    g:SetHitRectInsets(0, -110, 0, 0)
+    g:SetScript("OnClick", function(self)
+      local db = D()
+      db.specUngroup = db.specUngroup or {}
+      db.specUngroup[palette.key] = (not self:GetChecked()) or nil
+      B.Changed()
+    end)
+    g:SetScript("OnEnter", function(self)
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetText("One tile per item")
+      GameTooltip:AddLine("Ticked: everything in this bag shows as one tile per item with the total, and the group's title says how full the bag is (12/16).", 1, 1, 1, true)
+      GameTooltip:AddLine("Not ticked: slot by slot, with its empty slots.", 1, 1, 1, true)
+      GameTooltip:Show()
+    end)
+    g:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    palette.group = g
     local def = CreateFrame("Button", nil, palette, "UIPanelButtonTemplate")
     def:SetSize(80, 20) def:SetPoint("BOTTOMLEFT", 8, 8) def:SetText("Default")
     def:SetScript("OnClick", function() setColor(palette.key, nil) palette:Hide() end)
@@ -212,6 +235,7 @@ local function openPalette(w)
     close:SetScript("OnClick", function() palette:Hide() end)
   end
   palette.key = w.key
+  palette.group:SetChecked(B.SpecialGrouped(w.key))
   palette:ClearAllPoints()
   palette:SetPoint("TOPLEFT", w, "BOTTOMLEFT", 0, -4)
   palette:Show()
@@ -226,7 +250,7 @@ for i, sp in ipairs(B.SPECIAL) do
   w.fill = w:CreateTexture(nil, "ARTWORK") w.fill:SetPoint("TOPLEFT", 1, -1) w.fill:SetPoint("BOTTOMRIGHT", -1, 1)
   w:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
   w:SetScript("OnClick", function(self) if palette and palette:IsShown() and palette.key == self.key then palette:Hide() else openPalette(self) end end)
-  tip(w, sp.name, "Click to pick its colour.")
+  tip(w, sp.name, "Click: its colour, and whether its items show as one tile per item or slot by slot.")
   local label = Text(p, x + 22, yy - 1, "GameFontHighlightSmall")
   label:SetText(sp.name)
   swatches[#swatches + 1] = w

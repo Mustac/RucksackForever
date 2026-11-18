@@ -123,12 +123,13 @@ B.SPECIAL = {
   { bit = 512, key = "gem", name = "Gem bag", color = { 0.32, 0.86, 0.90 } },
   { bit = 16, key = "inscribe", name = "Inscription bag", color = { 0.90, 0.84, 0.58 } },
 }
--- each kind's empty slots are their own group, named after the bag ("Empty · Herb bag")
+-- each special bag is its own group, named after it ("Soul bag"): what's in it, then its empty slots
+-- (18 Nov, he: "soul shards should be in soul bag")
 do
   local at
   for i, c in ipairs(B.CATS) do if c.key == "emptyS" then at = i end end
   for n, sp in ipairs(B.SPECIAL) do
-    table.insert(B.CATS, at + n, { key = "emptyS_" .. sp.key, name = "Empty · " .. sp.name, color = sp.color, spec = sp.key })
+    table.insert(B.CATS, at + n, { key = "emptyS_" .. sp.key, name = sp.name, color = sp.color, spec = sp.key })
   end
 end
 -- colours for your own groups
@@ -1151,23 +1152,29 @@ local function buildCells(v, text)
   -- and what goes to the bank show there, not in the bag's groups
   local side = v == MAINVIEW and vLiveBags(v) and B.SideOn and B.SideOn() and { always = {}, once = {}, bank = {}, quiver = {} } or nil
   st.side = side
+  local liveMain = v == MAINVIEW and vLiveBags(v)
   for _, e in ipairs(items) do
     if side then
       local ok, where = pcall(B.SideOf, e)
       e.side = ok and where and side[where] and where or nil
     end
+    -- (18 Nov) in a special bag: it shows in that bag's own group, one tile per item with the total
+    -- (he: "everything grouped up showing how many shards it has in that bag from how much max like 12/16")
+    local sp = not e.side and liveMain and e.bag and B.SpecialOf and B.SpecialOf(e.bag)
+    if sp then e.cat, e.inSpecial = "emptyS_" .. sp.key, B.SpecialGrouped(sp.key) and "one" or "slots" end
     local group = e.side and ("side:" .. e.side) or e.cat
     local list
     if e.side then list = side[e.side] else byCat[e.cat] = byCat[e.cat] or {} list = byCat[e.cat] end
     local key = group .. ":" .. e.id
-    if merge and seen[key] and e.side ~= "quiver" then
+    local together = (merge and e.inSpecial ~= "slots") or e.inSpecial == "one"
+    if together and seen[key] and e.side ~= "quiver" then
       seen[key].total = seen[key].total + e.count
       if e.bag then seen[key].inBags[e.bag] = true end
     else
       e.total = e.count
       e.inBags = e.bag and { [e.bag] = true } or {}
       list[#list + 1] = e
-      if merge then seen[key] = e end
+      if together then seen[key] = e end
     end
   end
   -- junk: the cheapest first, like Clean-up throws it away; and its value
@@ -1234,7 +1241,7 @@ local function buildCells(v, text)
   end
   -- empty slots (live only): every one (you can drop an item on any), or one cell with the number
   if live then
-    -- (1.9.1) a special bag's empty slots: one group per kind ("Empty · Herb bag")
+    -- (1.9.1) a special bag's empty slots: in that bag's own group ("Soul bag"), after its items
     local bySpec = {}
     for _, sl in ipairs(st.empties.S) do
       local sp = B.SpecialOf(sl.bag)
@@ -1243,11 +1250,29 @@ local function buildCells(v, text)
       table.insert(bySpec[k], sl)
     end
     local kinds = { [""] = "empty", R = "emptyR" }
+    -- (18 Nov) a special bag's group shows no empty slots: its title says how full it is ("Soul bag 12/16")
+    if liveMain then
+      B.specSpace = {}
+      for _, bag in ipairs(BAR) do
+        local sp = B.SpecialOf(bag)
+        if sp then
+          local cat = "emptyS_" .. sp.key
+          local n = C_Container.GetContainerNumSlots(bag) or 0
+          local free = C_Container.GetContainerNumFreeSlots(bag) or 0
+          local r = B.specSpace[cat] or { used = 0, size = 0 }
+          r.used, r.size = r.used + (n - free), r.size + n
+          B.specSpace[cat] = r
+          byCat[cat] = byCat[cat] or {}
+        end
+      end
+      -- (grouped kinds: no empty cells; slot by slot: their empty slots follow the items)
+      for k in pairs(bySpec) do if k ~= "S" and B.SpecialGrouped(k:sub(3)) then bySpec[k] = nil end end
+    end
     for k, list in pairs(bySpec) do st.empties[k] = list kinds[k] = "empty" .. k end
     for kind, cat in pairs(kinds) do
       local list = st.empties[kind]
       if #list > 0 then
-        byCat[cat] = {}
+        byCat[cat] = byCat[cat] or {} -- (a special bag's group already holds its items)
         if DB.emptyAll ~= false or st.freeMode then
           for _, sl in ipairs(list) do
             table.insert(byCat[cat], { bag = sl.bag, slot = sl.slot, cat = cat, empty = true, inBags = { [sl.bag] = true } })
@@ -1255,7 +1280,7 @@ local function buildCells(v, text)
         else
           local inBags = {}
           for _, sl in ipairs(list) do inBags[sl.bag] = true end
-          byCat[cat][1] = { bag = list[1].bag, slot = list[1].slot, cat = cat, total = #list, empty = true, inBags = inBags }
+          table.insert(byCat[cat], { bag = list[1].bag, slot = list[1].slot, cat = cat, total = #list, empty = true, inBags = inBags })
         end
       end
     end
@@ -1266,6 +1291,7 @@ local function buildCells(v, text)
   end
   return byCat, st
 end
+B.BuildCells = function(v, text) return buildCells(v, text) end -- (for the test scripts)
 
 ---------------------------------------------------------------------------
 -- Putting an item in a group: pick it up, drop it on the slot at a group's end (or on its name)
@@ -2256,13 +2282,15 @@ local function drawGroups(byCat, order, text, cols, W)
   local list, li, total = {}, 0, 0
   for _, c in ipairs(order) do
     local items = byCat[c.key]
-    if items and (#items > 0 or (c.custom and not PANE.static)) then
+    local space = c.spec and PANE == MAIN and B.specSpace and B.specSpace[c.key]
+    if items and (#items > 0 or (c.custom and not PANE.static) or space) then
       li = li + 1
       local l = label(li)
       local n = #items
       total = total + n
       local name = c.name
-      local col = c.custom and ("|cff%02x%02x%02x"):format(math.floor(c.color[1] * 255), math.floor(c.color[2] * 255), math.floor(c.color[3] * 255))
+      if space then name = name .. "  |cffffffff" .. space.used .. "/" .. space.size .. "|r" end -- (18 Nov: "Soul bag 12/16")
+      local col = (c.custom or space) and ("|cff%02x%02x%02x"):format(math.floor(c.color[1] * 255), math.floor(c.color[2] * 255), math.floor(c.color[3] * 255))
         or c.key == "junk" and "|cffff8a8a" or c.key == "sell" and "|cffffd100" or "|cffa8946a"
       if B.deleting and c.custom and not DB.locked then name = "|cffff5050x|r " .. name .. "  |cffff6b6bclick to delete|r" end
       local nameW = measure(l, col .. name .. "|r")
@@ -2288,7 +2316,7 @@ local function drawGroups(byCat, order, text, cols, W)
     end
     if g.n == 0 then
       local h = hint(i)
-      h:SetText(DB.locked and "empty" or "pick an item up and drop it here")
+      h:SetText((DB.locked or g.c.spec) and "empty" or "pick an item up and drop it here")
       addFrame(h, g.x + 2, g.y + LABEL + 2)
       h:Show()
     end
@@ -3306,6 +3334,9 @@ function B.SpecialOf(bag)
   end
   return B.KindOfBagItem(bag) or B.SoulByItem(bag)
 end
+-- (18 Nov) each kind: one tile per item with the total (the default), or slot by slot with its empty
+-- slots (he: "we can choose in settings to group it up or not separate for each special bag")
+function B.SpecialGrouped(key) return not (DB and DB.specUngroup and DB.specUngroup[key]) end
 -- do you wear a special bag of this kind (any bag slot, the reagent slot too)?
 function B.HasSpecial(key)
   for _, bag in ipairs(BAR) do

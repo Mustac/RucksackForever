@@ -1,3 +1,9 @@
+# Rucksack 1.9.7
+
+### Changed
+- **Each special bag is its own group** in the bag, with how full it is: "Soul bag 12/16". What's inside shows there, not in Everything else.
+- **One tile or slot by slot, for each kind of bag:** click its colour at the bottom of the Bags page. "One tile per item" (the default) shows all your shards as one tile with the total; untick it to see each slot and the empty ones.
+
 # Rucksack 1.9.6
 
 ### Fixed
