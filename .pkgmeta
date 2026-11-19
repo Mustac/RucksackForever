@@ -8,6 +8,7 @@ move-folders:
   Rucksack/Rucksack_Faire: Rucksack_Faire
   Rucksack/Rucksack_Scrolls: Rucksack_Scrolls
   Rucksack/Rucksack_Bags: Rucksack_Bags
+  Rucksack/Rucksack_Haul: Rucksack_Haul
 
 manual-changelog:
   filename: CHANGELOG.md

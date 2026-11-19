@@ -33,6 +33,7 @@ end
 -- (16 Nov) items a vendor wouldn't take this session (he: "that one refuses to sell, all other
 -- sold"): what the game said. Not tried again until you log in again.
 Sell.refused = {}
+Sell.forced = {} -- (19 Nov) "bag:slot" the vendor button asked to sell, even with Once's sell tick off (till the vendor closes)
 
 ---------------------------------------------------------------------------
 -- (10 Nov) Soulbound gear this character can't use: sold at a vendor, never deleted.
@@ -131,7 +132,10 @@ function Sell.Items()
       -- the mark is newer and only for this stack (he kept Healing Potions and marked 3 of them)
       local byHand = marked or (ns.Del.SlotJunk and ns.Del.SlotJunk(bag, slot, id))
       local toBank = id and ns.Bags and ns.Bags.BankSlot and ns.Bags.BankSlot(bag, slot, id) -- (15 Nov: on its way to the bank)
-      if id and not toBank and not Sell.refused[id] and (byHand or not DB.keep[id]) and not ns.KeepItem(id) then
+      -- (19 Nov) "Always [ ] sell" unticked: only the stacks marked once are sold
+      -- (19 Nov) "Once [ ] sell" unticked: the once-marked stacks stay, unless the vendor button asked for them
+      local onceOff = byHand and DB.onceSell == false and not Sell.forced[bag .. ":" .. slot]
+      if id and not toBank and not Sell.refused[id] and not onceOff and (byHand or not DB.keep[id]) and not ns.KeepItem(id) and (byHand or DB.alwaysSell ~= false) then
         local _, _, quality, _, _, _, _, _, _, _, price = ns.GetInfo(link or id)
         price = price or 0
         if price > 0 then
@@ -183,9 +187,12 @@ function Sell.WhyNot(id, link, bag, slot)
   local byHand = bag and ((ns.Del.SlotSell and ns.Del.SlotSell(bag, slot, id)) or (ns.Del.SlotJunk and ns.Del.SlotJunk(bag, slot, id)))
   if DB.keep[id] and not byHand then return "it's set to Keep on the Clean-up page." end
   if ns.KeepItem(id) then
+    if ns.Bags and ns.Bags.Sets and ns.Bags.Sets.Locked() and ns.Bags.Sets.Of(id) then return "it's in one of your equipment sets." end
     local uses = ns.UsedFor and ns.UsedFor(id, link) or {}
     return "it's always kept" .. (uses[1] and (" (" .. uses[1] .. ")") or "") .. "."
   end
+  if DB.alwaysSell == false and not byHand then return "selling is switched off for Always (the \"sell\" tick next to its name)." end
+  if DB.onceSell == false and byHand then return "selling is switched off for Once (the \"sell\" tick next to its name)." end
   local name, _, _, _, _, _, _, _, _, _, price = ns.GetInfo(link or id)
   if not name then return "the game hasn't sent this item's details yet. Close the vendor and open it again." end
   price = price or 0
@@ -321,7 +328,7 @@ ev:SetScript("OnEvent", function(_, e, a1, a2)
     if atVendor then lastError = type(a2) == "string" and a2 or (type(a1) == "string" and a1) or lastError end
     return
   end
-  if e == "MERCHANT_CLOSED" then atVendor = false return end
+  if e == "MERCHANT_CLOSED" then atVendor = false wipe(Sell.forced) return end
   if e ~= "MERCHANT_SHOW" then return end
   atVendor = true
   told = nil -- (a new visit: say again what isn't sold)

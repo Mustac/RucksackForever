@@ -3,7 +3,7 @@
 ## Notes: A bag addon: one bag window with groups, and windows beside it for what's sold, deleted, sent to the bank, and your quiver. Extras: Rations (eat and drink with one click), the Darkmoon Faire and Scrolls. /ruck
 ## IconTexture: Interface\AddOns\Rucksack\Icon
 ## Author: Marijan
-## Version: 1.9.12
+## Version: 1.9.13
 ## X-Curse-Project-ID: 1796228
 ## OptionalDeps: FaireForever
 ## SavedVariables: RucksackDB

@@ -1,11 +1,10 @@
 -- Rucksack / Bags: Restock (1.8.2). The things you always want on you: water, food, arrows, reagents.
 --  * The cart next to your bags opens a small bag, like Hidden. Pull an item in and say how many to
 --    carry. The list is in your order: the arrows move an item up or down.
---  * At a vendor that sells something you're short of, Rucksack buys it: by itself when you open
---    the vendor ("Buy by itself"), or when you click Buy now.
---  * "Keep at least N gold": restocking never takes you below that, so with less nothing is bought.
---  * Not enough money for everything: "Some of each" buys a bit of every item in turn; "Top of the
---    list first" fills the first item, then the next, and so on.
+--  * (19 Nov, simpler) the tick on the left of an item: ticked, a vendor that sells it tops you up by
+--    itself when you open it; unticked, it's only on the list (Clean-up keeps it, nothing is bought).
+--    Not enough money for everything: a bit of every item in turn. The list shows 4 rows; with more it
+--    scrolls. (Gone: "Buy by itself", "Keep at least N gold", "Money short", "Buy now".)
 -- Clean-up never sells or throws away what's on this list.
 local ns = Rucksack
 if not ns or not ns.Bags then return end
@@ -13,7 +12,7 @@ local B = ns.Bags
 local Print = ns.Print
 local R = {}
 B.Restock = R
-local MAXROWS, ROW, WIDTH = 12, 26, 262
+local MAXROWS, ROW, WIDTH, SHOWN = 40, 26, 262, 4
 local ICONS = "Interface\\AddOns\\Rucksack_Bags\\Icons\\"
 local TAN = { 0.85, 0.78, 0.6 }
 local win, rows = nil, {}
@@ -39,11 +38,16 @@ local function find(id)
   for i, e in ipairs(list() or {}) do if e.id == id then return i, e end end
 end
 function R.Wants(id) return (find(id)) ~= nil end
+-- (19 Nov) ticked: bought by itself at vendors (a list from before the ticks follows the old switch)
+function R.Auto(e)
+  if e.auto ~= nil then return e.auto and true or false end
+  return not (B.db and B.db.restockAuto == false)
+end
 -- how much money restocking may spend: what you have, less what you keep (in copper)
 function R.Budget()
   local d = B.db
   local money = GetMoney and GetMoney() or 0
-  return math.max(0, money - (d and tonumber(d.restockKeep) or 0) * 10000), money
+  return money, money -- (19 Nov: "Keep at least N gold" is gone)
 end
 
 ---------------------------------------------------------------------------
@@ -81,7 +85,7 @@ function R.Plan(budget)
   end
   local full = 0
   for _, e in ipairs(L) do
-    local m = at[e.id]
+    local m = R.Auto(e) and at[e.id]
     local missing = (tonumber(e.want) or 0) - have(e.id)
     if m and missing > 0 then
       local need = math.min(60, math.ceil(missing / m.stack)) -- (never a runaway number of purchases)
@@ -94,25 +98,15 @@ function R.Plan(budget)
   end
   local left = budget or math.huge
   local d = B.db
-  if d and d.restockMode == "order" then
-    -- top of the list first: fill one, then the next
+  -- some of each: one purchase of every item in turn, round and round, while the money lasts
+  local moved = true
+  while moved do
+    moved = false
     for _, e in ipairs(plan) do
-      local n = e.need
-      if e.price > 0 then n = math.min(n, math.floor(left / e.price)) end
-      e.buy = n
-      left = left - n * e.price
-    end
-  else
-    -- some of each: one purchase of every item in turn, round and round, while the money lasts
-    local moved = true
-    while moved do
-      moved = false
-      for _, e in ipairs(plan) do
-        if e.buy < e.need and (e.price == 0 or left >= e.price) then
-          e.buy = e.buy + 1
-          left = left - e.price
-          moved = true
-        end
+      if e.buy < e.need and (e.price == 0 or left >= e.price) then
+        e.buy = e.buy + 1
+        left = left - e.price
+        moved = true
       end
     end
   end
@@ -132,8 +126,7 @@ function R.Buy(byHand)
     return
   end
   if cost == 0 and full > 0 then
-    local keep = tonumber(B.db.restockKeep) or 0
-    Print("nothing restocked: not enough money" .. (keep > 0 and (" (you keep " .. keep .. "g)") or "") .. ".")
+    Print("nothing restocked: not enough money.")
     return
   end
   local got = {}
@@ -156,7 +149,7 @@ function R.Buy(byHand)
     end
   end
   if #got > 0 then Print("restocked: " .. table.concat(got, ", ") .. " for " .. coins(cost) .. ".") end
-  if cost < full then Print("not enough money to restock everything" .. ((tonumber(B.db.restockKeep) or 0) > 0 and (" (you keep " .. B.db.restockKeep .. "g)") or "") .. ".") end
+  if cost < full then Print("not enough money to restock everything.") end
   R.boughtAt = GetTime()
 end
 
@@ -169,9 +162,10 @@ function R.Add(id, link)
   if find(id) then Print((ns.NameOf(id, link) or "that") .. " is already on your Restock list.") return end
   if #L >= MAXROWS then Print("the Restock list is full (" .. MAXROWS .. " items): take one off first.") return end
   local want = math.max(stackOf(id), 1)
-  L[#L + 1] = { id = id, want = want }
+  L[#L + 1] = { id = id, want = want, auto = true }
   if B.Changed then B.Changed() end -- (it moves into the Restock group in your bag)
   Print("Restock keeps " .. want .. " " .. (ns.NameOf(id, link) or "of them") .. " on you: change the number in the Restock bag (the cart next to your bags).")
+  R.scroll = math.max(0, #L - SHOWN) -- (show the new one at the bottom)
   R.Draw()
 end
 function R.Remove(id)
@@ -252,29 +246,33 @@ local function numberBox(parent, w, letters)
   end)
   return e
 end
-local function arrow(parent, up, onClick)
-  local b = CreateFrame("Button", nil, parent)
-  b:SetSize(14, 11)
-  b.tex = b:CreateTexture(nil, "ARTWORK")
-  b.tex:SetAllPoints()
-  b.tex:SetTexture(up and "Interface\\Buttons\\Arrow-Up-Up" or "Interface\\Buttons\\Arrow-Down-Up")
-  b.tex:SetVertexColor(TAN[1], TAN[2], TAN[3])
-  b:SetScript("OnEnter", function(self) self.tex:SetVertexColor(1, 0.82, 0) end)
-  b:SetScript("OnLeave", function(self) self.tex:SetVertexColor(TAN[1], TAN[2], TAN[3]) end)
-  b:SetScript("OnClick", onClick)
-  return b
+local function tip(owner, title, text)
+  owner:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine(title)
+    GameTooltip:AddLine(text, 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  owner:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 local function row(i)
   if rows[i] then return rows[i] end
-  local r = CreateFrame("Button", "RucksackRestockRow" .. i, win)
+  local r = CreateFrame("Button", "RucksackRestockRow" .. i, win.list)
   r:SetSize(WIDTH - 16, ROW - 2)
-  r.up = arrow(r, true, function() R.Move(r.id, -1) end)
-  r.up:SetPoint("TOPLEFT", 0, -1)
-  r.down = arrow(r, false, function() R.Move(r.id, 1) end)
-  r.down:SetPoint("BOTTOMLEFT", 0, 1)
+  -- (19 Nov) the tick: bought by itself at vendors
+  r.auto = CreateFrame("CheckButton", "RucksackRestockAuto" .. i, r, "UICheckButtonTemplate")
+  r.auto:SetSize(22, 22)
+  r.auto:SetPoint("LEFT", -3, 0)
+  r.auto:SetScript("OnClick", function(self)
+    local _, e = find(r.id)
+    if e then e.auto = self:GetChecked() and true or false end
+    if R.atVendor and e and e.auto then R.Buy(false) end
+    R.Draw()
+  end)
+  tip(r.auto, "Buy by itself", "Ticked: a vendor that sells it tops you up as soon as you open the vendor. Unticked: it only stays on the list (Clean-up never sells or throws it away), nothing is bought.")
   r.icon = r:CreateTexture(nil, "ARTWORK")
   r.icon:SetSize(20, 20)
-  r.icon:SetPoint("LEFT", 18, 0)
+  r.icon:SetPoint("LEFT", 21, 0)
   r.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
   r.x = CreateFrame("Button", nil, r)
   r.x:SetSize(14, 14)
@@ -283,12 +281,7 @@ local function row(i)
   r.x.text:SetPoint("CENTER")
   r.x.text:SetText("|cffff6b5ex|r")
   r.x:SetScript("OnClick", function() R.Remove(r.id) end)
-  r.x:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine("Take it off the list")
-    GameTooltip:Show()
-  end)
-  r.x:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  tip(r.x, "Take it off the list", "It goes back where Rucksack puts it in your bag.")
   r.want = numberBox(r, 36, 4)
   r.want:SetPoint("RIGHT", r.x, "LEFT", -6, 0)
   r.want.commit = function(n) R.SetWant(r.id, n) end
@@ -310,8 +303,16 @@ local function row(i)
   end)
   r:SetScript("OnLeave", function() GameTooltip:Hide() end)
   r:SetScript("OnReceiveDrag", addHeld)
+  r:EnableMouseWheel(true)
+  r:SetScript("OnMouseWheel", function(_, d) R.Scroll(-d) end)
   rows[i] = r
   return r
+end
+function R.Scroll(by)
+  local L = list() or {}
+  local most = math.max(0, #L - SHOWN)
+  R.scroll = math.max(0, math.min(most, (R.scroll or 0) + by))
+  R.Draw()
 end
 local function build()
   if win then return win end
@@ -334,24 +335,15 @@ local function build()
   title:SetPoint("LEFT", ic, "RIGHT", 5, 0)
   title:SetText("Restock")
   local close = CreateFrame("Button", nil, win, "UIPanelCloseButton")
-  close:SetSize(22, 22)
-  close:SetPoint("TOPRIGHT", -2, -3)
+  close:SetSize(18, 18) -- (19 Nov: inside the border, level with the title)
+  close:SetPoint("TOPRIGHT", -6, -8)
   local help = CreateFrame("Button", nil, win)
   help:SetSize(16, 16)
   help:SetPoint("RIGHT", close, "LEFT", -2, 0)
   help.text = help:CreateFontString(nil, "ARTWORK", "GameFontNormal")
   help.text:SetPoint("CENTER")
   help.text:SetText("|cffffd100?|r")
-  help:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_TOP")
-    GameTooltip:AddLine("Restock")
-    GameTooltip:AddLine("The things you always want on you: water, food, arrows, reagents. Pull an item in here and type how many to carry. A vendor that sells it tops you up, by itself or when you click Buy now.", 1, 1, 1, true)
-    GameTooltip:AddLine(" ")
-    GameTooltip:AddLine("The arrows move an item up or down the list. The order matters when money is short: see the choice at the bottom.", 0.7, 0.7, 0.7, true)
-    GameTooltip:AddLine("Clean-up never sells or throws away what's on this list.", 0.7, 0.7, 0.7, true)
-    GameTooltip:Show()
-  end)
-  help:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  tip(help, "Restock", "The things you always want on you: water, food, arrows, reagents. Pull an item in here and type how many to carry. Ticked items are bought by itself when you open a vendor that sells them; with too little money, a bit of each. Clean-up never sells or throws away what's on this list. More than 4 items: scroll the list.")
   -- the place to pull items into
   local drop = CreateFrame("Button", "RucksackBagsRestockDrop", win)
   drop:SetPoint("TOPLEFT", 8, -30)
@@ -379,91 +371,15 @@ local function build()
   win.head = win:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
   win.head:SetJustifyH("RIGHT")
   win.head:SetText("have     carry")
-  -- the settings at the bottom
-  local foot = CreateFrame("Frame", nil, win)
-  foot:SetSize(WIDTH - 16, 96)
-  win.foot = foot
-  local line = foot:CreateTexture(nil, "ARTWORK")
-  line:SetColorTexture(TAN[1], TAN[2], TAN[3], 0.25)
-  line:SetPoint("TOPLEFT", 0, 0)
-  line:SetPoint("TOPRIGHT", 0, 0)
-  line:SetHeight(1)
-  local auto = CreateFrame("CheckButton", "RucksackRestockAuto", foot, "UICheckButtonTemplate")
-  auto:SetSize(22, 22)
-  auto:SetPoint("TOPLEFT", -2, -4)
-  auto.label = foot:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  auto.label:SetPoint("LEFT", auto, "RIGHT", 2, 0)
-  auto.label:SetText("Buy by itself at vendors")
-  auto:SetScript("OnClick", function(self)
-    B.db.restockAuto = self:GetChecked() and true or false
-    ns.Changed()
-  end)
-  foot.auto = auto
-  local kl = foot:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  kl:SetPoint("TOPLEFT", 2, -32)
-  kl:SetText("Keep at least")
-  local keep = numberBox(foot, 40, 5)
-  keep:SetPoint("LEFT", kl, "RIGHT", 10, 0)
-  keep.commit = function(n)
-    n = math.floor(tonumber(n) or 0)
-    if n < 0 then n = 0 end
-    B.db.restockKeep = n
-    R.Draw()
-  end
-  foot.keep = keep
-  local kg = foot:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  kg:SetPoint("LEFT", keep, "RIGHT", 6, 0)
-  kg:SetText("gold")
-  local kh = CreateFrame("Frame", nil, foot)
-  kh:SetPoint("TOPLEFT", kl, "TOPLEFT", -2, 3)
-  kh:SetPoint("BOTTOMRIGHT", kl, "BOTTOMRIGHT", 2, -3) -- (over the words only: the number box stays clickable)
-  kh:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_TOP")
-    GameTooltip:AddLine("Keep at least")
-    GameTooltip:AddLine("Restocking never takes you below this much gold. With less than this in your purse, nothing is bought. 0: spend whatever it takes.", 1, 1, 1, true)
-    GameTooltip:Show()
-  end)
-  kh:SetScript("OnLeave", function() GameTooltip:Hide() end)
-  local ml = foot:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  ml:SetPoint("TOPLEFT", 2, -56)
-  ml:SetText("Money short:")
-  foot.modes = {}
-  local MODES = { { "each", "Some of each", 78, "Not enough money for everything: buys one lot of every item in turn, round and round, until the money is gone. You end up with a bit of everything." },
-    { "order", "Top of list first", 92, "Not enough money for everything: fills the first item on the list, then the next, and so on. Put what matters most at the top (the arrows move items)." } }
-  local x = 72
-  for _, m in ipairs(MODES) do
-    local b = CreateFrame("Button", "RucksackRestockMode_" .. m[1], foot, ns.BACKDROP_TMPL)
-    b:SetSize(m[3], 20)
-    b:SetPoint("TOPLEFT", x, -52)
-    x = x + m[3] + 4
-    if b.SetBackdrop then b:SetBackdrop(ns.SLOT_BACKDROP) end
-    b.label = b:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    b.label:SetPoint("CENTER")
-    b.label:SetText(m[2])
-    b:SetScript("OnClick", function() B.db.restockMode = m[1] R.Draw() end)
-    b:SetScript("OnEnter", function(self)
-      GameTooltip:SetOwner(self, "ANCHOR_TOP")
-      GameTooltip:AddLine(m[2])
-      GameTooltip:AddLine(m[4], 1, 1, 1, true)
-      GameTooltip:Show()
-    end)
-    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    foot.modes[m[1]] = b
-  end
-  foot.info = foot:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-  foot.info:SetPoint("TOPLEFT", 2, -78)
-  foot.info:SetWidth(WIDTH - 16 - 76)
-  foot.info:SetJustifyH("LEFT")
-  foot.info:SetWordWrap(false)
-  local buy = CreateFrame("Button", "RucksackRestockBuy", foot, "UIPanelButtonTemplate")
-  buy:SetSize(70, 20)
-  buy:SetPoint("TOPRIGHT", 0, -75)
-  buy:SetText("Buy now")
-  buy:SetScript("OnClick", function()
-    if R.boughtAt and GetTime() - R.boughtAt < 1.5 then return end -- (a double click isn't two orders)
-    R.Buy(true)
-  end)
-  foot.buy = buy
+  -- (19 Nov) the list: 4 rows, more scroll (mouse wheel)
+  win.list = CreateFrame("Frame", "RucksackBagsRestockList", win)
+  win.list:SetPoint("TOPLEFT", 8, -76)
+  win.list:SetSize(WIDTH - 16, SHOWN * ROW)
+  win.list:EnableMouseWheel(true)
+  win.list:SetScript("OnMouseWheel", function(_, d) R.Scroll(-d) end)
+  win.bar = win:CreateTexture(nil, "ARTWORK") -- where you are in a long list
+  win.bar:SetColorTexture(TAN[1], TAN[2], TAN[3], 0.45)
+  win.bar:SetWidth(2)
   win:SetScript("OnShow", function() place() if B.restockBtn and B.LightUp then B.LightUp(B.restockBtn, true) end end)
   win:SetScript("OnHide", function() if B.restockBtn and B.LightUp then B.LightUp(B.restockBtn, false) end end)
   if RucksackBagsHidden and RucksackBagsHidden.HookScript then
@@ -475,57 +391,41 @@ end
 function R.Draw()
   if not win or not win:IsShown() or not B.db then return end
   local L = list()
-  for i, e in ipairs(L) do
+  local most = math.max(0, #L - SHOWN)
+  R.scroll = math.max(0, math.min(most, R.scroll or 0))
+  local first = R.scroll
+  for i = 1, math.min(SHOWN, #L) do
+    local e = L[first + i]
     local r = row(i)
     r.id = e.id
     r:ClearAllPoints()
-    r:SetPoint("TOPLEFT", 8, -(76 + (i - 1) * ROW))
+    r:SetPoint("TOPLEFT", 0, -((i - 1) * ROW))
+    r.auto:SetChecked(R.Auto(e))
     r.icon:SetTexture(ns.GetIcon(e.id))
     r.name:SetText(ns.NameOf(e.id) or ("item " .. e.id))
     local h = have(e.id)
     r.have:SetText((h >= e.want and "|cff5cd65c" or h > 0 and "|cffffd100" or "|cffff6b5e") .. h .. "|r")
     if not r.want:HasFocus() then r.want:SetText(tostring(e.want)) end
-    r.up:SetShown(i > 1)
-    r.down:SetShown(i < #L)
     r:Show()
   end
-  for i = #L + 1, #rows do rows[i]:Hide() end
+  for i = math.min(SHOWN, #L) + 1, #rows do rows[i]:Hide() end
   win.head:ClearAllPoints()
   win.head:SetPoint("TOPRIGHT", -26, -62)
   win.head:SetShown(#L > 0)
   win.drop.text:SetText(#L == 0 and "Pull an item in here to keep it stocked" or "Pull another item in here")
-  local top = 76 + #L * ROW + 4
-  if #L == 0 then top = 64 end
-  local foot = win.foot
-  foot:ClearAllPoints()
-  foot:SetPoint("TOPLEFT", 8, -top)
-  foot.auto:SetChecked(B.db.restockAuto ~= false)
-  if not foot.keep:HasFocus() then foot.keep:SetText(tostring(tonumber(B.db.restockKeep) or 0)) end
-  local mode = B.db.restockMode == "order" and "order" or "each"
-  for k, b in pairs(foot.modes) do
-    local on = k == mode
-    if b.SetBackdropColor then
-      b:SetBackdropColor(on and 0.32 or 0.06, on and 0.24 or 0.06, on and 0.02 or 0.06, 0.95)
-      b:SetBackdropBorderColor(on and 1 or 0.3, on and 0.82 or 0.3, on and 0 or 0.3)
-    end
-    b.label:SetTextColor(on and 1 or 0.85, on and 0.82 or 0.85, on and 0 or 0.85)
-  end
-  -- what would happen at this vendor, or what you're short of
-  local can = false
-  if R.atVendor then
-    local plan, cost, full = R.Plan(R.Budget())
-    if #plan == 0 then foot.info:SetText("Nothing to buy from this vendor.")
-    elseif cost == 0 and full > 0 then foot.info:SetText("|cffff6b5eNot enough money (you keep " .. (tonumber(B.db.restockKeep) or 0) .. "g).|r")
-    else
-      can = true
-      foot.info:SetText((cost < full and "|cffffd100Part of it: |r" or "This vendor: ") .. coins(cost))
-    end
+  -- the scroll mark on the right edge
+  win.bar:ClearAllPoints()
+  if most > 0 then
+    local H = SHOWN * ROW
+    local h = math.max(12, H * SHOWN / #L)
+    win.bar:SetHeight(h)
+    win.bar:SetPoint("TOPRIGHT", -4, -(76 + (H - h) * first / most))
+    win.bar:Show()
   else
-    local n, line = R.Short()
-    foot.info:SetText(#L == 0 and "" or n > 0 and ("Short of: " .. line) or "|cff5cd65cAll stocked.|r")
+    win.bar:Hide()
   end
-  foot.buy:SetEnabled(can)
-  win:SetHeight(top + 96 + 6)
+  local shown = math.min(SHOWN, #L)
+  win:SetHeight(#L == 0 and 66 or (76 + shown * ROW + 6))
 end
 function R.Toggle()
   if not B.db then return end
@@ -546,7 +446,9 @@ end
 ev:SetScript("OnEvent", function(_, e, a, b)
   if e == "MERCHANT_SHOW" then
     R.atVendor = true
-    if B.db and B.db.restockAuto ~= false and #(list() or {}) > 0 then
+    local any = false
+    for _, e in ipairs(list() or {}) do if R.Auto(e) then any = true end end
+    if B.db and any and not B.db.restockForbidden then
       -- (a moment later: the vendor's list isn't always there the instant the window opens)
       C_Timer.After(0.4, function() if R.atVendor then R.Buy(false) end end)
     end
@@ -555,8 +457,8 @@ ev:SetScript("OnEvent", function(_, e, a, b)
   elseif e == "ADDON_ACTION_FORBIDDEN" then
     -- (if this game won't let an addon buy by itself: stop trying, say so once)
     if type(a) == "string" and a:find("^Rucksack") and type(b) == "string" and b:find("BuyMerchantItem") and B.db then
-      B.db.restockAuto = false
-      Print("this game doesn't let Rucksack buy by itself. Restock is switched to by hand: open the Restock bag at a vendor and click Buy now.")
+      B.db.restockForbidden = true
+      Print("this game doesn't let Rucksack buy by itself, so Restock can't buy for you. The list still keeps your items from being sold.")
     end
     return
   end

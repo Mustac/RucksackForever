@@ -15,6 +15,7 @@ ns.MODULES = {
   { key = "faire", folder = "Rucksack_Faire", name = "Darkmoon Faire", what = "tickets, turn-ins and prizes" },
   { key = "scrolls", folder = "Rucksack_Scrolls", name = "Scrolls", what = "mages: one click deciphers a scroll" },
   { key = "bags", folder = "Rucksack_Bags", name = "Bags", what = "your bag: groups, sell, delete and bank windows" },
+  { key = "haul", folder = "Rucksack_Haul", name = "Haul", what = "what your loot is worth, per hour" }, -- (19 Nov)
 }
 ns.loaded = {}   -- key -> true once that module's files ran
 function ns.Has(key) return ns.loaded[key] and true or false end
@@ -129,7 +130,20 @@ ns.GetFree = (C and C.GetContainerNumFreeSlots) or GetContainerNumFreeSlots
 do
   -- (18 Nov) the game throws an error on GetItemInfo(nil) instead of returning nothing
   local gi = (C_Item and C_Item.GetItemInfo) or GetItemInfo
-  ns.GetInfo = function(item, ...) if item == nil then return nil end return gi(item, ...) end
+  -- (19 Nov) an item's details never change, but while an auction addon scans the game can answer
+  -- "don't know" for a moment: then the last answer is used, so nothing in the bag jumps
+  local known = {}
+  ns.GetInfo = function(item, ...)
+    if item == nil then return nil end
+    local t = { gi(item, ...) }
+    if t[1] ~= nil then
+      if not known[item] then known[item] = t end
+      return unpack(t, 1, 18)
+    end
+    local k = known[item]
+    if k then return unpack(k, 1, 18) end
+    return unpack(t, 1, 18)
+  end
 end
 ns.GetIcon = (C_Item and C_Item.GetItemIconByID) or GetItemIcon
 ns.GetCount = (C_Item and C_Item.GetItemCount) or GetItemCount
@@ -213,10 +227,14 @@ end
 -- (1.7) modules can ask Clean-up to keep items (Faire turn-in items, undeciphered scrolls...):
 -- each adds a function(id) to ns.keepers that says true for items to keep
 ns.keepers = {}
-function ns.KeepItem(id)
+-- (19 Nov) byHand: you put it to be sold or thrown away yourself; then the soft keepers (profession tools)
+-- don't stop it, only the hard ones (quest and Faire items, armour sets, Restock...)
+ns.softKeepers = ns.softKeepers or {}
+function ns.KeepItem(id, byHand)
   if not id then return false end
   for _, fn in ipairs(ns.keepers) do
-    local ok, keep = pcall(fn, id)
+    local ok, keep = false, false
+    if not (byHand and ns.softKeepers[fn]) then ok, keep = pcall(fn, id) end
     if ok and keep then return true end
   end
   return false

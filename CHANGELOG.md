@@ -1,3 +1,27 @@
+# Rucksack 1.9.13
+
+### New, and already on
+- **Haul** shows what your loot is worth and your gold per hour. Open it with the Haul button under Rucksack's icon in your bag. In Haul:
+  - **Sort loot:** loot a vendor pays more for goes on Sell.
+  - **Check bag:** marks what's better sold to a vendor.
+  - **Reset:** starts the count from zero.
+  - Auction prices come from one of these addons: **Auctionator, auxForever, AHledger, GoldScout, CraftProfit or Hammerprice**. Without one of them, Haul and the gold coin don't work.
+- **Gold coin** on items a vendor pays more for than the auction house (after its cut). At a vendor, one button sells them all.
+- **Track bars:** keep items on screen with how many you carry, click to use them, drag one off to take it off. Up to 5, from the tool row.
+- **Armour sets** from the game's equipment manager: their own group, a red border, never sold, deleted or disenchanted.
+- **Quest marks:** ! starts a quest, a gold border means a quest item, !? means a quest of yours needs it.
+- **Tool row** under Rucksack's icon: Haul, Track, Restock, Hidden. **Look** goes Rows, Packed, One bag.
+- The Once box has sell and delete ticks, like Always.
+
+### Better
+- Items no longer jump around while auction house addons scan.
+- Drag an item and the others make room; it lands right where you drop it.
+- Food, water and potions are together in Consumables.
+- Restock and Hidden are simpler.
+- Profession tools you don't need can be sold.
+- Your other characters' bags and gold are remembered properly.
+- Learning a recipe isn't blocked any more.
+
 # Rucksack 1.9.12
 
 ### Changed

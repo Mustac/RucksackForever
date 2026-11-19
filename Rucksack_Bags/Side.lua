@@ -109,7 +109,9 @@ function B.SideOf(e)
   if B.BankSlot(e.bag, e.slot, e.id) then return "bank" end
   if not hasClean() then return nil end
   if e.cat == "junk" then
-    return ns.Del.SlotJunk and ns.Del.SlotJunk(e.bag, e.slot, e.id) and "once" or "always"
+    if ns.Del.SlotJunk and ns.Del.SlotJunk(e.bag, e.slot, e.id) then return "once" end
+    if ns.HaulSell and ns.HaulSell(e.id, e.bag, e.slot) and not (ns.del.items and ns.del.items[e.id]) then return "haul" end -- (19 Nov)
+    return "always"
   elseif e.cat == "sell" then -- ("only sell" from before 15 Nov)
     return (not ns.del.sell[e.id]) and ns.Del.SlotSell and ns.Del.SlotSell(e.bag, e.slot, e.id) and "once" or "always"
   end
@@ -164,11 +166,13 @@ local BOXES = {
   { key = "always", name = "Always sell / delete", color = { 1, 0.54, 0.54 }, clean = true,
     tip = { "Every one of these items, also the ones you get later.",
       "A vendor buys them when you visit one. If your bags fill up first, the cheapest is thrown away.",
-      "Grey items and gear you can't use land here by themselves." } },
+      "Grey items and gear you can't use land here by themselves.",
+      "The ticks next to the name: sell = a vendor buys them, delete = the cheapest is thrown away when your bags fill up. Untick one and Rucksack doesn't do that." } },
   { key = "once", name = "Sell / delete once", color = { 1, 0.72, 0.45 }, clean = true,
     tip = { "Only the stacks you put here.",
       "A vendor buys them when you visit one. If your bags fill up first, the cheapest is thrown away.",
       "The next ones you get are left alone." } },
+  -- (19 Nov: a "Haul" box was here for an evening; Haul's "Sort loot" now marks stacks "Sell this stack" instead)
   { key = "bank", name = "Send to bank", color = { 0.5, 0.83, 1 },
     tip = { "The stacks you put here go into your bank when you open it.",
       "Rucksack never sells them or throws them away.",
@@ -347,6 +351,77 @@ local function setLimit(steps)
   B.Changed()
 end
 B.SetDeleteLimit = setLimit -- (steps of 10s: 1..50, 51 = no limit)
+-- (19 Nov) two ticks on the first box's name line, he: "on the line always sell checkmark delete
+-- checkmark addon will do just that": "Always  [x] sell  [x] delete". Unticked, Rucksack doesn't do
+-- that to what's in the box (Clean-up: ns.del.alwaysSell / alwaysDel, on unless false). Stacks in
+-- "Sell / delete once" are not affected.
+-- (19 Nov) the same two ticks on "Sell / delete once", he: "put on sell delete once to be able to put
+-- checkmark": "Once  [x] sell  [x] delete" (ns.del.onceSell / onceDel, on unless false). Unticked sell:
+-- the stacks in Once stay in your bag at a vendor (the vendor button under the bag still sells what you
+-- click it for); unticked delete: none of them is thrown away by itself.
+do
+  local function colored(box, word)
+    local c = box.def.color
+    box.title:SetText(("|cff%02x%02x%02x%s|r"):format(math.floor(c[1] * 255), math.floor(c[2] * 255), math.floor(c[3] * 255), word))
+  end
+  local function check(box, prefix, word, field, onTip, offTip)
+    local cb = CreateFrame("CheckButton", prefix .. field, box, "UICheckButtonTemplate")
+    cb:SetSize(16, 16)
+    cb.word = cb:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    cb.word:SetPoint("LEFT", cb, "RIGHT", -1, 0)
+    cb.word:SetText(word)
+    cb:SetHitRectInsets(0, -((cb.word:GetStringWidth() or 20) + 2), 0, 0)
+    cb:SetScript("OnClick", function(self)
+      local db = ns.del
+      if not db then return end
+      db[field] = self:GetChecked() and true or false
+      if B.SideChecks then B.SideChecks() end
+      B.Changed()
+      if (field == "alwaysSell" or field == "onceSell") and db[field] and ns.Sell and ns.Sell.Kick then pcall(ns.Sell.Kick) end
+      if field == "onceDel" and db[field] and ns.Del and ns.Del.CheckNow then pcall(ns.Del.CheckNow) end
+    end)
+    cb:SetScript("OnEnter", function(self)
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      GameTooltip:AddLine((self:GetChecked() and "On: " or "Off: ") .. word)
+      GameTooltip:AddLine(self:GetChecked() and onTip or offTip, 1, 1, 1, true)
+      GameTooltip:Show()
+    end)
+    cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return cb
+  end
+  local function pair(box, prefix, word, sellF, delF, sellOn, sellOff, delOn, delOff)
+    colored(box, word)
+    local sc = check(box, prefix, "sell", sellF, sellOn, sellOff)
+    sc:SetPoint("LEFT", box.title, "RIGHT", 4, 0)
+    local dc = check(box, prefix, "delete", delF, delOn, delOff)
+    dc:SetPoint("LEFT", sc.word, "RIGHT", 6, 0)
+    return sc, dc
+  end
+  local sellC, delC = pair(boxes.always, "RucksackAlways_", "Always", "alwaysSell", "alwaysDel",
+    "A vendor buys what's in this box when you visit one. Untick: they stay in your bag at the vendor.",
+    "Nothing in this box is sold. Tick it to sell them at the next vendor.",
+    "When your bags fill up, the cheapest item in this box is thrown away (up to the delete limit below). Untick: nothing here is thrown away by itself.",
+    "Nothing in this box is thrown away by itself. Tick it to let Rucksack make room with them.")
+  local oSellC, oDelC
+  if boxes.once then
+    oSellC, oDelC = pair(boxes.once, "RucksackOnce_", "Once", "onceSell", "onceDel",
+      "The stacks in this box are sold when you visit a vendor. Untick: they stay in your bag at the vendor.",
+      "Nothing in this box is sold at a vendor. Tick it to sell them at the next one.",
+      "When your bags fill up, the cheapest stack marked \"delete once\" here is thrown away. Untick: nothing here is thrown away by itself.",
+      "Nothing in this box is thrown away by itself. Tick it to let Rucksack make room with them.")
+  end
+  function B.SideChecks()
+    local db = ns.del
+    local on = hasClean() and db and true or false
+    for _, cb in ipairs({ sellC, delC, oSellC, oDelC }) do cb:SetShown(on) end
+    if not on then return end
+    sellC:SetChecked(db.alwaysSell ~= false)
+    delC:SetChecked(db.alwaysDel ~= false)
+    if oSellC then oSellC:SetChecked(db.onceSell ~= false) oDelC:SetChecked(db.onceDel ~= false) end
+    limit:SetAlpha(db.alwaysDel ~= false and 1 or 0.4) -- (the delete limit means nothing with delete off)
+  end
+  B.SideChecks()
+end
 slider:SetScript("OnValueChanged", function(self, v)
   if self.quiet or not hasClean() then return end
   setLimit(v)
@@ -387,14 +462,16 @@ drop = function(key)
   if not db or not id then return end
   local bag, slot = heldSlot(id) -- (noted before the cursor lets go of it)
   ClearCursor()
+  if B.Sets and B.Sets.Of(id) and B.SetRefuse then return B.SetRefuse(id, link) end -- (19 Nov: set items stay put)
   local name = shown(id, link)
   if db.hidden and db.hidden[id] then db.hidden[id] = nil end
+  if key == "haul" then key = "once" end -- (19 Nov: dropped on the Haul box: like Once)
   if key == "bank" then return B.SendStack(bag, slot, id, link) end
   if key == "quiver" then return B.IntoQuiver(bag, slot, id, link) end
   if not hasClean() then return end
   local wasBank = bag and B.BankSlot(bag, slot, id)
   if wasBank then B.UnmarkBank(bag, slot) end
-  if ns.KeepItem(id) then
+  if ns.KeepItem(id, true) then
     local uses = ns.UsedFor(id, link)
     Print(name .. " is always kept" .. (uses[1] and (" (" .. uses[1] .. ")") or "") .. ".")
     return B.Changed()
@@ -503,7 +580,7 @@ function B.AltClick(e, button)
       B.UnmarkBank(e.bag, e.slot)
       Print(name .. " stays in your bag: it's no longer sent to your bank.")
       B.Changed()
-    elseif (e.side == "always" or e.side == "once") and hasClean() and ns.Del.KeepAt then
+    elseif (e.side == "always" or e.side == "once" or e.side == "haul") and hasClean() and ns.Del.KeepAt then
       local how = ns.Del.KeepAt(e.id, e.bag, e.slot)
       Print(how == "stack" and (name .. " stays in your bag: this stack is no longer sold or thrown away.")
         or (shown(e.id, e.link) .. " stays in your bag: it's no longer sold or thrown away (every one of it)."))
@@ -529,13 +606,18 @@ function B.HeldBox(id)
   if hasClean() then
     local ok, kind = pcall(ns.Del.JunkKind, id, hb, hs)
     if ok and kind then
-      if kind == 1 then return (hb and ns.Del.SlotJunk(hb, hs, id)) and "once" or "always", hb, hs end
+      if kind == 1 then
+        if hb and ns.Del.SlotJunk(hb, hs, id) then return "once", hb, hs end
+        if ns.HaulSell and ns.HaulSell(id, hb, hs) and not (ns.del.items and ns.del.items[id]) then return "haul", hb, hs end
+        return "always", hb, hs
+      end
       return ((not ns.del.sell[id]) and hb and ns.Del.SlotSell(hb, hs, id)) and "once" or "always", hb, hs
     end
   end
   return nil, hb, hs
 end
 function B.DrawSide(st, text)
+  if B.SideChecks then B.SideChecks() end
   oldBankList()
   local side = st and st.side
   if not side then
@@ -555,7 +637,7 @@ function B.DrawSide(st, text)
   if B.QuiverShown() then qbag, qkind = B.QuiverBag() end
   for _, def in ipairs(BOXES) do
     local box = boxes[def.key]
-    if (def.clean and not clean) or (def.quiver and not qbag) then
+    if (def.clean and not clean) or (def.quiver and not qbag) or (def.haul and #(side.haul or {}) == 0) then
       box:Hide()
       box.win:Hide()
       box.slot:Hide()
@@ -572,6 +654,7 @@ function B.DrawSide(st, text)
       -- (that one has the green slot to take it out)
       local slotOn = held and heldIn ~= def.key and (def.key == "bank" or clean) or false
       if n == 0 then slotOn = true end -- (an empty box always shows one empty slot, so it never looks bare)
+      if def.haul then slotOn = false end -- (19 Nov: Haul fills it by itself)
       if def.quiver then
         -- (its own empty slots show already; the title counts the ammo)
         slotOn = n == 0

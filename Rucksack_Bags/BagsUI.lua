@@ -29,8 +29,15 @@ p:Add(Check(p, 330, y, "\"New\" group", "Items you just got sit in a New group a
 y = y - 24
 p:Add(Check(p, 0, y, "Reagents into the reagent bag", "A reagent lying in one of your ordinary bags is moved into your reagent bag by itself when there's room there (onto a half-full stack of it first, then an empty slot). Only in Groups: in One bag nothing moves by itself. Never in a fight, never while you hold an item.",
   function() return D().reagentHome ~= false end, function(v) D().reagentHome = v and true or false if v then B.ReagentsHome() end end, "GameFontHighlightSmall"))
-p:Add(Check(p, 330, y, "Restock by itself at vendors", "With this on, a vendor that sells something on your Restock list tops you up as soon as you open the vendor. Off: click Buy now in the Restock bag (the cart next to your bags).",
-  function() return D().restockAuto ~= false end, function(v) D().restockAuto = v and true or false end, "GameFontHighlightSmall"))
+-- (19 Nov: "Restock by itself at vendors" is gone: each item on the Restock list has its own tick)
+p:Add(Check(p, 330, y, "Item bar", "A small bar that stays on screen, bag open or not. Drop an item on it (a green + slot opens where your mouse is): it shows how many you carry in all your bags together. Drag \"Track\" on top to move it, click it for its settings: clickable (click an item to use it) or click-through, row or column, lock, remove items.",
+  function() return B.ItemBar and B.ItemBar.DB() and B.ItemBar.DB().on end, function(v) if B.ItemBar then B.ItemBar.Set(v) end end, "GameFontHighlightSmall"))
+-- (19 Nov) the game's bag bar (bottom right) hidden
+p:Add(Check(p, 470, y, "Hide the game's bag buttons", "The game's backpack and bag slots at the bottom right are hidden: Rucksack's bags row (the arrow next to Rucksack in the bag's corner) has the same slots. On to start. Unticked, they come back right away.",
+  function() return D().hideBagBar ~= false end, function(v)
+    D().hideBagBar = v and true or false
+    if B.ApplyBagBar then pcall(B.ApplyBagBar) end
+  end, "GameFontHighlightSmall"))
 y = y - 24
 -- (1.9) the quiver
 p:Add(Check(p, 0, y, "Quiver beside the bag", "While you wear a quiver or ammo pouch, it gets its own window beside the bag, under Send to bank: your arrows slot by slot and how many you have.",
@@ -86,12 +93,12 @@ local function choice(label, tipTitle, tipText, opts, get, set, x0)
   y = y - 30
 end
 choice("Look", "Look", "How the bag is laid out.", {
-  { "groups", "Groups", 96, "Your items in labelled groups: Weapons, Armour, Food and water, Trade goods, your own groups..." },
+  { "groups", "Groups", 96, "Your items in labelled groups: Weapons, Armour, Consumables, Trade goods, your own groups..." },
   { "grid", "One bag", 96, "No groups: your items where they really are. Nothing moves by itself; the Tidy button at the top sorts them once. The boxes on the right stay the same." },
 }, function() return D().style end, function(v) D().style = v end)
 choice("Groups", "Groups", "With the Groups look: each group on its own row, or side by side.", {
   { "rows", "Rows", 96, "Each group starts on a new row. Easy to read, and to move a group up or down." },
-  { "packed", "Packed", 96, "Small groups side by side: a smaller bag." },
+  { "packed", "Packed", 96, "Groups side by side; one that doesn't fit goes to the next row. A smaller bag." },
 }, function() return D().layout end, function(v) D().layout = v end)
 choice("Stacks", "Stacks", "How several stacks of one item are shown.", {
   { true, "Merged", 96, "All of one item as one icon: 80 ore shows as 80." },

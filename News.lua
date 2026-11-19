@@ -143,3 +143,111 @@ ev:SetScript("OnEvent", function(self, event, arg)
     end)
   end
 end)
+
+-- (19 Nov) "What's new" once after an update. He: "can you write me notification when I update in very
+-- short what we did and new feature that is on now", then "popup in wow". Shown once per account per
+-- WHATSNEW (RucksackDB.whatsNew), 14 s after login, not in a fight, after the bag-addon message above
+-- when that one shows too. A new install never sees it. For the next release: change WHATSNEW and TEXT.
+local WHATSNEW = "1.9.13"
+local SEEN = "1.9.13.7" -- (what's stored as seen; raised when the text changes, so it shows once more)
+local G, W = "|cffffd100", "|r"
+local TEXT = table.concat({
+  G .. "New, and already on:" .. W,
+  "- " .. G .. "Haul" .. W .. " shows what your loot is worth and your gold per hour. Open it with the Haul button under Rucksack's icon in your bag. In Haul:",
+  "     " .. G .. "Sort loot" .. W .. ": loot a vendor pays more for goes on Sell.",
+  "     " .. G .. "Check bag" .. W .. ": marks what's better sold to a vendor.",
+  "     " .. G .. "Reset" .. W .. ": starts the count from zero.",
+  "     Auction prices come from one of these addons: " .. G .. "Auctionator, auxForever, AHledger, GoldScout, CraftProfit or Hammerprice" .. W .. ". Without one of them, Haul and the gold coin don't work.",
+  "- " .. G .. "Gold coin" .. W .. " on items a vendor pays more for than the auction house (after its cut). At a vendor, one button sells them all.",
+  "- " .. G .. "Track bars" .. W .. ": keep items on screen with how many you carry, click to use them, drag one off to take it off. Up to 5, from the tool row.",
+  "- " .. G .. "Armour sets" .. W .. " from the game's equipment manager: their own group, a red border, never sold, deleted or disenchanted.",
+  "- " .. G .. "Quest marks" .. W .. ": ! starts a quest, a gold border means a quest item, !? means a quest of yours needs it.",
+  "- " .. G .. "Tool row" .. W .. " under Rucksack's icon: Haul, Track, Restock, Hidden. " .. G .. "Look" .. W .. " goes Rows, Packed, One bag.",
+  "- The Once box has sell and delete ticks, like Always.",
+  " ",
+  G .. "Better:" .. W,
+  "- Items no longer jump around while auction house addons scan.",
+  "- Drag an item and the others make room; it lands right where you drop it.",
+  "- Food, water and potions are together in Consumables.",
+  "- Restock and Hidden are simpler.",
+  "- Profession tools you don't need can be sold.",
+  "- Your other characters' bags and gold are remembered properly.",
+  "- Learning a recipe isn't blocked any more.",
+}, "\n")
+
+local wbox
+local function buildWhatsNew()
+  wbox = CreateFrame("Frame", "RucksackWhatsNew", UIParent, ns.BACKDROP_TMPL)
+  wbox:SetWidth(460)
+  wbox:SetPoint("CENTER", 0, 100)
+  wbox:SetFrameStrata("DIALOG")
+  wbox:SetToplevel(true)
+  wbox:EnableMouse(true)
+  wbox:SetMovable(true)
+  wbox:RegisterForDrag("LeftButton")
+  wbox:SetScript("OnDragStart", wbox.StartMoving)
+  wbox:SetScript("OnDragStop", wbox.StopMovingOrSizing)
+  wbox:SetClampedToScreen(true)
+  if wbox.SetBackdrop then wbox:SetBackdrop(ns.DIALOG_BACKDROP) end
+  -- (19 Nov: a solid dark back, so the bag behind it doesn't show through the text)
+  local back = wbox:CreateTexture(nil, "BACKGROUND", nil, 1)
+  back:SetPoint("TOPLEFT", 11, -12)
+  back:SetPoint("BOTTOMRIGHT", -12, 11)
+  back:SetColorTexture(0.05, 0.04, 0.03, 0.94)
+  local icon = wbox:CreateTexture(nil, "ARTWORK")
+  icon:SetSize(40, 40)
+  icon:SetPoint("TOPLEFT", 22, -22)
+  icon:SetTexture(ns.ICON)
+  wbox.title = wbox:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+  wbox.title:SetPoint("TOPLEFT", icon, "TOPRIGHT", 12, -2)
+  wbox.title:SetText("Rucksack " .. WHATSNEW .. ": what's new")
+  wbox.text = wbox:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+  wbox.text:SetPoint("TOPLEFT", wbox.title, "BOTTOMLEFT", 0, -10)
+  wbox.text:SetWidth(350)
+  wbox.text:SetJustifyH("LEFT")
+  wbox.text:SetSpacing(2)
+  wbox.ok = CreateFrame("Button", nil, wbox, "UIPanelButtonTemplate")
+  wbox.ok:SetSize(100, 24)
+  wbox.ok:SetPoint("BOTTOMRIGHT", -22, 20)
+  wbox.ok:SetText("Close")
+  wbox.ok:SetScript("OnClick", function() wbox:Hide() end)
+  tinsert(UISpecialFrames, "RucksackWhatsNew") -- (Escape closes it)
+  wbox:Hide()
+end
+local function showWhatsNew()
+  if not wbox then buildWhatsNew() end
+  RucksackDB.whatsNew = SEEN
+  wbox.text:SetText(TEXT)
+  wbox:SetHeight(math.max(170, 112 + (wbox.text:GetStringHeight() or 200)))
+  wbox:Show()
+end
+ns.ShowWhatsNew = showWhatsNew -- (for the test scripts)
+
+local wwait
+local wev = CreateFrame("Frame")
+wev:RegisterEvent("ADDON_LOADED")
+local function tryWhatsNew()
+  if RucksackDB.whatsNew == SEEN then return end
+  if InCombatLockdown() then wwait = true wev:RegisterEvent("PLAYER_REGEN_ENABLED") return end
+  local other = rawget(_G, "RucksackNews")
+  if other and other:IsShown() then -- (the bag-addon message first; this one after it's closed)
+    other:HookScript("OnHide", function() C_Timer.After(1, tryWhatsNew) end)
+    return
+  end
+  showWhatsNew()
+end
+wev:SetScript("OnEvent", function(self, event, arg)
+  if event == "ADDON_LOADED" then
+    if arg ~= ADDON then return end
+    self:UnregisterEvent("ADDON_LOADED")
+    if ns.newInstall then RucksackDB.whatsNew = SEEN return end
+    if RucksackDB.whatsNew == SEEN then return end
+    self:RegisterEvent("PLAYER_LOGIN")
+  elseif event == "PLAYER_LOGIN" then
+    C_Timer.After(14, tryWhatsNew)
+  elseif event == "PLAYER_REGEN_ENABLED" and wwait then
+    wwait = nil
+    self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+    C_Timer.After(2, tryWhatsNew)
+  end
+end)

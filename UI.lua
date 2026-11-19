@@ -574,6 +574,8 @@ do
       tip = "Every Darkmoon ticket turn-in, where to farm the parts (one click pins it on your map), Faire dates, Sayge, and a tracker for the prize you're saving for." },
     scrolls = { icon = "Interface\\Icons\\INV_Scroll_03",
       tip = "Mages: one click deciphers your next scroll with Comprehend Scroll, only the ones your skill allows. Turned on by itself for mages, off for everyone else." },
+    haul = { icon = "Interface\\Icons\\INV_Misc_Coin_17",
+      tip = "What you loot and what it's worth (auction house and vendor), gold per hour, each pull, and your past runs day by day. Start a run with the Haul button under Rucksack's icon in your bag. Sort loot then sorts what you picked up: what a vendor pays more for goes on Sell, what's worth more at the auction house stays in its group." },
     bags = { icon = "Interface\\Icons\\INV_Misc_Bag_08",
       tip = "Rucksack's bag, instead of the game's bags: items in groups (weapons, armour, food, your own groups...), windows beside it for what's sold, thrown away or sent to the bank, and it keeps bag slots free for you. Your bank and your other characters too. Opens on B.\n\nTurn off other bag addons (Bagnon, Baganator...) while it's on." },
   }
@@ -1287,4 +1289,12 @@ end
 local ev = CreateFrame("Frame")
 ev:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 ev:RegisterEvent("UPDATE_BINDINGS")
-ev:SetScript("OnEvent", function() refresh() end)
+ev:SetScript("OnEvent", function(_, e, a1)
+  if not f:IsShown() then return end
+  -- (19 Nov) an auction house scan sends item details for thousands of items: only ours matter
+  if e == "GET_ITEM_INFO_RECEIVED" then
+    local n = a1 and ((C_Item and C_Item.GetItemCount and C_Item.GetItemCount(a1, true)) or (GetItemCount and GetItemCount(a1, true))) or 0
+    if (tonumber(n) or 0) <= 0 then return end
+  end
+  refresh()
+end)

@@ -80,7 +80,9 @@ Eat.TierOf = tierOf
 -- your top tier (the strongest you can eat); "for my level" = it and the one below it
 local function myTier() return tierOf(UnitLevel("player")) end
 Eat.MyTier = myTier
-local function weakFor(f) return f.tier < myTier() - 1 end
+-- (19 Nov) a level the game couldn't tell (busy with an auction scan) is never "too weak": it used to
+-- count as level 1, and food jumped into the Always sell / delete box and back
+local function weakFor(f) return f.minLevel ~= nil and f.tier < myTier() - 1 end
 
 -- (10 Nov) what Clean-up deletes from Rations' rules: water on a character set to drink none
 -- ("now": as soon as it lands) and food and water for below a level (when bags are nearly full).
@@ -94,7 +96,7 @@ function Eat.DeleteReason(id)
   local below = DB.delBelow
   if below == "auto" then
     if weakFor(f) then return "below your level" end
-  elseif type(below) == "number" and (f.minLevel or 1) < below then
+  elseif type(below) == "number" and f.minLevel and f.minLevel < below then
     return "for below level " .. below
   end
   return nil
@@ -152,6 +154,11 @@ function Eat.Pick()
       -- ... while eating", but it isn't food)
       if id and not found[id] and isConsumable(id) then
         local health, mana, conjured, buff = readItem(bag, slot)
+        -- (19 Nov) a food's tooltip can come back empty while the game is busy (an auction scan):
+        -- what it was read as once is kept, so it doesn't drop out of Food and back in
+        Eat.known = Eat.known or {}
+        if health then Eat.known[id] = { health, mana, conjured, buff }
+        elseif Eat.known[id] then health, mana, conjured, buff = unpack(Eat.known[id]) end
         if health then
           local minLevel = minLevelOf(id)
           local f = {
@@ -559,11 +566,15 @@ function Eat.Update(loud)
   setButton(food, drink, macrotext, foodText, drinkText)
   if ns.Del and ns.Del.Refresh and (ns.char and ns.char.noWater or DB.delBelow) then ns.Del.Refresh() end
 
-  if DB.macro ~= false then
+  -- (19 Nov) the macros and the rest of Rucksack only hear about it when something changed
+  local sig = macrotext .. "|" .. foodText .. "|" .. drinkText .. "|" .. tostring(food) .. "|" .. tostring(drink)
+  local changed = loud or sig ~= Eat.lastSig
+  Eat.lastSig = sig
+  if DB.macro ~= false and changed then
     local first = (wantF and food) or (wantD and drink) or food or drink
     Eat.UpdateMacros({ macrotext, foodText, drinkText }, first, { food, drink }, loud)
   end
-  ns.Changed()
+  if changed then ns.Changed() end
   if loud then
     Print("next food: " .. (food and ns.NameOf(food) or "none") .. ",  next water: " .. (drink and ns.NameOf(drink) or "none"))
   end
@@ -609,8 +620,15 @@ unitEv:SetScript("OnEvent", function(_, e)
     C_Timer.After(0.2, function() soon = false Eat.Update(false) end)
   end
 end)
-ev:SetScript("OnEvent", function(_, e)
+ev:SetScript("OnEvent", function(_, e, a1)
   if not DB then return end
+  -- (19 Nov) he: "when other AH addons are scanning AH the bags are sorting out all the time,
+  -- categories jumping". A scan makes the game send item details for thousands of items, and each
+  -- one made Rations look again (and the bag redraw). Only items in your bags matter here.
+  if e == "GET_ITEM_INFO_RECEIVED" then
+    local n = a1 and ((C_Item and C_Item.GetItemCount and C_Item.GetItemCount(a1)) or (GetItemCount and GetItemCount(a1))) or 0
+    if (tonumber(n) or 0) <= 0 then return end
+  end
   if e == "BAG_UPDATE" then setCounts() return end -- (a fight: only the counts can change)
   if e == "PLAYER_REGEN_DISABLED" then paintFight(true) return end
   if e == "PLAYER_REGEN_ENABLED" then

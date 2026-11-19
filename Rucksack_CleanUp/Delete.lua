@@ -53,8 +53,16 @@ end
 -- tooltip says "Conjured Item". A warlock's stones say it too, but they cost a Soul Shard: not those.
 local SHARD_STONES = { "Healthstone", "Soulstone", "Spellstone", "Firestone" }
 local conjTip
+local conjSeen = {} -- (19 Nov: once read as conjured it stays so; a busy game can return an empty tooltip)
+local isConj
 function Del.IsConjured(id, link)
   if not id then return false end
+  if conjSeen[id] then return true end
+  local yes = isConj(id, link)
+  if yes then conjSeen[id] = true end
+  return yes
+end
+isConj = function(id, link)
   local name = ns.NameOf(id, link)
   if type(name) == "string" then
     for _, w in ipairs(SHARD_STONES) do if name:find(w, 1, true) then return false end end
@@ -156,7 +164,20 @@ function Del.IsTool(id)
   local name = ns.NameOf(id)
   return name and TOOL_NAMES[name:lower()] or false
 end
-table.insert(ns.keepers, Del.IsTool)
+-- (19 Nov) he: "I do not need blacksmith hammer, I need to sell it but rucksack does not allow it". A
+-- tool is never sold or thrown away by itself, but once you put it there yourself (Always, Once, Sell) it goes.
+local function toolKept(id)
+  if not Del.IsTool(id) then return false end
+  if DB and ((DB.sell and DB.sell[id]) or (DB.items and DB.items[id])) then return false end
+  for _, which in ipairs({ "sellSlots", "junkSlots" }) do
+    local m = ns.char and ns.char[which]
+    if m then for _, mid in pairs(m) do if mid == id then return false end end end
+  end
+  return true
+end
+table.insert(ns.keepers, toolKept)
+ns.softKeepers = ns.softKeepers or {}
+ns.softKeepers[toolKept] = true
 table.insert(ns.uses, function(id) if Del.IsTool(id) then return "Profession: a profession tool" end end)
 local boundSeen = {} -- id -> true once a bound copy was seen in your bags
 -- why an item is junk (bag and slot: that very copy, for "soulbound"), or nil
@@ -226,7 +247,7 @@ local function onList(id, bag, slot)
   if DB.sell[id] then return false end -- (1.8.2 Sell: sold at a vendor, never thrown away)
   if Del.SlotSell(bag, slot, id) then return false end -- (15 Nov: this very stack is marked for sale)
   if Del.SlotJunk(bag, slot, id) then return true end  -- (15 Nov: this very stack is marked to be thrown away)
-  return DB.items[id] or byRule(id, bag, slot) or (byFood(id) and true)
+  return DB.items[id] or byRule(id, bag, slot) or (byFood(id) and true) or (ns.HaulSell and ns.HaulSell(id, bag, slot)) -- (19 Nov: the Haul box, stack by stack)
 end
 Del.OnList = function(id, bag, slot) return DB and onList(id, bag, slot) and true or false end
 -- why an item goes, in words (for lists and tooltips)
@@ -359,7 +380,10 @@ local function ScanBags(ready)
   for bag = 0, ns.LAST_BAG do
     for slot = 1, (ns.GetNumSlots(bag) or 0) do
       local id, count, link, icon, locked = SlotInfo(bag, slot)
-      if id and onList(id, bag, slot) then
+      -- (19 Nov) "Always [ ] delete" unticked: only stacks marked once (and extra soul shards) go
+      -- (19 Nov) "Once [ ] delete" unticked: the stacks marked "delete once" stay too
+      local once = id and Del.SlotJunk(bag, slot, id)
+      if id and onList(id, bag, slot) and ((once and DB.onceDel ~= false) or (not once and DB.alwaysDel ~= false) or extraShard(id, bag)) then
         local g = byID[id]
         if not g then
           g = {
@@ -669,6 +693,11 @@ end
 -- keep the stack in that slot: if only that stack was marked for sale, only its mark goes ("stack");
 -- otherwise the whole item is kept, as before ("all")
 function Del.KeepAt(id, bag, slot)
+  -- (19 Nov) out of the Haul box: off it, and nothing else changes (unless it's junk some other way)
+  if ns.HaulSell and ns.HaulSell(id, bag, slot) and ns.HaulUnsell then
+    ns.HaulUnsell(id, bag, slot)
+    if not onList(id, bag, slot) then Refresh() return "all" end
+  end
   if bag and not DB.sell[id] and Del.SlotSell(bag, slot, id) then
     ns.char.sellSlots[slotKey(bag, slot)] = nil
     Refresh()
@@ -1140,6 +1169,16 @@ hooksecurefunc("StaticPopup_Show", function(which)
   if not DB or not DB.enabled or not DELETE_POPUPS[which] then return end
   local id, link = CursorItem()
   if not id then return end
+  -- (19 Nov) an item in one of your equipment sets is never deleted (he: "I should not be able to delete
+  -- or disenchant or sell that item unless that item is outside Equipment manager set"): back it goes
+  local Sets = ns.Bags and ns.Bags.Sets
+  local inSet = Sets and Sets.Of and Sets.Of(id)
+  if inSet then
+    StaticPopup_Hide(which)
+    ClearCursor()
+    Print((link or ns.NameOf(id) or "That item") .. " is in your equipment set \"" .. (inSet.name or "?") .. "\": it isn't deleted. Take it out of the set first.")
+    return
+  end
   -- (15 Nov) conjured water, food and the like: no box, it's deleted at once (you make it again
   -- for free). Dropping it is a click, and the game deletes inside a click. If the game refuses,
   -- the item is still on the cursor and the box asks as usual.

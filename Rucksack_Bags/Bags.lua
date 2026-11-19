@@ -96,17 +96,18 @@ B.BankIDs = bankIDs
 
 B.CATS = {
   { key = "new", name = "New", color = { 1, 0.82, 0 } },
+  { key = "sets", name = "Armour sets", color = { 0.92, 0.72, 0.38 } }, -- (19 Nov: items in your equipment sets, Sets.lua)
+  -- (19 Nov: what Haul's "Sort loot" says is worth more at the auction house, Rucksack_Haul/HaulBag.lua)
   { key = "weapon", name = "Weapons", color = { 0.88, 0.42, 0.35 } },
   { key = "armor", name = "Armour", color = { 0.42, 0.61, 0.88 } },
-  { key = "food", name = "Food and water", color = { 0.88, 0.64, 0.35 } },
-  { key = "consumable", name = "Potions and consumables", color = { 0.69, 0.48, 0.88 } },
+  -- (19 Nov) food and water are in Consumables now, with the potions: one group, it doesn't split
+  { key = "consumable", name = "Consumables", color = { 0.69, 0.48, 0.88 } },
   { key = "restock", name = "Restock", color = { 0.4, 0.8, 0.85 } }, -- (1.8.2: what's on your Restock list)
   { key = "trade", name = "Trade goods", color = { 0.55, 0.7, 0.45 } },
   { key = "quest", name = "Quest", color = { 1, 0.89, 0.36 } },
   { key = "other", name = "Everything else", color = { 0.6, 0.6, 0.6 } },
   { key = "sell", name = "Sell", color = { 1, 0.82, 0.25 } },
   { key = "empty", name = "Empty", color = { 0.35, 0.35, 0.35 } },
-  { key = "emptyR", name = "Empty · reagents only", color = { 0.3, 0.45, 0.3 } },
   { key = "emptyS", name = "Empty · special bag", color = { 0.3, 0.38, 0.45 } },
   { key = "junk", name = "Junk", color = { 0.9, 0.3, 0.3 } }, -- (1.8.2: Junk is under everything unless you drag it)
 }
@@ -157,7 +158,7 @@ rebuild()
 B.CAT = CAT
 local held -- the item on your cursor (groups get a slot to drop it on)
 -- groups you can put an item in by hand (not Empty, not New)
-local function placeable(key) return CAT[key] and key ~= "new" and not key:find("^empty") and true or false end
+local function placeable(key) return CAT[key] and key ~= "new" and key ~= "haulah" and key ~= "sets" and not key:find("^empty") and true or false end -- (19 Nov: Haul and Armour sets fill themselves)
 B.Placeable = placeable
 -- where a new group goes in a list of keys: above the Empty groups and Junk that close the list
 function B.TailStart(keys)
@@ -182,6 +183,10 @@ function B.Ordered()
   for _, c in ipairs(ALL) do
     if not seen[c.key] then
       local at = (c.key == "junk" or c.key:find("^empty")) and (#keys + 1) or B.TailStart(keys)
+      if c.key == "sets" or c.key == "haulah" then -- (19 Nov: Armour sets at the top, after New; Haul - Auction house after them)
+        at = 1
+        for i, k in ipairs(keys) do if k == "new" or (c.key == "haulah" and k == "sets") then at = i + 1 end end
+      end
       if c.spec then -- (1.9.1: a special bag's empty group goes right after "Empty · special bag")
         for i = #keys, 1, -1 do if keys[i] == "emptyS" or keys[i]:find("^emptyS_") then at = i + 1 break end end
       end
@@ -285,8 +290,12 @@ local function keepStack(id, from)
 end
 -- where Rucksack puts an item by itself (noYours) or with your choice (DB.assign: id -> group)
 function B.Category(id, link, bag, slot, noYours)
+  -- (19 Nov) in one of your equipment sets: Armour sets (locked: never junk)
+  local inSet = B.Sets and B.Sets.Of(id)
+  if inSet and B.Sets.Locked() then return "sets" end
   local jk = junkKind(id, bag, slot)
   if jk == 1 then return "junk" elseif jk == 2 then return "sell" end
+  if inSet then return "sets" end
   local yours = not noYours and DB and DB.assign and DB.assign[id]
   if yours and placeable(yours) and yours ~= "junk" and yours ~= "sell" then return yours end
   -- (what's on your Restock list sits in its own group, if that group is ticked on the Bags page;
@@ -302,7 +311,6 @@ function B.Category(id, link, bag, slot, noYours)
     if ok and need and need > 0 then return "quest" end
   end
   if ns.FaireKeep and ns.FaireKeep(id) then return "quest" end
-  if ns.Has("eat") and ns.Eat and ns.Eat.found and ns.Eat.found[id] then return "food" end
   if classID == 7 or classID == 9 then return "trade" end
   if classID == 2 then return "weapon" end
   if classID == 4 then return "armor" end
@@ -340,15 +348,23 @@ local function countIn(ids)
   end
   return t
 end
+-- (19 Nov) he looked at Zyxx from another character: "Nothing here yet", 0 copper, though he'd just played
+-- Zyxx. Every character's saved bags were empty and their money 0: at logout (and /reload) the game has
+-- already emptied the bags when Rucksack saved. Now nothing is saved while you leave the world
+-- (B.leaving, from PLAYER_LEAVING_WORLD till PLAYER_ENTERING_WORLD), not at PLAYER_LOGOUT, and a read
+-- that finds no items and no money never replaces one that had them.
 function B.SaveBags()
-  if not DB then return end
+  if not DB or B.leaving then return end
   local r = myRec()
-  r.bags = countIn(BAGS)
-  r.money = GetMoney and GetMoney() or r.money
+  local t = countIn(BAGS)
+  local money = GetMoney and GetMoney() or 0
+  if next(t) == nil and money == 0 and r.bags and (next(r.bags) ~= nil or (r.money or 0) > 0) then return end
+  r.bags = t
+  r.money = money
   r.seen = time()
 end
 function B.SaveBank()
-  if not DB or not bankOpen then return end
+  if not DB or not bankOpen or B.leaving then return end
   local r = myRec()
   r.bank = countIn(bankIDs())
   r.bankSeen = time()
@@ -398,6 +414,7 @@ function B.Where(id)
 end
 local function addWhere(tt, id)
   if not DB or not id or not tt or not tt.AddLine then return end
+  if B.VendorTip then pcall(B.VendorTip, tt, id) end -- (19 Nov) why the coin: the vendor and auction sums
   -- (18 Nov) why an item with "!?" is kept: the quest that needs it (he: "say reason why it does not
   -- sell, maybe like part of quest this and that")
   local Del = ns.Del
@@ -509,6 +526,11 @@ local function iconButton(parent, size, file, tipTitle, tipText, onClick, name)
   b.icon:SetVertexColor(TAN[1], TAN[2], TAN[3])
   b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   if onClick then b:SetScript("OnClick", onClick) end
+  -- (19 Nov) he: "when I click Look groups and do not move my mouse it wont say Look One bag untill i
+  -- rehover, fix buttons like that": after a click the tooltip is written again
+  b:SetScript("PostClick", function(self)
+    if GameTooltip:IsOwned(self) and self:IsMouseOver() then local fn = self:GetScript("OnEnter") if fn then fn(self) end end
+  end)
   b:SetScript("OnEnter", function(self)
     if self.SetBackdropBorderColor and not self.lit then self:SetBackdropBorderColor(1, 0.82, 0) end
     if not self.lit then self.icon:SetVertexColor(GOLD[1], GOLD[2], GOLD[3]) end
@@ -552,37 +574,42 @@ local chev = iconButton(f, 20, "down", function() return DB and DB.barOpen and "
   "Your four bags and the reagent bag (free slots, swap a bag by dropping one on it), and next to them: New group, Delete group and the padlock.",
   function() B.ToggleBar() end, "RucksackBagsRowButton")
 chev:SetPoint("LEFT", logo, "RIGHT", 3, 0)
-chev:Hide()
--- the arrow shows while the mouse is on Rucksack (or the arrow), and stays while the row is open
-local function chevCheck()
-  if DB and DB.barOpen then chev:Show() return end
-  if logo:IsMouseOver() or chev:IsMouseOver() then chev:Show() else chev:Hide() end
-end
+-- (19 Nov) he: "put button arrow down always visible, and have it light up when hovering, clicking
+-- on rucksack icon opens bag settings, clicking arrow opens menu on bottom". The arrow is always
+-- there (the iconButton lights up gold under the mouse); Rucksack's icon opens the Bags settings.
 logo:SetScript("OnEnter", function(self)
-  chev:Show()
   if self.SetBackdropBorderColor then self:SetBackdropBorderColor(1, 0.82, 0) end
   GameTooltip:SetOwner(self, "ANCHOR_TOP")
   GameTooltip:AddLine("Rucksack")
-  GameTooltip:AddLine("The arrow next to it opens or closes your bags row. Click here: the same.", 1, 1, 1, true)
+  GameTooltip:AddLine("Click: the Bags settings. The arrow next to it opens or closes your bags row.", 1, 1, 1, true)
   GameTooltip:Show()
 end)
 logo:SetScript("OnLeave", function(self)
   if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.4, 0.36, 0.28) end
   GameTooltip:Hide()
-  C_Timer.After(0.25, chevCheck)
 end)
-logo:SetScript("OnClick", function() B.ToggleBar() end)
-chev:HookScript("OnLeave", function() C_Timer.After(0.25, chevCheck) end)
+logo:SetScript("OnClick", function() Rucksack_Open("bags") end)
 local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
 close:SetSize(24, 24)
 close:SetPoint("TOPRIGHT", -2, -4)
 local optBtn = iconButton(f, 22, "gear", "Settings", "Columns, size, Rows or Packed, which groups show, and more.",
   function() Rucksack_Open("bags") end)
 optBtn:SetPoint("RIGHT", close, "LEFT", -1, 0)
-local lookBtn = iconButton(f, 22, "groups", function() return DB and DB.style == "grid" and "Look: One bag" or "Look: Groups" end, function()
-  return DB and DB.style == "grid" and "No groups: your items as they really sit in your bags. Nothing moves by itself; click Tidy to sort them once.\n\nClick: Groups." or
-    "Your items in labelled groups (Weapons, Armour, Food and water... and your own), each on its own row or side by side, sorted for you. Your real bags aren't touched.\n\nClick: One bag (no groups, items where you put them)."
-end, function() DB.style = DB.style == "grid" and "groups" or "grid" B.Changed() end)
+-- (19 Nov, 21:06) he: "give ability to sort bag with each row one category, stacked like now, one bag":
+-- the Look button goes Rows -> Packed -> One bag -> Rows (right-click: the other way)
+local lookBtn = iconButton(f, 22, "groups", function()
+  return DB and (DB.style == "grid" and "Look: One bag" or DB.layout == "packed" and "Look: Packed" or "Look: Rows") or "Look"
+end, function()
+  if DB and DB.style == "grid" then return "No groups: your items as they really sit in your bags. Nothing moves by itself; click Tidy to sort them once.\n\nClick: Rows. Right-click: Packed." end
+  if DB and DB.layout == "packed" then return "Groups side by side, filling each line: the bag stays small.\n\nClick: One bag. Right-click: Rows." end
+  return "Each group on a line of its own.\n\nClick: Packed. Right-click: One bag."
+end, function(_, button)
+  local order = { "rows", "packed", "grid" }
+  local cur = DB.style == "grid" and 3 or DB.layout == "packed" and 2 or 1
+  local nx = button == "RightButton" and (cur + 1) % 3 + 1 or cur % 3 + 1
+  if order[nx] == "grid" then DB.style = "grid" else DB.style = "groups" DB.layout = order[nx] end
+  B.Changed()
+end)
 lookBtn:SetPoint("RIGHT", optBtn, "LEFT", -3, 0)
 local stackBtn = iconButton(f, 22, "merged", function() return DB and DB.merged and "Stacks: Merged" or "Stacks: Separate" end, function()
   return DB and DB.merged and "All of one item as one icon: 80 ore shows as 80.\n\nClick: Separate (the real stacks)." or
@@ -753,8 +780,8 @@ end, "RucksackBagsPin")
 B.pinBtn:SetPoint("LEFT", 0, -2)
 -- the three tools on the right of the row: the same size as the bags, pictures centred
 local lockBtn = iconButton(barIn, 30, "unlocked", function() return DB and DB.locked and "Locked" or "Unlocked" end, function()
-  return DB and DB.locked and "Groups stay where they are: no moving them, no + slots, no new groups. Your items work as always.\n\nClick to unlock." or
-    "Click to lock the layout, so nothing moves by accident. Your items still work as always."
+  return DB and DB.locked and "Groups stay where they are: no moving, making or deleting groups. You can still move items from one group to another.\n\nClick to unlock." or
+    "Click to lock the groups, so none moves by accident. You can still move items from one group to another."
 end, nil, "RucksackBagsLock")
 lockBtn:SetPoint("RIGHT", 0, -2)
 local trashBtn = iconButton(barIn, 30, "delete", "Delete a group", nil, nil, "RucksackBagsDeleteGroup")
@@ -799,8 +826,27 @@ end, function(self, button)
   if GameTooltip:IsOwned(self) and self:GetScript("OnEnter") then self:GetScript("OnEnter")(self) end
 end, "RucksackBagsSideButton")
 B.sideBtn:SetPoint("RIGHT", B.restockBtn, "LEFT", -3, 0)
+-- (19 Nov) automatic sorting on / off, he: "put toggle icon on top left of boxes with automatic
+-- sorting icon we can turn on or off and it will stop any sorting, it will still put item in proper
+-- categories". Off: nothing moves by itself (special bags, quiver, reagent bag) and the groups keep
+-- their order (new items go at the end); Tidy still sorts when clicked. DB.autoSort ~= false.
+B.autoBtn = iconButton(barIn, 30, "autosort", function() return DB and DB.autoSort == false and "Automatic sorting: off" or "Automatic sorting: on" end, function()
+  if DB and DB.autoSort == false then
+    return "Nothing moves by itself and nothing is re-sorted: your items stay where they are, in their groups (new ones go at the end). Tidy still sorts when you click it.\n\nClick: on."
+  end
+  return "Herbs, shards, ore, arrows and reagents move into their bags by themselves, and the groups are sorted each time you open the bag.\n\nClick: off (nothing moves or re-sorts by itself)."
+end, function(self)
+  if not DB then return end
+  DB.autoSort = DB.autoSort == false and true or false
+  Print(DB.autoSort and "automatic sorting on." or "automatic sorting off: nothing moves or re-sorts by itself. Tidy still sorts when you click it.")
+  if DB.autoSort then B.rank = nil B.SpecialHome() B.ReagentsHome() end
+  B.Draw()
+  if GameTooltip:IsOwned(self) and self:GetScript("OnEnter") then self:GetScript("OnEnter")(self) end
+end, "RucksackBagsAutoSort")
+B.autoBtn:SetPoint("RIGHT", B.sideBtn, "LEFT", -3, 0)
 B.LightUp = lightUp
-B.toolBtns = { lockBtn, trashBtn, newBtn, hiddenBtn, B.restockBtn, B.sideBtn }
+B.toolBtns = { lockBtn, trashBtn, newBtn } -- (19 Nov: Hidden, Restock, Boxes went to the tool row; Auto-sort is gone)
+B.hiddenBtn = hiddenBtn
 
 ---------------------------------------------------------------------------
 -- The game's item buttons: one per bag slot, under a frame that carries the bag number
@@ -851,6 +897,16 @@ local function decorate(b)
   d.needed:SetTexture(ICONS .. "questbang") -- (17 Nov: our own big "!", no yellow square)
   d.needed:SetSize(20, 20)
   d.needed:SetPoint("TOPRIGHT", 3, 2)
+  -- (18 Nov) a real quest item: the game's own gold quest border round the slot; an item a quest of
+  -- yours needs: how many it still needs, under its "!?"
+  d.qborder = b:CreateTexture(nil, "OVERLAY", nil, 5)
+  d.qborder:SetTexture("Interface\\ContainerFrame\\UI-Icon-QuestBorder")
+  d.qborder:SetAllPoints()
+  d.qborder:Hide()
+  d.qnum = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  d.qnum:SetPoint("TOPRIGHT", -2, -17)
+  do local f = d.qnum:GetFont() if f then d.qnum:SetFont(f, 10, "OUTLINE") end end
+  d.qnum:SetTextColor(1, 0.85, 0.2)
   d.tag = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall") -- "BoE", "open"
   d.tag:SetPoint("TOPLEFT", 1, -1)
   local font = d.tag:GetFont()
@@ -1102,9 +1158,29 @@ local function trackNew()
   end
   lastCounts = now
 end
+-- (19 Nov) he: "the sorting the bag like that is too much, its jumping all around, we have to stop
+-- it". While the bag is open every item keeps the place it had (B.rank: id -> place, given out in
+-- the order they were first drawn); something new goes after them. Closing the bag, or Tidy, sorts
+-- again. And a name, once known, is kept (B.names): while the game drops item details (an auction
+-- house scan) a nameless item no longer jumps to the front.
+B.names = {}
+function B.NameKey(id, link)
+  local n = ns.NameOf(id, link)
+  if n and n ~= "" then B.names[id] = n return n end
+  return B.names[id] or ""
+end
+-- (B.sortRank: the ranks for the list being sorted, or nil. B fields: Lua's 200-local limit)
 local function sortItems(a, b)
+  if a.setOrd and b.setOrd and a.setOrd ~= b.setOrd then return a.setOrd < b.setOrd end -- (19 Nov: first set first)
+  local curRank = B.sortRank
+  if curRank then
+    local ra, rb = curRank[a.id], curRank[b.id]
+    if ra and rb then if ra ~= rb then return ra < rb end
+    elseif ra then return true
+    elseif rb then return false end
+  end
   if (a.quality or 0) ~= (b.quality or 0) then return (a.quality or 0) > (b.quality or 0) end
-  local na, nb = ns.NameOf(a.id, a.link) or "", ns.NameOf(b.id, b.link) or ""
+  local na, nb = B.NameKey(a.id, a.link), B.NameKey(b.id, b.link)
   if na ~= nb then return na < nb end
   if a.count ~= b.count then return a.count > b.count end
   if (a.bag or 0) ~= (b.bag or 0) then return (a.bag or 0) < (b.bag or 0) end
@@ -1120,6 +1196,7 @@ local function buildCells(v, text)
   local liveBags = function() return vLiveBags(v) end
   if vLiveBags(v) then
     items, st = readBags(BAGS)
+    if v == MAINVIEW and B.LiftOut then items = B.LiftOut(items) end
   elseif vLiveBank(v) then
     items, st = readBags(bankIDs())
   else
@@ -1150,30 +1227,66 @@ local function buildCells(v, text)
   for _, e in ipairs(items) do
     local ok, cat = pcall(B.Category, e.id, e.link, e.bag, e.slot)
     e.cat = ok and cat or "other"
+    -- (19 Nov) while an auction house scan runs the game can drop an item's details for a moment:
+    -- then the item keeps the group it had, instead of jumping to another one and back
+    if e.id and live then
+      B.lastCat = B.lastCat or {}
+      if ok and ns.GetInfo(e.link or e.id) then B.lastCat[e.id] = e.cat
+      elseif B.lastCat[e.id] then e.cat = B.lastCat[e.id] end
+    end
     if not catShown(e.cat) then e.cat = "other" end
+    if e.cat == "sets" then e.setOrd = B.Sets.Order(e.id) end
     if e.cat == "junk" then
       e.first = e.id == firstOut
     elseif live then
       local gear = e.cat == "weapon" or e.cat == "armor"
-      if gear and ns.Has("del") and ns.Del.IsUpgrade then
-        local ok2, up = pcall(ns.Del.IsUpgrade, e.id, e.link)
-        e.upgrade = ok2 and up or false
+      -- (19 Nov) an item's tags (BoE, the upgrade arrow) are worked out once and kept until your bags
+      -- or the gear you wear really change: during an auction scan the game hands out half-filled
+      -- item details and the tags blinked on and off (he: "BoE on item its disappearing and appearing")
+      B.visCache = B.visCache or {}
+      local vk = gear and (e.link or e.id)
+      local vc = vk and B.visCache[vk]
+      if vc and (e.bound == nil or vc.bound == e.bound) then
+        e.upgrade, e.boe = vc.up, vc.boe
+      elseif gear then
+        local sure = e.bound ~= nil
+        if ns.Has("del") and ns.Del.IsUpgrade then
+          local ok2, up = pcall(ns.Del.IsUpgrade, e.id, e.link)
+          e.upgrade = ok2 and up or false
+          sure = sure and ok2
+        end
+        local bind = select(14, ns.GetInfo(e.link or e.id))
+        if e.bound == false and bind == 2 then e.boe = true end
+        if bind == nil then sure = false end
+        if sure then B.visCache[vk] = { up = e.upgrade, boe = e.boe, bound = e.bound } end
       end
-      if gear and e.bound == false and select(14, ns.GetInfo(e.link or e.id)) == 2 then e.boe = true end
       if liveBags() then
         if e.id == nextFood then e.next = "your next food" elseif e.id == nextDrink then e.next = "your next water" end
-        if B.newIDs[e.id] and catShown("new") then e.isNew = true e.cat = "new" end
+        if B.newIDs[e.id] and catShown("new") and e.cat ~= "sets" and e.cat ~= "haulah" then e.isNew = true e.cat = "new" end
       end
     end
   end
+  -- (19 Nov) your bags, while open: places kept (see sortItems)
+  B.sortRank = nil
+  if v == MAINVIEW and live then
+    B.rank = B.rank or { n = 0 }
+    B.sortRank = B.rank
+  end
   table.sort(items, sortItems)
+  local rk = B.sortRank
+  if rk then
+    for _, e in ipairs(items) do
+      if e.id and not rk[e.id] then rk.n = rk.n + 1 rk[e.id] = rk.n end
+    end
+  end
+  B.sortRank = nil
   local seen = {}
   local free = B.FreeNow(v) and vLiveBags(v)
   st.freeMode = free
   local merge = (DB.merged and not free) or not live
   -- (15 Nov) the boxes on the right of the bag (Side.lua): what's on your list, what's marked once
   -- and what goes to the bank show there, not in the bag's groups
-  local side = v == MAINVIEW and vLiveBags(v) and B.SideOn and B.SideOn() and { always = {}, once = {}, bank = {}, quiver = {} } or nil
+  local side = v == MAINVIEW and vLiveBags(v) and B.SideOn and B.SideOn() and { always = {}, once = {}, bank = {}, quiver = {}, haul = {} } or nil
   st.side = side
   local liveMain = v == MAINVIEW and vLiveBags(v)
   for _, e in ipairs(items) do
@@ -1217,7 +1330,7 @@ local function buildCells(v, text)
     for _, e in ipairs(byCat.sell) do value = value + sellPrice(e.id) * e.total end
   end
   if side then
-    for _, k in ipairs({ "always", "once" }) do table.sort(side[k], cheapest) end
+    for _, k in ipairs({ "always", "once", "haul" }) do table.sort(side[k], cheapest) end
     table.sort(side.bank, sortItems)
     -- (15 Nov) what a vendor really pays: Clean-up's own list of what it sells (the limit, quest needs...)
     if hasClean() and ns.Sell and ns.Sell.Items then
@@ -1241,7 +1354,7 @@ local function buildCells(v, text)
   -- for good); it comes out on the slot at the start of Empty, at the bottom
   -- (16 Nov) with the padlock open the groups take it too: it leaves its box and goes in that group
   local heldBox = side and held and B.HeldBox and B.HeldBox(held) or nil
-  if held and not DB.locked and v == MAINVIEW then
+  if held and v == MAINVIEW and not B.heldSet then -- (19 Nov: the padlock only holds the groups; items still move between them)
     if hasClean() and not side then byCat.junk = byCat.junk or {} byCat.sell = byCat.sell or {} end
     -- (One grid has no groups to drop on: there you drop it on a chip)
     for key, list in pairs(byCat) do
@@ -1272,7 +1385,9 @@ local function buildCells(v, text)
       bySpec[k] = bySpec[k] or {}
       table.insert(bySpec[k], sl)
     end
-    local kinds = { [""] = "empty", R = "emptyR" }
+    -- (19 Nov) the reagent bag's empty slots are in Empty too, after the others, in green
+    -- (he: "empty reagents only remove, color the slots green and place it on empty")
+    local kinds = { [""] = "empty" }
     -- (18 Nov) a special bag's group shows no empty slots: its title says how full it is ("Soul bag 12/16")
     if liveMain then
       B.specSpace = {}
@@ -1292,7 +1407,12 @@ local function buildCells(v, text)
       for k in pairs(bySpec) do if k ~= "S" and B.SpecialGrouped(k:sub(3)) then bySpec[k] = nil end end
     end
     for k, list in pairs(bySpec) do st.empties[k] = list kinds[k] = "empty" .. k end
-    for kind, cat in pairs(kinds) do
+    local kindList = {}
+    for kind in pairs(kinds) do kindList[#kindList + 1] = kind end
+    table.sort(kindList)
+    if #st.empties.R > 0 then kindList[#kindList + 1] = "R" kinds.R = "empty" end
+    for _, kind in ipairs(kindList) do
+      local cat = kinds[kind]
       local list = st.empties[kind]
       if #list > 0 then
         byCat[cat] = byCat[cat] or {} -- (a special bag's group already holds its items)
@@ -1334,7 +1454,6 @@ StaticPopupDialogs["RUCKSACK_BAGS_JUNK"] = {
 }
 function B.PlaceIn(key, id, link)
   if not id or not placeable(key) then return end
-  if DB.locked then return lockedSay() end
   DB.assign = DB.assign or {}
   B.newIDs[id] = nil
   local from = B.heldFrom -- (the slot the stack came from: placeHeld notes it)
@@ -1348,7 +1467,7 @@ function B.PlaceIn(key, id, link)
       Print(shown(id, link) .. (how == "stack" and ": this stack is kept, it's no longer sold." or " is kept: it's no longer sold by itself."))
       return B.Changed()
     end
-    if ns.KeepItem(id) then
+    if ns.KeepItem(id, true) then
       local uses = ns.UsedFor(id, link)
       Print(shown(id, link) .. " is always kept" .. (uses[1] and (" (" .. uses[1] .. ")") or "") .. ".")
       return
@@ -1375,7 +1494,7 @@ function B.PlaceIn(key, id, link)
       Print(shown(id, link) .. " is kept: Clean-up leaves it alone.")
       return B.Changed()
     end
-    if ns.KeepItem(id) then
+    if ns.KeepItem(id, true) then
       local uses = ns.UsedFor(id, link)
       Print(shown(id, link) .. " is always kept" .. (uses[1] and (" (" .. uses[1] .. ")") or "") .. ".")
       return
@@ -1405,12 +1524,12 @@ end
 local function placeHeld(key)
   local id, link = ns.CursorItem()
   if not id then return end
+  if B.Sets and B.Sets.Of(id) then ClearCursor() return B.SetRefuse(id, link) end
   -- (the padlock is for arranging groups: taking something off Sell or Junk still works with it on)
   local heldWas = kindOfHeld(id)
   -- (15 Nov) a stack on its way to the bank: dropping it anywhere in the bag takes it back
   local bankFrom = B.HeldSlot and { B.HeldSlot(id) } or nil
   local wasBank = bankFrom and bankFrom[1] and B.BankSlot(bankFrom[1], bankFrom[2], id)
-  if DB.locked and not (key == "keep" and (heldWas or wasBank)) then return lockedSay() end
   -- (the slot it came from, noted before the cursor lets go of it)
   local from = hasClean() and ns.Del.HeldSlot and { ns.Del.HeldSlot(id) } or nil
   if from and not from[1] then from = nil end
@@ -1432,9 +1551,28 @@ local function placeHeld(key)
     end
     return B.Changed()
   end
+  local gp = B.gap and B.gap.key == key and B.gap -- (19 Nov: dropped into the open space)
+  -- (19 Nov) dropped into the space: the bag is drawn right away and the item snaps into it (he: "when
+  -- I release it it should just snap on that place", not first back in its old place, then over)
+  local function landNow()
+    if InCombatLockdown() then return B.Changed() end
+    B.snapID = id
+    if B.HeldChanged then pcall(B.HeldChanged, nil) end -- (it's no longer lifted out: it's drawn at its new place)
+    held = false -- (drawn as nothing held: no + slots; the bag's watcher still sees the change and tidies up)
+    local ok = pcall(B.Draw)
+    B.snapID = nil
+    if not ok then B.Changed() end
+  end
+  if gp then
+    B.RankAt(gp.g, gp.k, id)
+    -- (already in that group: only its place changes)
+    local okC, now = pcall(B.Category, id, link, from and from[1], from and from[2])
+    if okC and now == key and not wasHidden then return landNow() end
+  end
   if wasHidden and B.Category(id, link, nil, nil, true) == key and not DB.assign[id] then return B.Changed() end
   B.heldFrom = from
   B.PlaceIn(key, id, link)
+  if gp then landNow() end
 end
 
 -- popups: name a new group, rename one, delete one, forget a character
@@ -1774,6 +1912,7 @@ local function placeGroup(g)
   for _, it in ipairs(g.frames) do
     it.f:ClearAllPoints()
     it.f:SetPoint("TOPLEFT", body, "TOPLEFT", it.x + g.dx, -(it.y + g.dy))
+    it.f._rx, it.f._ry, it.f._tx, it.f._ty = it.x + g.dx, it.y + g.dy, it.x + g.dx, it.y + g.dy -- (19 Nov: the slide starts from here)
   end
 end
 local function box(r, g, b, a)
@@ -2009,11 +2148,11 @@ local function label(i)
       GameTooltip:SetOwner(self, "ANCHOR_TOP")
       GameTooltip:AddLine(c and c.name or "")
       if grab and not held then GameTooltip:AddLine("Drag to move this group", 1, 1, 1) end
-      if held and placeable(self.key) and not DB.locked then
+      if held and placeable(self.key) then
         GameTooltip:AddLine(self.key == "junk" and "Drop the item here to make it junk." or self.key == "sell" and "Drop the item here: sold at vendors, never thrown away." or
           "Drop the item here and it goes in this group.", 0.6, 1, 0.6, true)
       end
-      if DB.locked then
+      if DB.locked and not held then
         GameTooltip:AddLine("Locked: click the padlock to change groups.", 0.7, 0.7, 0.7, true)
       elseif self.fixed then
         GameTooltip:AddLine("In One bag, Junk always stays at the bottom.", 0.7, 0.7, 0.7, true)
@@ -2049,10 +2188,139 @@ end
 
 -- putting a cell on screen (and, in Groups, remembering it as part of its group, for moving)
 local cur, dropUsed, whereText = nil, {}, ""
+-- (19 Nov) he: "make me move items in bag be smooth, animated, icons opening space in between".
+-- Everything the bag places slides from where it was to where it goes (only when it was on show in
+-- the last drawing too, out of a fight, not while a group is being dragged). DB.slide ~= false.
+do
+  local active = {}
+  local driver = CreateFrame("Frame", nil, f)
+  driver:Hide()
+  local function put(fr) fr:ClearAllPoints() fr:SetPoint("TOPLEFT", fr._rbody, "TOPLEFT", fr._rx, -fr._ry) end
+  driver:SetScript("OnUpdate", function(self, dt)
+    local k = math.min(1, (dt or 0.016) * 14)
+    local busy = false
+    for fr in pairs(active) do
+      if InCombatLockdown() or drag then
+        fr._rx, fr._ry = fr._tx, fr._ty
+      else
+        fr._rx = fr._rx + (fr._tx - fr._rx) * k
+        fr._ry = fr._ry + (fr._ty - fr._ry) * k
+        if math.abs(fr._tx - fr._rx) < 0.5 then fr._rx = fr._tx end
+        if math.abs(fr._ty - fr._ry) < 0.5 then fr._ry = fr._ty end
+      end
+      if not InCombatLockdown() then put(fr) end
+      if fr._rx == fr._tx and fr._ry == fr._ty then active[fr] = nil else busy = true end
+    end
+    if not busy then self:Hide() end
+  end)
+  B.drawN = 0
+  -- place fr at (x, y) in body: sliding there, or at once
+  function B.SlideTo(fr, body, x, y)
+    local was = fr._rdraw == B.drawN - 1 or fr._rdraw == B.drawN
+    local slide = was and fr._rbody == body and fr._rx and DB and DB.slide ~= false and not drag and not InCombatLockdown()
+      and f:IsShown() and (math.abs(fr._rx - x) + math.abs(fr._ry - y)) < 900
+    -- (19 Nov) the item you just dropped into an open space lands there at once, no slide
+    local ie = B.snapID and info[fr]
+    if ie and ie.id == B.snapID and not ie.empty then slide = false end
+    fr._rbody, fr._tx, fr._ty, fr._rdraw = body, x, y, B.drawN
+    if slide then
+      if fr._rx ~= x or fr._ry ~= y then active[fr] = true driver:Show() end
+    else
+      active[fr] = nil
+      fr._rx, fr._ry = x, y
+      put(fr)
+    end
+  end
+  -- a frame moved somewhere else in the same drawing (the gap below): slide there
+  function B.SlideMore(fr, x, y)
+    if not fr._rbody or InCombatLockdown() then return end
+    if fr._tx == x and fr._ty == y then return end
+    fr._tx, fr._ty = x, y
+    if DB and DB.slide == false then fr._rx, fr._ry = x, y put(fr) return end
+    active[fr] = true
+    driver:Show()
+  end
+  function B.SlideStop() for fr in pairs(active) do fr._rx, fr._ry = fr._tx, fr._ty put(fr) end wipe(active) driver:Hide() end
+end
+-- (19 Nov) the reagent bag's slots: the button's own textures tinted green ("empty": all of them, the
+-- slot picture too; "item": only its frame), nil: back to normal. Rucksack's own extras are left alone.
+function B.GreenSlot(b, d, how, cr, cg, cb) -- (19 Nov: cr, cg, cb another colour: red for armour set items)
+  if d.greened then
+    for _, t in ipairs(d.greened) do t:SetVertexColor(1, 1, 1) end
+    d.greened = nil
+  end
+  if not how or not b.GetRegions then return end
+  local mine = {}
+  for _, v in pairs(d) do if type(v) == "table" then mine[v] = true if rawget(v, 1) then for _, t in ipairs(v) do mine[t] = true end end end end
+  local keep = { [b.IconBorder or 0] = true, [b.IconOverlay or 0] = true, [b.IconOverlay2 or 0] = true }
+  local list = {}
+  local normal = b.GetNormalTexture and b:GetNormalTexture()
+  if how == "item" then
+    if normal then list[1] = normal end
+  else
+    for _, r in ipairs({ b:GetRegions() }) do
+      if r.SetVertexColor and r.GetObjectType and r:GetObjectType() == "Texture" and not mine[r] and not keep[r] then list[#list + 1] = r end
+    end
+    if normal then local seen = false for _, t in ipairs(list) do if t == normal then seen = true end end if not seen then list[#list + 1] = normal end end
+  end
+  for _, t in ipairs(list) do t:SetVertexColor(cr or 0.45, cg or 1, cb or 0.45) end
+  d.greened = list
+end
 local function addFrame(fr, x, y)
-  fr:ClearAllPoints()
-  fr:SetPoint("TOPLEFT", PANE.body, "TOPLEFT", x, -y)
+  B.SlideTo(fr, PANE.body, x, y)
   if cur then cur.frames[#cur.frames + 1] = { f = fr, x = x, y = y } end
+end
+-- (19 Nov) holding an item over one of the groups: its icons slide apart to open a space under the
+-- mouse, and the group's + slot moves into it. Dropping it there puts the item at that place (its
+-- rank in B.rank, between its new neighbours).
+do
+  local function cellXY(g, p, cols)
+    return g.x + ((p - 1) % cols) * PITCH, g.y + LABEL + math.floor((p - 1) / cols) * PITCH
+  end
+  local function close()
+    local gp = B.gap
+    B.gap = nil
+    if not gp then return end
+    for _, it in ipairs(gp.g.frames) do B.SlideMore(it.f, it.x, it.y) end
+  end
+  B.CloseGap = close
+  function B.GapTick(key)
+    local g
+    if key and key ~= "keep" and key ~= "junk" and key ~= "sell" and plusSlots[key] then
+      for _, d in ipairs(drawn) do if d.key == key then g = d break end end
+    end
+    -- the cells: the group's frames after its name; the last one must be its + slot
+    local cells = {}
+    if g and g.frames then for i = 2, #g.frames do cells[#cells + 1] = g.frames[i] end end
+    if not g or #cells < 2 or cells[#cells].f ~= plusSlots[key] then return close() end
+    local cols = B.curCols or 10
+    local n = #cells - 1
+    local cx, cy = cursorIn(PANE.body)
+    local col = math.max(0, math.min(cols - 1, math.floor((cx - g.x) / PITCH)))
+    local row = math.max(0, math.floor((cy - g.y - LABEL) / PITCH))
+    local k = math.max(1, math.min(n + 1, row * cols + col + 1))
+    local old = B.gap
+    if old and old.g == g and old.k == k then return end
+    if old and old.g ~= g then close() end
+    for j = 1, n do
+      local p = j < k and j or j + 1
+      B.SlideMore(cells[j].f, cellXY(g, p, cols))
+    end
+    B.SlideMore(cells[#cells].f, cellXY(g, k, cols))
+    B.gap = { key = key, k = k, g = g }
+  end
+  -- the dropped item's place: between the items left and right of the gap
+  function B.RankAt(g, k, id)
+    B.rank = B.rank or { n = 0 }
+    local R = B.rank
+    local list = {}
+    for _, e in ipairs(g.items or {}) do if e.id and not e.drop then list[#list + 1] = e end end
+    local before, after = list[k - 1], list[k]
+    if before and before.id == id then before = list[k - 2] end
+    if after and after.id == id then after = list[k + 1] end
+    local a, b = before and R[before.id], after and R[after.id]
+    R[id] = (a and b and (a + b) / 2) or (a and a + 0.5) or (b and b - 0.5) or (R.n + 1)
+  end
 end
 local function show(e, x, y, text, withDot)
   if e.drop then
@@ -2085,6 +2353,8 @@ local function show(e, x, y, text, withDot)
   addFrame(b, x, y)
   b:Show()
   local d = deco[b]
+  -- (19 Nov) a locked set item: a see-through red cover that takes the mouse (Sets.lua)
+  if B.Sets then B.Sets.Cover(b, e, not e.empty and e.id and B.Sets.Of(e.id) and true or false) end
   -- (the game's own button code differs between clients: if a step fails, say so once and carry on)
   local ok, err = pcall(paint, b, e.empty and { bag = e.bag, slot = e.slot } or e, e.total)
   if not ok and not B.paintError then
@@ -2096,17 +2366,25 @@ local function show(e, x, y, text, withDot)
   -- (17 Nov) he: "remove that yellow square, make ! bigger to see easily quest item, and make !? sign
   -- for a item that we use in the quest but its not specified as quest item". So: "!" on a quest item
   -- (the game calls it one), "!?" on an ordinary item a quest you have needs (it's kept for it).
-  local needed = not e.empty and B.QuestMark(e.id, e.link) or false
-  if needed and d.neededKind ~= needed then
+  -- (18 Nov) three marks, he: "different markings for quest item that start quest, quest item that is
+  -- originally quest item and items that sometimes can be quest items, like spider legs": "start" = a
+  -- big yellow "!" (only while that quest isn't taken), "quest" = the game's gold quest border, no
+  -- letter, "maybe" = "!?" with how many your quests still need.
+  local needed, left = false, nil
+  if not e.empty then needed, left = B.QuestMark(e.id, e.link, e.bag, e.slot) needed = needed or false end
+  local letter = needed == "start" or needed == "maybe"
+  if letter and d.neededKind ~= needed then
     d.neededKind = needed
-    d.needed:SetTexture(ICONS .. (needed == "bang" and "questbang" or "questmaybe"))
-    if needed == "bang" then d.needed:SetSize(20, 20) else d.needed:SetSize(26, 26) end
+    d.needed:SetTexture(ICONS .. (needed == "start" and "questbang" or "questmaybe"))
+    if needed == "start" then d.needed:SetSize(20, 20) else d.needed:SetSize(26, 26) end
   end
-  d.needed:SetShown(needed and true or false)
+  d.needed:SetShown(letter)
+  d.qborder:SetShown(needed == "quest")
+  d.qnum:SetText(needed == "maybe" and left and left > 0 and left < 1000 and tostring(left) or "")
   d.mark:SetShown(e.cat == "junk" and not needed)
   d.coin:SetShown(e.cat == "sell" and not needed)
   d.arrow:SetShown(e.upgrade and true or false)
-  d.quest:SetShown(e.cat == "quest" and withDot ~= true)
+  d.quest:SetShown(e.cat == "quest" and withDot ~= true and not needed)
   if e.first then d.edge:SetVertexColor(1, 0.25, 0.25) d.edge:Show()
   elseif e.next then d.edge:SetVertexColor(0.3, 1, 0.3) d.edge:Show()
   elseif e.isNew then d.edge:SetVertexColor(1, 0.82, 0) d.edge:Show()
@@ -2114,35 +2392,63 @@ local function show(e, x, y, text, withDot)
   d.tag:SetText(e.boe and "|cff7fd4ffBoE|r" or e.open and "|cffffd100open|r" or "")
   local c = withDot and CAT[e.cat]
   if c and not e.empty then d.dot:SetColorTexture(c.color[1], c.color[2], c.color[3], 1) d.dot:Show() else d.dot:Hide() end
+  if B.VendorMark then pcall(B.VendorMark, b, d, e) end -- (19 Nov) a vendor pays more: a coin top left
   d.dim:SetShown(not matches(e, text))
   -- (1.9.1) in a special bag: its colour
   local sp = e.bag and B.SpecialOf and B.SpecialOf(e.bag)
+  B.GreenSlot(b, d, nil)
   if sp and DB.specialTint ~= false then
     local sc = B.SpecialColor(sp.key)
     d.tint:SetColorTexture(sc[1], sc[2], sc[3], e.empty and 0.28 or 0.14)
     d.tint:Show()
+    if d.thick then d.thick = nil for i, t in ipairs(d.lines) do if i <= 2 then t:SetHeight(1) else t:SetWidth(1) end end end
     for _, t in ipairs(d.lines) do t:SetColorTexture(sc[1], sc[2], sc[3], 0.9) t:Show() end
-  elseif REAGENT and e.bag == REAGENT and DB.style == "grid" then
-    -- (18 Nov) One bag: the reagent bag's slots in green (he: "mark reagent bag slots green")
-    d.tint:SetColorTexture(0.3, 0.85, 0.35, e.empty and 0.28 or 0.14)
-    d.tint:Show()
-    for _, t in ipairs(d.lines) do t:SetColorTexture(0.3, 0.85, 0.35, 0.9) t:Show() end
+  elseif REAGENT and e.bag == REAGENT and (DB.style == "grid" or e.empty) then
+    -- (18 Nov) the reagent bag's slots in green (he: "mark reagent bag slots green"); 19 Nov: a green
+    -- border only, no see-through fill (he: "border should be green not just simple overlay")
+    -- 19 Nov, again: no drawn border either; the slot itself is tinted green (he: "like original slot
+    -- but with green ... tint"): an empty slot all of it, a slot with an item its frame
+    d.tint:Hide()
+    for _, t in ipairs(d.lines) do t:Hide() end
+    B.GreenSlot(b, d, e.empty and "empty" or "item")
   else
     d.tint:Hide()
     for _, t in ipairs(d.lines) do t:Hide() end
+    -- (19 Nov) an item in one of your equipment sets: a red border round its slot (he: "slot should be
+    -- red like some kind a red border, that armor cant be moved from there")
+    if not e.empty and e.id and B.Sets and B.Sets.Of(e.id) then
+      d.thick = true
+      for i, t in ipairs(d.lines) do
+        if i <= 2 then t:SetHeight(2) else t:SetWidth(2) end
+        t:SetColorTexture(1, 0.18, 0.15, 0.95)
+        t:Show()
+      end
+    end
   end
 end
 
--- (17 Nov) "bang": a quest item (the game calls it one); "maybe": an ordinary item a quest you have
--- needs; nil: neither
-function B.QuestMark(id, link)
+-- (18 Nov) "start": it starts a quest you haven't taken yet; "quest": a quest item (the game calls it
+-- one); "maybe": an ordinary item a quest you have needs (2nd value: how many it still needs, by what
+-- your bags hold); nil: none of these. (17 Nov's "bang" is now "start" or "quest".)
+function B.QuestMark(id, link, bag, slot)
   if not id then return nil end
+  local isQuest
+  if bag and slot and ns.GetQuestInfo then
+    local ok, qi, qid, active = pcall(ns.GetQuestInfo, bag, slot)
+    if ok and type(qi) == "table" then isQuest, qid, active = qi.isQuestItem, qi.questID, qi.isActive
+    elseif ok then isQuest = qi end
+    if qid and not active then return "start" end
+  end
   local classID = C_Item and C_Item.GetItemInfoInstant and select(6, C_Item.GetItemInfoInstant(id))
   if classID == nil and GetItemInfoInstant then classID = select(6, GetItemInfoInstant(id)) end
-  if classID == 12 then return "bang" end
+  if classID == 12 or isQuest == true then return "quest" end
   if hasClean() and ns.Del and ns.Del.QuestNeed then
     local ok, n = pcall(ns.Del.QuestNeed, id, link)
-    if ok and n and n > 0 then return "maybe" end
+    if ok and n and n > 0 then
+      if n == math.huge then return "start" end
+      local have = (C_Item and C_Item.GetItemCount and C_Item.GetItemCount(id)) or (GetItemCount and GetItemCount(id)) or 0
+      return "maybe", n - (tonumber(have) or 0)
+    end
   end
 end
 -- (15 Nov) for Side.lua: a button painted like an empty bag slot (the slot you drop items on)
@@ -2188,7 +2494,7 @@ end
 -- the header icons and the bags row, as things are now
 local function drawTop(st)
   local oneBag = DB.style == "grid"
-  setIcon(lookBtn, oneBag and "onebag" or "groups")
+  setIcon(lookBtn, oneBag and "onebag" or DB.layout == "packed" and "groups" or "rows")
   setIcon(stackBtn, DB.merged and "merged" or "separate")
   stackBtn:SetAlpha(oneBag and 0.35 or 1) -- (One bag shows the real stacks)
   bankBtn:ClearAllPoints()
@@ -2202,6 +2508,7 @@ local function drawTop(st)
   lightUp(B.pinBtn, DB.pinned)
   setIcon(B.sideBtn, "side_" .. (DB.sidePos or "tr"))
   lightUp(lockBtn, DB.locked)
+  lightUp(B.autoBtn, DB.autoSort ~= false) -- (19 Nov: gold while automatic sorting is on)
   local off = DB.locked or oneBag
   newBtn:SetAlpha(off and 0.35 or 1)
   trashBtn:SetAlpha(off and 0.35 or 1)
@@ -2212,7 +2519,7 @@ end
 -- slots; at the bottom Junk, a fixed group. Holding an item: a red + on Junk (make it junk), and a
 -- green + on the bag when it's junk already (keep it).
 local KIND = { weapon = 1, armor = 2, food = 3, consumable = 4, trade = 5, quest = 6, other = 7 }
-local EMPTY_ORDER = { empty = 1, emptyR = 2, emptyS = 3 }
+local EMPTY_ORDER = { empty = 1, emptyS = 3 }
 for n, sp in ipairs(B.SPECIAL) do EMPTY_ORDER["emptyS_" .. sp.key] = 3 + n end
 local function drawOneBag(byCat, text, cols, W, st, canDrop)
   local items, junk, sell, empties = {}, {}, {}, {}
@@ -2265,11 +2572,11 @@ local function drawOneBag(byCat, text, cols, W, st, canDrop)
     return ((a.bag or 0) * 100 + (a.slot or 0)) < ((b.bag or 0) * 100 + (b.slot or 0))
   end)
   local sideOn = st and st.side and true or false -- (15 Nov: Junk and Sell are boxes on the right)
-  local drop = canDrop and held and not DB.locked and (hasClean() or (DB.hidden and DB.hidden[held]))
+  local drop = canDrop and held and (hasClean() or (DB.hidden and DB.hidden[held]))
   -- (15 Nov) a Sell or Junk item on your cursor: the green "keep" slot is the first one of that
   -- group below (padlock on or off); a hidden item still gets it on the bag
   local keepKind = not sideOn and canDrop and held and kindOfHeld(held)
-  if canDrop and held and not DB.locked and not keepKind and DB.hidden and DB.hidden[held] then items[#items + 1] = { drop = "keep", cat = "keep" } end
+  if canDrop and held and not keepKind and DB.hidden and DB.hidden[held] then items[#items + 1] = { drop = "keep", cat = "keep" } end
   table.sort(empties, function(a, b)
     if a.cat ~= b.cat then return (EMPTY_ORDER[a.cat] or 9) < (EMPTY_ORDER[b.cat] or 9) end
     if a.bag ~= b.bag then return a.bag < b.bag end
@@ -2326,12 +2633,15 @@ local function drawGroups(byCat, order, text, cols, W)
       local nameW = measure(l, col .. name .. "|r")
       local rows = math.ceil(n / cols)
       local gw = n > 0 and (math.min(n, cols) * PITCH - GAP) or 0
-      local w = math.min(W, math.max(gw, nameW + 2, n == 0 and 190 or 0))
+      local extra = (c.key == "sets" and 18) or (c.key == "haulah" and B.HaulButton and 104) or 0 -- (19 Nov: the padlock, Haul's button)
+      local w = math.min(W, math.max(gw, nameW + 2 + extra, n == 0 and 190 or 0))
       local h = LABEL + (n > 0 and (rows * PITCH - GAP) or 14)
-      list[#list + 1] = { key = c.key, c = c, items = items, n = n, w = w, h = h, rows = rows, l = l }
+      list[#list + 1] = { key = c.key, c = c, items = items, n = n, w = w, h = h, rows = rows, l = l, nameW = nameW }
     end
   end
   local pos, height = layoutOf(list, W)
+  if B.Sets and PANE == MAIN then B.Sets.LockButton(nil) end
+  if B.HaulButton and PANE == MAIN then B.HaulButton(nil) end
   for i, g in ipairs(list) do
     g.x, g.y, g.dx, g.dy, g.tx, g.ty, g.frames = pos[i].x, pos[i].y, 0, 0, 0, 0, {}
     cur = g
@@ -2341,12 +2651,14 @@ local function drawGroups(byCat, order, text, cols, W)
     l.text:SetWidth(g.w)
     addFrame(l, g.x + 1, g.y)
     l:Show()
+    -- (19 Nov: the padlock is gone, set items are always kept)
+    if g.key == "haulah" and B.HaulButton and PANE == MAIN then B.HaulButton(l, g.nameW) end -- (19 Nov: "Sort into groups")
     for j, e in ipairs(g.items) do
       show(e, g.x + ((j - 1) % cols) * PITCH, g.y + LABEL + math.floor((j - 1) / cols) * PITCH, text)
     end
     if g.n == 0 then
       local h = hint(i)
-      h:SetText((DB.locked or g.c.spec) and "empty" or "pick an item up and drop it here")
+      h:SetText(g.c.spec and "empty" or "pick an item up and drop it here")
       addFrame(h, g.x + 2, g.y + LABEL + 2)
       h:Show()
     end
@@ -2418,6 +2730,12 @@ local function placeParts()
   local m = B.metrics
   if not m then return end
   local top = HEAD + barH
+  if B.tools then -- (19 Nov) the tool row, under the bags row (which slides in between)
+    B.tools:ClearAllPoints()
+    B.tools:SetPoint("TOPLEFT", 8, -(HEAD + barH))
+    B.tools:SetWidth(m.W)
+    top = top + B.TOOL_H
+  end
   bar:ClearAllPoints()
   bar:SetPoint("TOPLEFT", 8, -HEAD)
   bar:SetWidth(m.W)
@@ -2448,7 +2766,6 @@ function B.ToggleBar()
   if not f:IsShown() then barH = target
   elseif fightLock() then barH = target pendingDraw = true Print("the bags row " .. (DB.barOpen and "opens" or "closes") .. " after the fight.")
   else barAnim:Show() end
-  chevCheck()
   GameTooltip:Hide()
 end
 ---------------------------------------------------------------------------
@@ -2471,60 +2788,66 @@ if hf.SetBackdrop then
   hf:SetBackdropBorderColor(0.62, 0.5, 0.3, 1)
 end
 hf:Hide()
-local heye = hf:CreateTexture(nil, "ARTWORK")
-heye:SetSize(16, 16)
-heye:SetPoint("TOPLEFT", 9, -9)
-heye:SetTexture(ICONS .. "hidden")
-heye:SetVertexColor(TAN[1], TAN[2], TAN[3])
-local htitle = hf:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-htitle:SetPoint("LEFT", heye, "RIGHT", 5, 0)
-htitle:SetText("Hidden")
+-- (19 Nov) it looks like the boxes on the right of the bag (he: "make Hidden look like bag category on
+-- side"): a small coloured name and a ?, the items, then an empty slot to drop on. The eye next to your
+-- bags opens and closes it.
+local htitle = hf:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+htitle:SetPoint("TOPLEFT", 9, -8)
+htitle:SetHeight(12)
+htitle:SetAlpha(0.85)
+htitle:SetText("|cffd9c79aHidden|r")
+-- (19 Nov) an X to close it, inside the border and level with the name
 local hclose = CreateFrame("Button", nil, hf, "UIPanelCloseButton")
-hclose:SetSize(22, 22)
-hclose:SetPoint("TOPRIGHT", -2, -3)
+hclose:SetSize(18, 18)
+hclose:SetPoint("TOPRIGHT", -6, -5)
 local hhelp = CreateFrame("Button", nil, hf)
-hhelp:SetSize(16, 16)
-hhelp:SetPoint("RIGHT", hclose, "LEFT", -2, 0)
+hhelp:SetSize(15, 15)
+hhelp:SetPoint("RIGHT", hclose, "LEFT", -3, 0)
 hhelp.text = hhelp:CreateFontString(nil, "ARTWORK", "GameFontNormal")
 hhelp.text:SetPoint("CENTER")
 hhelp.text:SetText("|cffffd100?|r")
 hhelp:SetScript("OnEnter", function(self)
   GameTooltip:SetOwner(self, "ANCHOR_TOP")
-  GameTooltip:AddLine("Hidden items")
+  GameTooltip:AddLine("Hidden")
   GameTooltip:AddLine("Things you carry but never need to look at, like a Skinning Knife, a Mining Pick or your Hearthstone. They stay in your bags and still take a slot; the bag just doesn't show them.", 1, 1, 1, true)
   GameTooltip:AddLine(" ")
-  GameTooltip:AddLine("Pull an item in here to hide it (all its stacks). Use them from here as always. To see one in the bag again, drag it back onto the bag: a group's +, or the green + in One bag.", 0.7, 0.7, 0.7, true)
+  GameTooltip:AddLine("Drop an item on the empty slot to hide it (all its stacks). Use hidden items from here as always. To see one in the bag again, drag it back onto the bag: a group's +, or the green + in One bag.", 0.7, 0.7, 0.7, true)
   GameTooltip:AddLine("A search in the bag still finds them. Clean-up never sells or throws them away.", 0.7, 0.7, 0.7, true)
   GameTooltip:Show()
 end)
 hhelp:SetScript("OnLeave", function() GameTooltip:Hide() end)
 local hbody = CreateFrame("Frame", nil, hf)
-hbody:SetPoint("TOPLEFT", 8, -30)
+hbody:SetPoint("TOPLEFT", 8, -22)
 hbody:SetSize(HCOLS * PITCH - GAP, PITCH)
 local HIDE = { body = hbody, labels = {}, hints = {}, ghosts = {}, ghostN = 0, frame = hf, static = true }
--- the place to pull items into
-local hdrop = CreateFrame("Button", "RucksackBagsHiddenDrop", hf)
-hdrop:SetHeight(34)
-hdrop.dashes = {}
-for i = 0, 15 do
-  for _, side in ipairs({ "TOP", "BOTTOM" }) do
-    local t = hdrop:CreateTexture(nil, "BORDER")
-    t:SetColorTexture(TAN[1], TAN[2], TAN[3], 0.5)
-    t:SetSize(6, 1)
-    t:SetPoint(side .. "LEFT", i * 12, 0)
-    hdrop.dashes[#hdrop.dashes + 1] = t
+-- the empty slot to drop on: one of the game's own bag buttons (slot 0 of a frame with bag number 0),
+-- so it looks like any empty slot; every click on it is ours
+local hdrop
+do
+  local home = CreateFrame("Frame", nil, hbody)
+  home:SetAllPoints(hbody)
+  home:SetID(0)
+  local ok
+  ok, hdrop = pcall(CreateFrame, "ItemButton", "RucksackBagsHiddenDrop", home, "ContainerFrameItemButtonTemplate")
+  if not ok or not hdrop then ok, hdrop = pcall(CreateFrame, "Button", "RucksackBagsHiddenDrop", home, "ContainerFrameItemButtonTemplate") end
+  if not ok or not hdrop then
+    hdrop = CreateFrame("Button", "RucksackBagsHiddenDrop", home, ns.BACKDROP_TMPL)
+    if hdrop.SetBackdrop and ns.SLOT_BACKDROP then hdrop:SetBackdrop(ns.SLOT_BACKDROP) hdrop:SetBackdropColor(0.06, 0.06, 0.06, 0.95) hdrop:SetBackdropBorderColor(0.4, 0.36, 0.28) end
+    hdrop.plain = true
   end
+  if hdrop.SetID then hdrop:SetID(0) end
+  hdrop:SetSize(CELL, CELL)
+  for _, h in ipairs({ "OnDragStart", "PreClick", "PostClick", "OnEvent", "OnUpdate" }) do pcall(hdrop.SetScript, hdrop, h, nil) end
+  hdrop:RegisterForClicks("LeftButtonUp")
+  hdrop:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine("Drop an item here")
+    GameTooltip:AddLine("It's hidden from your bag (all its stacks).", 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  hdrop:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
-hdrop.text = hdrop:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-hdrop.text:SetPoint("LEFT", 4, 0)
-hdrop.text:SetPoint("RIGHT", -4, 0)
-hdrop.text:SetText("Pull items inside to hide them from your bag")
-local hl = hdrop:CreateTexture(nil, "HIGHLIGHT")
-hl:SetAllPoints()
-hl:SetColorTexture(1, 1, 1, 0.06)
 -- suggestions: profession tools you carry, and your Hearthstone (never potions, food or other things you use up)
-local hsug = hf:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-hsug:SetText("Suggested (click to hide):")
 local sugBtns = {}
 local TOOLS = { [7005] = true, [2901] = true, [5956] = true, [6219] = true, [10498] = true, [9149] = true, [6218] = true,
   [6339] = true, [11130] = true, [11145] = true, [16207] = true, [6256] = true, [6365] = true, [6366] = true, [6367] = true }
@@ -2542,7 +2865,6 @@ local function isHearth(id) return id == 6948 or (ns.NameOf(id) or ""):lower() =
 B.IsTool = isTool
 local function hideIt(id, link)
   if not id then return end
-  if DB.locked then return lockedSay() end
   DB.hidden = DB.hidden or {}
   DB.hidden[id] = true
   B.newIDs[id] = nil
@@ -2552,8 +2874,8 @@ end
 local function hideHeld()
   local id, link = ns.CursorItem()
   if not id then return end
-  if DB.locked then return lockedSay() end
   ClearCursor()
+  if B.Sets and B.Sets.Of(id) then return B.SetRefuse(id, link) end
   hideIt(id, link)
 end
 B.HideItem = hideIt
@@ -2563,14 +2885,14 @@ hdrop:SetScript("OnReceiveDrag", hideHeld)
 hdrop:SetScript("OnClick", hideHeld)
 local function sugButton(i)
   if sugBtns[i] then return sugBtns[i] end
-  local b = CreateFrame("Button", nil, hf, ns.BACKDROP_TMPL)
-  b:SetSize(26, 26)
+  local b = CreateFrame("Button", nil, hbody, ns.BACKDROP_TMPL)
+  b:SetSize(CELL, CELL)
+  b:SetAlpha(0.45) -- (faded: only a suggestion)
   if b.SetBackdrop then b:SetBackdrop(ns.SLOT_BACKDROP) b:SetBackdropColor(0.06, 0.05, 0.04, 0.95) b:SetBackdropBorderColor(0.4, 0.36, 0.28) end
   b.icon = b:CreateTexture(nil, "ARTWORK")
   b.icon:SetPoint("TOPLEFT", 3, -3)
   b.icon:SetPoint("BOTTOMRIGHT", -3, 3)
   b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-  b.icon:SetAlpha(0.75)
   b:SetScript("OnClick", function(self) hideIt(self.id) end)
   b:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -2578,8 +2900,9 @@ local function sugButton(i)
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine(self.why .. " Click to hide it.", 0.6, 1, 0.6, true)
     GameTooltip:Show()
+    self:SetAlpha(0.9)
   end)
-  b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  b:SetScript("OnLeave", function(self) GameTooltip:Hide() self:SetAlpha(0.45) end)
   sugBtns[i] = b
   return b
 end
@@ -2605,36 +2928,30 @@ function drawHidden(text)
   table.sort(sug, function(a, b) if a.tool ~= b.tool then return a.tool and true or false end return a.id < b.id end)
   table.sort(list, sortItems)
   PANE = HIDE
+  local function at(i) return ((i - 1) % HCOLS) * PITCH, math.floor((i - 1) / HCOLS) * PITCH end
   for i, e in ipairs(list) do show(e, ((i - 1) % HCOLS) * PITCH, math.floor((i - 1) / HCOLS) * PITCH, text) end
   PANE = MAIN
-  local rows = math.ceil(#list / HCOLS)
-  local h = rows > 0 and (rows * PITCH - GAP) or 0
-  hbody:SetHeight(math.max(1, h))
-  local y = 30 + h + (rows > 0 and 6 or 0)
-  hdrop:ClearAllPoints()
-  hdrop:SetPoint("TOPLEFT", 8, -y)
-  hdrop:SetWidth(HCOLS * PITCH - GAP)
-  hdrop.text:SetText(DB.locked and "Locked: click the padlock to hide or show items" or "Pull items inside to hide them from your bag")
-  y = y + 34 + 6
-  for _, b in ipairs(sugBtns) do b:Hide() end
-  if #sug > 0 then
-    hsug:ClearAllPoints()
-    hsug:SetPoint("TOPLEFT", 10, -y)
-    hsug:Show()
-    y = y + 14
-    for i, e in ipairs(sug) do
-      if i > HCOLS + 1 then break end
-      local b = sugButton(i)
-      b.id, b.why = e.id, e.why
-      b.icon:SetTexture(e.icon)
-      b:ClearAllPoints()
-      b:SetPoint("TOPLEFT", 8 + (i - 1) * 30, -y)
-      b:Show()
-    end
-    y = y + 30
+  -- the empty slot right after the items: like the boxes beside the bag, only while you hold an item
+  -- (or when nothing is hidden yet, so the box isn't bare). 19 Nov, he: "remove empty slot, slot appears
+  -- same like other categories"
+  local n = #list
+  if held or n == 0 then
+    n = n + 1
+    local x, yy = at(n)
+    hdrop:ClearAllPoints()
+    hdrop:SetPoint("TOPLEFT", hbody, "TOPLEFT", x, -yy)
+    if not hdrop.plain then pcall(paint, hdrop, { bag = 0, slot = 0 }) end
+    hdrop:Show()
   else
-    hsug:Hide()
+    hdrop:Hide()
   end
+  -- (19 Nov: no suggestions any more, he: "remove suggestion from hidden")
+  for _, b in ipairs(sugBtns) do b:Hide() end
+  local cells = n
+  local rows = math.ceil(cells / HCOLS)
+  local h = rows * PITCH - GAP
+  hbody:SetHeight(math.max(1, h))
+  local y = 22 + h
   hf:SetHeight(y + 8)
 end
 end
@@ -2666,12 +2983,15 @@ function B.Draw()
     return
   end
   pendingDraw = nil
+  B.drawN = (B.drawN or 0) + 1
+  B.gap = nil -- (19 Nov: the gap opens again on the next look at the mouse)
   local cols = math.max(8, math.min(16, DB.cols or 10))
+  B.curCols = cols
   local W = cols * PITCH - GAP
   B.curW = W
   -- (a narrow bag: the tools on the right of the bags row shrink a little so they don't cover the bags)
   -- (15 Nov: six tools now; they shrink just enough to leave the bags room: 5 bags + the gap = 179)
-  local toolScale = math.max(0.5, math.min(1, (W - 215) / (6 * 33 + 8))) -- (215: the pin is on the left now)
+  local toolScale = math.max(0.5, math.min(1, (W - 215) / (#B.toolBtns * 33 + 8))) -- (215: the pin is on the left now; 19 Nov: 3 tools left)
   for _, tb in ipairs(B.toolBtns) do tb:SetScale(toolScale) end
   searchHint:SetShown(text == "" and not search:HasFocus())
   wipe(used)
@@ -2696,7 +3016,6 @@ function B.Draw()
   B.metrics = { W = W, height = height }
   drawFoot(foot, st, nil, MAINVIEW, W)
   placeParts()
-  if not DB.barOpen then chevCheck() end
   f:SetScale(DB.scale or 1)
 end
 
@@ -3099,7 +3418,7 @@ end
 lockBtn:SetScript("OnClick", function()
   DB.locked = not DB.locked
   B.deleting = false
-  Print(DB.locked and "bag locked: groups stay where they are. Your items work as always." or "bag unlocked: drag groups and items again.")
+  Print(DB.locked and "bag locked: groups stay where they are. You can still move items from one group to another." or "bag unlocked: you can move, make and delete groups again.")
   B.Draw()
 end)
 
@@ -3121,6 +3440,10 @@ f:SetScript("OnUpdate", function(_, dt)
   local id = ns.CursorItem()
   if id ~= held then
     held = id
+    -- (19 Nov, 21:16) an item of one of your equipment sets stays where it is: picked up, it can only go
+    -- onto your character (no group slots, no space opening, not lifted out, the boxes and Hidden refuse it)
+    B.heldSet = id and B.Sets and B.Sets.Of(id) and true or nil
+    if B.HeldChanged then pcall(B.HeldChanged, id) end
     hoverKey = nil
     hoverBox:Hide()
     if newBtn.SetBackdropBorderColor and not newBtn.lit then
@@ -3129,11 +3452,13 @@ f:SetScript("OnUpdate", function(_, dt)
     B.Draw()
   end
   local key, r
-  if held and not moving and not DB.locked and f:IsMouseOver() then
+  if held and not moving and f:IsMouseOver() and not B.heldSet then
     r = rectUnder()
     if r and placeable(r.key) and ((r.key ~= "junk" and r.key ~= "sell") or hasClean()) then key = r.key end
     if r and r.key == "keep" and ((kindOfHeld(held)) or (DB.hidden and DB.hidden[held])) then key = "keep" end
   end
+  -- (19 Nov) the space opening under the mouse
+  if B.GapTick then pcall(B.GapTick, held and not moving and DB.style ~= "grid" and not InCombatLockdown() and key or nil) end
   if key ~= hoverKey then
     hoverKey = key
     if key then
@@ -3173,6 +3498,8 @@ function B.Close() f:Hide() end
 f:SetScript("OnHide", function()
   bagSound(false)
   wipe(B.newIDs)
+  if DB and DB.autoSort ~= false then B.rank = nil end -- (19 Nov: sorted afresh the next time it opens; automatic sorting off: kept)
+  B.visCache = nil -- (19 Nov: tags worked out afresh next time)
   B.hoverBag = nil
   B.deleting = false
   menu:Hide()
@@ -3221,6 +3548,8 @@ function B.Tidy()
   if tidying then return end
   if InCombatLockdown() then Print("not in a fight.") return end
   if CursorHasItem() then Print("put the item on your cursor down first.") return end
+  B.rank = nil -- (19 Nov: Tidy sorts the groups again too)
+  B.Changed()
   -- (One bag, Free: sort for real, once, with the game's own sort; it puts stacks together too)
   if B.FreeNow() and C_Container.SortBags then
     local ok = pcall(C_Container.SortBags)
@@ -3248,6 +3577,7 @@ function B.ReagentsHome()
 end
 function B.ReagentStep()
   B.reagentWait = nil
+  if DB and DB.autoSort == false then return end -- (19 Nov: automatic sorting off)
   if B.swap then return end -- (18 Nov: a bag swap is moving things)
   if not DB or DB.reagentHome == false or not REAGENT then return end
   if DB.style == "grid" then return end -- (18 Nov: One bag moves nothing by itself, reagents neither)
@@ -3265,7 +3595,7 @@ function B.ReagentStep()
         busy = true
       else
         local max = select(8, ns.GetInfo(it.hyperlink or it.itemID))
-        if max and (it.stackCount or 1) < max and not partial[it.itemID] then partial[it.itemID] = slot end
+        if max and (it.stackCount or 1) < max and not partial[it.itemID] and not (ns.HaulSlot and ns.HaulSlot(REAGENT, slot)) then partial[it.itemID] = slot end
       end
     elseif not empty then
       empty = slot
@@ -3278,6 +3608,7 @@ function B.ReagentStep()
       for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
         local it = C_Container.GetContainerItemInfo(bag, slot)
         if it and it.itemID and not it.isLocked and B.IsReagent(it.itemID)
+          and not (ns.HaulSlot and ns.HaulSlot(bag, slot)) -- (19 Nov: a Haul stack stays where it is)
           and not (B.SpecialRoomFor and B.SpecialRoomFor(it.itemID)) then -- (1.9.1: special bags first)
           local to = partial[it.itemID] or empty
           if to then
@@ -3459,6 +3790,7 @@ do
 end
 function B.SpecialStep()
   B.specialWait = nil
+  if DB and DB.autoSort == false then return end -- (19 Nov: automatic sorting off)
   if B.swap then return end -- (18 Nov: a bag swap is moving things)
   if not DB or DB.specialHome == false then return end
   if tidying or InCombatLockdown() or CursorHasItem() or (GetCursorInfo and GetCursorInfo()) then return end
@@ -3473,6 +3805,7 @@ function B.SpecialStep()
         local id = it and it.itemID
         if id and not it.isLocked and not B.specialNo[id]
           and not (B.BankSlot and B.BankSlot(bag, slot, id))
+          and not (ns.HaulSlot and ns.HaulSlot(bag, slot)) -- (19 Nov: a Haul stack stays where it is)
           and not (ns.Del and ns.Del.SlotJunk and ns.Del.SlotJunk(bag, slot, id)) then
           local tb, to = placeFor(rooms, id)
           if tb then
@@ -3614,7 +3947,9 @@ ev:SetScript("OnEvent", function(_, e)
     if B.BuyOff then B.BuyOff() end
     if B.viewAuto then B.CloseView() end
   end
-  if e == "PLAYER_LOGOUT" then pcall(B.SaveBags) return end
+  if e == "PLAYER_LEAVING_WORLD" then B.leaving = true return end
+  if e == "PLAYER_ENTERING_WORLD" then B.leaving = nil return end
+  if e == "PLAYER_LOGOUT" then return end -- (19 Nov: the bags are empty by now; saved as they change instead)
   if e == "PLAYERBANKSLOTS_CHANGED" then pcall(B.SaveBank) end
   if e == "PLAYERBANKBAGSLOTS_CHANGED" or e == "BANK_TABS_CHANGED" then B.ForgetLocked() B.lockCheck = 2 end
   if e == "PLAYER_REGEN_ENABLED" then B.ReagentsHome() B.SpecialHome() if pendingDraw then B.Changed() end return end
@@ -3623,6 +3958,7 @@ ev:SetScript("OnEvent", function(_, e)
   elseif CLOSERS[e] then
     if autoOpened then autoOpened = false B.Close() else B.Changed() end
   else
+    if e == "BAG_UPDATE_DELAYED" or e == "PLAYER_EQUIPMENT_CHANGED" or e == "PLAYER_LEVEL_UP" then B.visCache = nil end
     if e == "BAG_UPDATE_DELAYED" then
       pcall(trackNew)
       pcall(B.SaveBags)
@@ -3642,7 +3978,9 @@ ns.Module("bags", (...), function()
   DB = RucksackBagsDB
   B.db = DB
   if DB.style == nil then DB.style = "groups" end
-  if DB.layout == nil then DB.layout = "rows" end
+  -- (19 Nov) groups side by side to start (he: "side by side categories and out of bounds new row");
+  -- once for everyone who had Rows. Rows is still on the Bags page.
+  if DB.layout == nil or not DB.packedOnce then DB.layout = "packed" DB.packedOnce = true end
   if DB.merged == nil then DB.merged = true end
   if DB.cols == nil then DB.cols = 10 end
   if DB.scale == nil then DB.scale = 1 end
@@ -3679,9 +4017,9 @@ ns.Module("bags", (...), function()
 end)
 table.insert(ns.onLogin, function()
   for _, e in ipairs({ "BAG_UPDATE_DELAYED", "ITEM_LOCK_CHANGED", "PLAYER_MONEY", "BAG_UPDATE_COOLDOWN", "QUEST_LOG_UPDATE",
-    "PLAYER_EQUIPMENT_CHANGED", "BAG_UPDATE", "BAG_CONTAINER_UPDATE", "PLAYERBANKSLOTS_CHANGED", "PLAYERBANKBAGSLOTS_CHANGED", "PLAYER_LOGOUT",
+    "PLAYER_EQUIPMENT_CHANGED", "BAG_UPDATE", "BAG_CONTAINER_UPDATE", "PLAYERBANKSLOTS_CHANGED", "PLAYERBANKBAGSLOTS_CHANGED", "PLAYER_LOGOUT", "PLAYER_LEAVING_WORLD", "PLAYER_ENTERING_WORLD",
     "MERCHANT_SHOW", "MERCHANT_CLOSED", "MAIL_SHOW", "MAIL_CLOSED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "BANK_TABS_CHANGED",
-    "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "TRADE_SHOW", "TRADE_CLOSED", "PLAYER_REGEN_ENABLED" }) do
+    "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "TRADE_SHOW", "TRADE_CLOSED", "PLAYER_REGEN_ENABLED", "PLAYER_LEVEL_UP" }) do
     pcall(ev.RegisterEvent, ev, e)
   end
   pcall(trackNew)
@@ -4125,3 +4463,300 @@ end
   box:RegisterEvent("BANKFRAME_OPENED")
   box:SetScript("OnEvent", function() if box:IsShown() then C_Timer.After(0.1, refresh) end end)
 end)()
+
+-- (19 Nov) he: "once we pluck item out with drag, the item disappears from that place right away, if we
+-- right click the item returns to original location, but if we drop to the place we aim it just goes
+-- there". In Groups the stack on your cursor is left out of the bag while you hold it (the others close
+-- up); a right-click anywhere puts it back where it was. (Your item buttons answer the left button only
+-- meanwhile, so that right-click doesn't use the item it lands on.) Not in a fight, not in One bag.
+;(function()
+  local lifting -- the stack lifted out: { bag, slot, id }
+  local function liftOn()
+    return DB and DB.style ~= "grid" and not InCombatLockdown() and f:IsShown()
+  end
+  function B.LiftOut(items)
+    if not lifting then return items end
+    local out = {}
+    for _, e in ipairs(items) do
+      if not (e.bag == lifting[1] and e.slot == lifting[2] and e.id == lifting[3]) then out[#out + 1] = e end
+    end
+    return out
+  end
+  local rightOnly
+  local function clicks(leftOnly)
+    if InCombatLockdown() then return end
+    if (rightOnly and true or false) == (leftOnly and true or false) then return end
+    rightOnly = leftOnly
+    for _, bag in ipairs(BAGS) do
+      for _, b in pairs(buttons[bag] or {}) do
+        if leftOnly then pcall(b.RegisterForClicks, b, "LeftButtonUp")
+        else pcall(b.RegisterForClicks, b, "LeftButtonUp", "RightButtonUp") end
+      end
+    end
+  end
+  local catch = CreateFrame("Frame")
+  -- (19 Nov) drag and drop: hiding the stack you started dragging ends the game's drag, so letting go
+  -- over the open space wouldn't count as a drop. The bag watches the button itself: let go over a
+  -- group's + slot and it's dropped there, the same as a click on it.
+  catch:SetScript("OnEvent", function(_, ev, button)
+    if not (lifting and ns.CursorItem()) then return end
+    if ev == "GLOBAL_MOUSE_DOWN" and button == "RightButton" then ClearCursor() return end
+    if ev == "GLOBAL_MOUSE_UP" and button == "LeftButton" then
+      for key, b in pairs(plusSlots) do
+        if b:IsShown() and b:IsVisible() and b:IsMouseOver() then placeHeld(key) return end
+      end
+    end
+  end)
+  function B.HeldChanged(id)
+    local bag, slot
+    if id and liftOn() and B.HeldSlot and not B.heldSet then bag, slot = B.HeldSlot(id) end
+    if bag then
+      lifting = { bag, slot, id }
+      clicks(true)
+      pcall(catch.RegisterEvent, catch, "GLOBAL_MOUSE_DOWN")
+      pcall(catch.RegisterEvent, catch, "GLOBAL_MOUSE_UP")
+    else
+      lifting = nil
+      clicks(false)
+      pcall(catch.UnregisterEvent, catch, "GLOBAL_MOUSE_DOWN")
+      pcall(catch.UnregisterEvent, catch, "GLOBAL_MOUSE_UP")
+    end
+  end
+end)()
+
+-- (19 Nov) he: "also remove bags from blizzard UI". The game's bag bar (backpack and the bag slots at the
+-- bottom right) is made invisible while Bags is on: Rucksack's own bags row has the same slots. A tick on
+-- the Bags page ("Hide the game's bag buttons", on to start) turns it back on.
+-- (19 Nov, fix) It was hidden with :Hide() first. That ran the game's own hide code from Rucksack, which
+-- marked the bar and the menu buttons next to it as touched by an addon; learning a recipe (a new spell
+-- lights up those buttons) was then blocked ("Rucksack_Bags has been blocked from an action only
+-- available to the Blizzard UI"). Now it never calls Hide or Show on it: only alpha 0 and mouse off on the
+-- bar and its buttons, which runs none of the game's code. The bar keeps its place, just invisible.
+;(function()
+  local hooked, faded
+  local function want() return DB and DB.hideBagBar ~= false end
+  local function fade(bar, off)
+    pcall(bar.SetAlpha, bar, off and 0 or 1)
+    for _, c in ipairs({ bar:GetChildren() }) do
+      if c.EnableMouse and not (c.IsProtected and c:IsProtected()) then pcall(c.EnableMouse, c, not off) end
+    end
+    faded = off
+  end
+  function B.ApplyBagBar()
+    local bar = rawget(_G, "BagsBar")
+    if not bar or InCombatLockdown() then return end
+    if not hooked and bar.HookScript then
+      hooked = true
+      bar:HookScript("OnShow", function(self) if want() and not InCombatLockdown() then fade(self, true) end end)
+    end
+    if want() then fade(bar, true) elseif faded then fade(bar, false) end
+  end
+  table.insert(ns.onLogin, function() pcall(B.ApplyBagBar) end)
+  local ev = CreateFrame("Frame")
+  ev:RegisterEvent("PLAYER_REGEN_ENABLED")
+  ev:SetScript("OnEvent", function() if want() then pcall(B.ApplyBagBar) end end)
+end)()
+
+-- (19 Nov) Worth more at a vendor. He: "this item in AH cost very low and it also cost to put it in AH,
+-- so its better to sell it on vendor, can we mark this kind of items with some icon on top left side, and
+-- have a button on the bag to sell this kind of items when we interact with vendor". Haul decides
+-- (ns.VendorBetter: the vendor pays at least what the auction house leaves after its cut and the deposit;
+-- Haul's own rules leave quest items, food, upgrades, rare and better, kept items alone). Here: a small
+-- gold coin at the top left of such an item in your own bags (a "BoE" tag moves to the bottom left), a
+-- tooltip line with the sums, and at an open vendor a button under the bag that sells all of them (each
+-- stack goes on Sell once, Del.SellStack, which sells at once at a vendor).
+;(function()
+  local MONEY = function(c) return ns.Pocket and ns.Pocket.Coins and ns.Pocket.Coins(math.floor((c or 0) + 0.5)) or tostring(c) end
+  -- e: a cell of the bag; only your own bags as they are now, not bound, not sent to the bank
+  function B.VendorCheck(e)
+    if not ns.VendorBetter or not e or e.empty or not e.id or not e.bag or not e.slot or e.bound then return false end
+    if e.bag < 0 or e.bag > (ns.LAST_BAG or 4) then return false end
+    local sid, n, link = ns.SlotInfo(e.bag, e.slot)
+    if sid ~= e.id then return false end
+    if B.BankSlot and B.BankSlot(e.bag, e.slot) then return false end
+    local yes, r = ns.VendorBetter(e.id, link or e.link, n)
+    return yes, r
+  end
+  function B.VendorMark(b, d, e)
+    if not d.vcoin then
+      d.vcoin = b:CreateTexture(nil, "OVERLAY", nil, 5)
+      d.vcoin:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
+      d.vcoin:SetSize(12, 12)
+    end
+    local yes = B.VendorCheck(e) and true or false
+    d.vcoin:ClearAllPoints()
+    d.vcoin:SetPoint("TOPLEFT", d.dot:IsShown() and 10 or 2, -2)
+    d.vcoin:SetShown(yes)
+    if d.vmoved ~= yes then
+      d.vmoved = yes
+      d.tag:ClearAllPoints()
+      if yes then d.tag:SetPoint("BOTTOMLEFT", 1, 1) else d.tag:SetPoint("TOPLEFT", 1, -1) end
+    end
+  end
+  function B.VendorTip(tt, id)
+    local owner = tt.GetOwner and tt:GetOwner()
+    local e = owner and info[owner]
+    local yes, r
+    if e and e.id == id then yes, r = B.VendorCheck(e) elseif ns.VendorBetter then yes, r = ns.VendorBetter(id, nil, 1) end
+    if not yes or not r or not r.ah then return end
+    if r.counted then
+      tt:AddLine("Rucksack: better at a vendor: " .. MONEY(r.vendor) .. ". The auction house leaves " .. MONEY(math.max(0, r.net)) ..
+        " (" .. MONEY(r.ah) .. " - " .. MONEY(r.cut) .. " cut - " .. MONEY(r.dep) .. " deposit" .. ((r.n or 1) > 1 and ", each" or "") .. ").", 1, 0.82, 0, true)
+    else
+      tt:AddLine("Rucksack: better at a vendor: " .. MONEY(r.vendor) .. ". The auction house leaves " .. MONEY(math.max(0, r.net)) ..
+        " (" .. MONEY(r.ah) .. " - " .. MONEY(r.cut) .. " cut).", 1, 0.82, 0, true)
+    end
+  end
+
+  -- every stack in your bags a vendor pays more for -> list of { bag, slot, id, n }, items, copper
+  function B.VendorList()
+    local out, items, worth = {}, 0, 0
+    if not ns.VendorBetter then return out, 0, 0 end
+    local C = C_Container
+    for bag = 0, ns.LAST_BAG or 4 do
+      for slot = 1, (ns.GetNumSlots(bag) or 0) do
+        local i = C and C.GetContainerItemInfo and C.GetContainerItemInfo(bag, slot)
+        if i and i.itemID and not i.isBound and not i.isLocked and not (B.BankSlot and B.BankSlot(bag, slot)) then
+          local n = i.stackCount or 1
+          local yes, r = ns.VendorBetter(i.itemID, i.hyperlink, n)
+          if yes then
+            out[#out + 1] = { bag = bag, slot = slot, id = i.itemID, n = n }
+            items = items + n
+            worth = worth + (r.vendor or 0) * n
+          end
+        end
+      end
+    end
+    return out, items, worth
+  end
+
+  local btn, ticker
+  local function atVendor() return MerchantFrame and MerchantFrame.IsShown and MerchantFrame:IsShown() and true or false end
+  local function make()
+    btn = CreateFrame("Button", "RucksackBagsVendorSell", f, ns.BACKDROP_TMPL)
+    btn:SetHeight(20)
+    if btn.SetBackdrop then
+      btn:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 10,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 } })
+      btn:SetBackdropColor(0.12, 0.1, 0.06, 0.95)
+      btn:SetBackdropBorderColor(0.62, 0.5, 0.3, 1)
+    end
+    btn.icon = btn:CreateTexture(nil, "ARTWORK")
+    btn.icon:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
+    btn.icon:SetSize(12, 12)
+    btn.icon:SetPoint("LEFT", 8, 0)
+    btn.text = btn:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    btn.text:SetPoint("LEFT", btn.icon, "RIGHT", 5, 0)
+    btn:SetScript("OnClick", function()
+      local list, items, worth = B.VendorList()
+      if #list == 0 or not (ns.Del and ns.Del.SellStack) then return end
+      for _, s in ipairs(list) do
+        if ns.Sell and ns.Sell.forced then ns.Sell.forced[s.bag .. ":" .. s.slot] = true end -- (sold even with Once's sell tick off)
+        pcall(ns.Del.SellStack, s.bag, s.slot, s.id)
+      end
+      Print("selling " .. items .. (items == 1 and " item" or " items") .. " a vendor pays more for: " .. MONEY(worth) .. ".")
+      btn:Hide()
+    end)
+    btn:SetScript("OnEnter", function(self)
+      self:SetBackdropBorderColor(1, 0.82, 0, 1)
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      GameTooltip:AddLine("Sell to the vendor")
+      GameTooltip:AddLine("Sells every item with the gold coin: a vendor pays more for it than the auction house leaves you after its cut and the deposit. Only these stacks, nothing else.", 1, 1, 1, true)
+      GameTooltip:Show()
+    end)
+    btn:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(0.62, 0.5, 0.3, 1) GameTooltip:Hide() end)
+  end
+  function B.VendorButton()
+    if not atVendor() or not (ns.Del and ns.Del.SellStack) or not f:IsShown() then if btn then btn:Hide() end return end
+    local list, items, worth = B.VendorList()
+    if #list == 0 then if btn then btn:Hide() end return end
+    if not btn then make() end
+    btn.text:SetText("Sell " .. items .. (items == 1 and " item" or " items") .. " to the vendor (" .. MONEY(worth) .. ")")
+    btn:SetWidth(math.floor((btn.text:GetStringWidth() or 120) + 33))
+    btn:ClearAllPoints()
+    local bottom = f:GetBottom()
+    if bottom and bottom < 26 then btn:SetPoint("BOTTOM", f, "TOP", 0, 2) else btn:SetPoint("TOP", f, "BOTTOM", 0, -2) end
+    btn:Show()
+  end
+  local ev = CreateFrame("Frame")
+  ev:RegisterEvent("MERCHANT_SHOW")
+  ev:RegisterEvent("MERCHANT_CLOSED")
+  ev:SetScript("OnEvent", function(_, event)
+    if ticker then ticker:Cancel() ticker = nil end
+    if event == "MERCHANT_SHOW" then
+      ticker = C_Timer.NewTicker and C_Timer.NewTicker(1, function() pcall(B.VendorButton) end)
+      C_Timer.After(0.3, function() pcall(B.VendorButton) end)
+    elseif btn then btn:Hide() end
+  end)
+  f:HookScript("OnShow", function() pcall(B.VendorButton) end)
+end)()
+
+-- (19 Nov, 21:06) The tool row. He: "take this icons out of bag row and put it below rucksack icon and bag
+-- row goes in between them when we open them on leftest put Haul icon then the rest". Always shown, under
+-- the header (and under the bags row while that's open): Haul, Boxes corner, Restock, Hidden. The
+-- Auto-sort button is gone (he wasn't sure it made sense): sorting by itself is always on in Groups.
+;(function()
+  B.TOOL_H = 26
+  local tools = CreateFrame("Frame", "RucksackBagsTools", f)
+  tools:SetHeight(B.TOOL_H)
+  B.tools = tools
+  local S = 22 / 30
+  local haul = iconButton(tools, 30, "haul", function()
+    local H = ns.Haul
+    if not H or not H.cur then return "Haul" end
+    return "Haul  " .. (not H.Running() and "|cff888888stopped|r" or H.cur.paused and "|cffff8040paused|r" or "|cff55dd55running|r")
+  end, function()
+    local H = ns.Haul
+    if not H then return "What your loot is worth and your gold per hour. Turn Haul on on Rucksack's Modules page." end
+    return "Click: open or close Haul.\nRight-click: " .. (not H.Running() and "Start." or H.cur.paused and "Resume." or "Pause.")
+  end, function(self, button)
+    local H = ns.Haul
+    if not H then Rucksack_Open("general") return end
+    if button == "RightButton" then
+      if not H.Running() then H.Start() else H.SetPaused(not H.cur.paused) end
+    elseif H.UI then H.UI.Toggle() end
+    B.PaintTools()
+  end, "RucksackBagsHaulButton")
+  -- (19 Nov, 21:23) he: "put add track bar, we can open up to 5 of them"
+  local track = iconButton(tools, 30, "track", "Add a Track bar", function()
+    local IB = B.ItemBar
+    local n = IB and IB.Count and IB.Count() or 0
+    return "A small bar that stays on screen and shows how many of an item you carry. Click: open " ..
+      (n == 0 and "the Track bar." or "another one (" .. n .. " of 5 open).") .. "\nClick \"Track\" on a bar for its settings, or to close it."
+  end, function() if B.ItemBar and B.ItemBar.Open then B.ItemBar.Open() end end, "RucksackBagsTrackButton")
+  -- (19 Nov, 21:31) he: "put add track bar right from haul and put boxes on top": Haul, Track, Restock,
+  -- Hidden; the Boxes button goes into the header, left of Your characters
+  local list = { haul, track, B.restockBtn, hiddenBtn }
+  B.sideBtn:SetParent(f)
+  B.sideBtn:SetScale(S)
+  B.sideBtn:ClearAllPoints()
+  B.sideBtn:SetPoint("RIGHT", whoBtn, "LEFT", -3 / S, 0)
+  search:SetPoint("RIGHT", B.sideBtn, "LEFT", -7 * S, 0)
+  for i, b in ipairs(list) do
+    b:SetParent(tools)
+    b:SetScale(S)
+    b:ClearAllPoints()
+    b:SetPoint("LEFT", tools, "LEFT", ((i - 1) * 25) / S, 0)
+  end
+  B.haulBtn = haul
+  B.autoBtn:Hide()
+  B.autoBtn:SetParent(tools)
+  function B.PaintTools()
+    local H = ns.Haul
+    lightUp(haul, H and H.Running and H.Running() and not (H.cur and H.cur.paused) or false)
+  end
+  local draw = B.Draw
+  B.Draw = function(...)
+    local r = draw(...)
+    pcall(B.PaintTools)
+    return r
+  end
+  table.insert(ns.onLogin, function() if B.db then B.db.autoSort = nil end pcall(B.PaintTools) end)
+end)()
+
+-- (19 Nov) a set item dropped somewhere it can't go: it goes back, and chat says why
+function B.SetRefuse(id, link)
+  local r = B.Sets and B.Sets.Of(id)
+  Print((link or ns.NameOf(id) or "That item") .. " is in your equipment set \"" .. (r and r.name or "?") ..
+    "\": it stays where it is (you can put it on). Take it out of the set to move, sell or delete it.")
+end

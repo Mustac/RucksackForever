@@ -1,0 +1,13 @@
+## Interface: 16001
+## Title: |cffc8a165Ruck|r|cffffd100sack|r: |cffd9b36cHaul|r
+## Notes: Part of Rucksack: what you loot and what it's worth (auction house and vendor), per hour, pulls and your past runs; while a run is on, your loot goes into a Haul group or the Haul box in your bag. Turn it on or off in Rucksack's Settings > Modules.
+## Author: Marijan
+## Version: 1.9.13
+## Dependencies: Rucksack
+## OptionalDeps: Rucksack_Bags, Rucksack_CleanUp, Auctionator, CraftProfit, GoldScout, GoldScout_Prices, AHledger, auxForever, Hammerprice, Haul
+## LoadOnDemand: 1
+## SavedVariables: RucksackHaulDB
+
+Haul.lua
+HaulUI.lua
+HaulBag.lua
