@@ -5,8 +5,8 @@
 -- will create Haul - Auction house".
 --  * While a run is on (and "Keep track of your loot in the bag" is ticked in Haul's Settings), Haul notes
 --    which stacks are your loot: only the pieces you picked up. Loot that lands on a stack you had already
---    is split off into a slot of its own (out of a fight, when there's a free slot; with none, it stays in
---    its old stack). Nothing else changes in the bag while you play.
+--    stays stacked there; Haul notes how many of them are loot (20 Nov fix, see splitStep). Nothing else
+--    changes in the bag while you play.
 --  * "Sort loot" (Haul's window, and Shift + right-click on the coin button) sorts those stacks, from this
 --    run and earlier ones not sorted yet:
 --      a vendor pays more than the auction house -> "Sell this stack" (sold at the next vendor, never
@@ -189,16 +189,20 @@ local function match()
     local want = pending[r.id]
     local m = c.haulSlots[key(r.bag, r.slot)]
     if want and want.n > 0 and m and m.id == r.id and m.kind == "loot" then
-      -- (it landed on a loot stack of the item: noted already)
-      want.n = want.n - math.min(r.inc, want.n)
+      -- (it landed on a loot stack of the item: more loot in it)
+      local take = math.min(r.inc, want.n)
+      want.n = want.n - take
+      if m.part then m.part = m.part + take end
       table.remove(recent, i)
     elseif want and want.n > 0 and not m then
       local take = math.min(r.inc, want.n)
       want.n = want.n - take
       if r.fresh and take >= r.n then
-        c.haulSlots[key(r.bag, r.slot)] = { id = r.id, kind = "loot" } -- (a slot of its own already)
+        c.haulSlots[key(r.bag, r.slot)] = { id = r.id, kind = "loot" } -- (a slot of its own)
       else
-        queue[#queue + 1] = { bag = r.bag, slot = r.slot, id = r.id, n = take } -- (on a stack you had: split off)
+        -- (20 Nov) it landed on a stack you had: it stays stacked there, Haul only notes how many of
+        -- them are loot (part). Only loot that Sort loot puts on Sell is split off, then.
+        c.haulSlots[key(r.bag, r.slot)] = { id = r.id, kind = "loot", part = take }
       end
       table.remove(recent, i)
     end
@@ -233,58 +237,143 @@ function H.OnLoot(id, link, n)
   match()
 end
 
--- one split at a time: the new pieces off the old stack, onto a loot stack of the item with room, or into
--- an empty slot of an ordinary bag
+-- (20 Nov, his screenshot of Trade goods full of single leathers: "find bug why it does not stack
+-- automaticaly") Haul used to split every looted piece off the stack it landed on, into a slot of its own,
+-- and the mark was dropped a second later when Sort loot let it stay: single pieces everywhere. Now loot
+-- stays stacked; only the looted part of a stack that Sort loot sends to Sell is split off (so the pieces
+-- you had aren't sold), and H.Restack puts single pieces Haul left behind back together.
 local function canMove()
   local B = ns.Bags
   if InCombatLockdown() or CursorHasItem() or (GetCursorInfo and GetCursorInfo()) then return false end
   if SpellIsTargeting and SpellIsTargeting() then return false end
   if B and B.swap then return false end
+  if MerchantFrame and MerchantFrame:IsShown() then return false end -- (a click there would sell it)
   return true
 end
-local function emptySlot()
+local function ordinary(bag)
   local B = ns.Bags
+  return bag >= 0 and bag <= (ns.NUM_BAGS or 4) and not (B and B.SpecialOf and B.SpecialOf(bag))
+end
+local function emptySlot()
   for bag = 0, ns.NUM_BAGS or 4 do
-    if not (B and B.SpecialOf and B.SpecialOf(bag)) then
+    if ordinary(bag) then
       for slot = 1, (ns.GetNumSlots(bag) or 0) do
         if not ns.SlotInfo(bag, slot) then return bag, slot end
       end
     end
   end
 end
+-- queue: { bag, slot, id, n } = split n pieces off that stack into an empty slot and put them on Sell
 local function splitStep()
   local q = queue[1]
   if not q or not canMove() then return end
-  local c = C()
   local id, count, _, _, locked = ns.SlotInfo(q.bag, q.slot)
   if id ~= q.id or not count then table.remove(queue, 1) return end
   if locked then return end
   table.remove(queue, 1)
-  if q.n >= count then -- (all of it is new after all)
-    c.haulSlots[key(q.bag, q.slot)] = { id = q.id, kind = "loot" }
+  if q.n >= count then -- (all of it is loot after all)
+    if ns.Del and ns.Del.SellStack then pcall(ns.Del.SellStack, q.bag, q.slot, q.id) changed() end
     return
   end
-  local max = tonumber((select(8, ns.GetInfo(q.id)))) or 1
-  local tb, ts
-  for k, m in pairs(c.haulSlots) do
-    if m.id == q.id and m.kind == "loot" then
-      local b, s = unkey(k)
-      local _, have = ns.SlotInfo(b, s)
-      if have and have + q.n <= max then tb, ts = b, s break end
-    end
-  end
-  if not tb then tb, ts = emptySlot() end
-  if not tb then return end -- (no room: the pieces stay in their old stack)
+  local tb, ts = emptySlot()
+  if not tb then return end -- (no room: nothing is sold, the stack stays as it is)
   ns.SplitBagItem(q.bag, q.slot, q.n)
   ns.PickupBagItem(tb, ts)
   if CursorHasItem() then ClearCursor() return end
-  c.haulSlots[key(tb, ts)] = { id = q.id, kind = "loot" }
+  q.to = { tb, ts }
+  queue.sell = queue.sell or {}
+  queue.sell[#queue.sell + 1] = { bag = tb, slot = ts, id = q.id, at = GetTime() }
+end
+-- the split pieces get their Sell mark once the game has put them down
+local function sellSplit()
+  local list = queue.sell
+  if not list then return end
+  for i = #list, 1, -1 do
+    local e = list[i]
+    local id, _, _, _, locked = ns.SlotInfo(e.bag, e.slot)
+    if id == e.id and not locked then
+      if ns.Del and ns.Del.SellStack then pcall(ns.Del.SellStack, e.bag, e.slot, e.id) end
+      table.remove(list, i)
+      changed()
+    elseif GetTime() - e.at > 10 then
+      table.remove(list, i)
+    end
+  end
 end
 
+-- Restack: two part stacks of the same item in your ordinary bags (or both in the reagent bag) become
+-- one, a move per tick, for items Haul has split before (c.haulMerge) and, once, anything already lying
+-- around in pieces from before this fix. Stacks with any mark (Haul loot, Sell / delete once, Send to
+-- bank) are left alone, so nothing changes what it is.
+local function marked(bag, slot)
+  local c = ns.char
+  if not c then return true end
+  local k = key(bag, slot)
+  return (c.haulSlots and c.haulSlots[k]) or (c.sellSlots and c.sellSlots[k]) or (c.junkSlots and c.junkSlots[k])
+    or (c.bankSlots and c.bankSlots[k]) and true or false
+end
+local function partStacks()
+  local by = {}
+  local R = ns.LAST_BAG
+  for bag = 0, R or 4 do
+    local group = ordinary(bag) and "bags" or (bag == R and bag > (ns.NUM_BAGS or 4) and "reagent") or nil
+    if group then
+      for slot = 1, (ns.GetNumSlots(bag) or 0) do
+        local id, n, _, _, locked = ns.SlotInfo(bag, slot)
+        if id and not locked and not marked(bag, slot) then
+          local max = tonumber((select(8, ns.GetInfo(id)))) or 1
+          if max > 1 and n < max then
+            local g = group .. ":" .. id
+            by[g] = by[g] or { id = id, max = max }
+            table.insert(by[g], { bag = bag, slot = slot, n = n })
+          end
+        end
+      end
+    end
+  end
+  return by
+end
+function H.Restack()
+  local c = C()
+  if not c or not canMove() then return false end
+  if not c.haulMergeOnce then
+    -- (once: everything lying in pieces since the old build is put back together)
+    c.haulMerge = c.haulMerge or {}
+    for _, list in pairs(partStacks()) do if #list > 1 then c.haulMerge[list.id] = true end end
+    c.haulMergeOnce = true
+  end
+  if not c.haulMerge or not next(c.haulMerge) then return false end
+  local by = partStacks()
+  local seen = {}
+  for _, list in pairs(by) do
+    if c.haulMerge[list.id] and #list > 1 then
+      seen[list.id] = true
+      -- the smallest goes onto the biggest that isn't full
+      table.sort(list, function(a, b) return a.n > b.n end)
+      local dst, src = list[1], list[#list]
+      local n = math.min(src.n, list.max - dst.n)
+      if n > 0 then
+        if n >= src.n then ns.PickupBagItem(src.bag, src.slot) else ns.SplitBagItem(src.bag, src.slot, n) end
+        ns.PickupBagItem(dst.bag, dst.slot)
+        if CursorHasItem() then ClearCursor() end
+        return true
+      end
+    end
+  end
+  for id in pairs(c.haulMerge) do if not seen[id] then c.haulMerge[id] = nil end end -- (done with it)
+  return false
+end
+
+local lastRestack = 0
 function H.BagTick()
   if #queue > 0 then splitStep() end
+  sellSplit()
   -- (sorted by itself while a run is on, if ticked)
   if H.db and H.db.autoSort ~= false and H.Running() and H.LootCount() > 0 then H.SortLoot(true) end
+  if bagOn() and #queue == 0 and GetTime() - lastRestack > 0.5 then
+    lastRestack = GetTime()
+    H.Restack()
+  end
 end
 
 -- how many of your loot stacks are waiting for Sort loot
@@ -309,7 +398,12 @@ function H.SortLoot(quiet)
       else
         local kind = kindOf(id, link, n)
         if kind == "sell" and ns.Del and ns.Del.SellStack then
-          pcall(ns.Del.SellStack, b, s, id)
+          if m.part and m.part < n then
+            -- (only the looted part of a stack you had: split off first, then on Sell)
+            queue[#queue + 1] = { bag = b, slot = s, id = id, n = m.part }
+          else
+            pcall(ns.Del.SellStack, b, s, id)
+          end
           c.haulSlots[k] = nil
           sold = sold + 1
         elseif kind == "ah" or kind == "stay" or kind == "sell" then

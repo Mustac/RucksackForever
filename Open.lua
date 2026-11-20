@@ -38,6 +38,11 @@ local run
 local function on() return ns.db and ns.db.autoOpen ~= false end
 function A.On() return on() end
 function A.Blocked() return blocked end
+-- (19 Nov, 22:53) he got "Rucksack has been blocked from an action only available to the Blizzard UI" again:
+-- the game refuses an addon's "use item" here, and "blocked" was forgotten at every reload, so each session
+-- tried once more (and the game showed its box again). Now it's remembered (RucksackDB.openBlocked):
+-- after the first refusal only the one-click Open button is used.
+local function savedBlock() return ns.db and ns.db.openBlocked and true or false end
 
 local function frameUp(name) local f = _G[name] return f and f.IsShown and f:IsShown() and (not f.GetAlpha or f:GetAlpha() > 0.01) end
 local function canAct()
@@ -213,6 +218,7 @@ end
 ---------------------------------------------------------------------------
 run = function()
   if not on() then if btn and not InCombatLockdown() then btn:Hide() end return end
+  if not blocked and savedBlock() then blocked = true end
   if blocked then paintButton() return end
   local bag, slot, id, link = findNext()
   if not bag then return end
@@ -275,12 +281,13 @@ ev:SetScript("OnEvent", function(_, e, a1, a2)
     -- the game stopped our "use item": no more tries, the button takes over
     if type(a1) == "string" and a1 == "Rucksack" and opening and (GetTime() - opening.at) < 1 and not blocked then
       blocked = true
+      if ns.db then ns.db.openBlocked = true end
       Print("the game doesn't let an addon open things without a click here. An Open button shows up when there's something to open: one click each.")
       C_Timer.After(0.1, function() paintButton() end)
     end
     return
   end
-  if e == "PLAYER_ENTERING_WORLD" then wipe(away) A.Kick(3) return end
+  if e == "PLAYER_ENTERING_WORLD" then wipe(away) if savedBlock() then blocked = true end A.Kick(3) return end
   if e == "BAG_UPDATE_DELAYED" then bagsMoved = true end
   if blocked then C_Timer.After(0.1, function() paintButton() end) return end
   A.Kick(0.5) -- BAG_UPDATE_DELAYED, PLAYER_REGEN_ENABLED

@@ -269,6 +269,10 @@ local function makeBar(idx)
     since = since + (dt or 0)
     if holding and since > 0.05 then
       since = 0
+      -- (19 Nov, 22:33) he: the bar sometimes "still thinks we are dragging" after an item was dragged off.
+      -- Nothing held and nothing dragged any more: lay the bar out again (closes the + slot and the gap).
+      local c = C()
+      if not ns.CursorItem() and not X.dragID and c and #c.items > 0 then holding = false X.Draw() return end
       insertAt = cellUnderMouse()
     end
     if not step(dt) and not holding then self:Hide() end
@@ -381,6 +385,8 @@ local function makeBar(idx)
       ghost.icon:SetAllPoints()
       ghost:SetAlpha(0.8)
       ghost:SetScript("OnUpdate", function(self)
+        -- (the button let go without OnDragStop or a mouse-up event reaching us: end the drag here)
+        if IsMouseButtonDown and not IsMouseButtonDown("LeftButton") and X.dragID then X.StopDrag() return end
         if not GetCursorPosition then return end
         local x, y = GetCursorPosition()
         local sc = UIParent:GetEffectiveScale()
@@ -411,6 +417,7 @@ local function makeBar(idx)
     if ghost then ghost:Hide() end
     local k = holding and insertAt or nil
     X.dragID = nil
+    if C_Timer and C_Timer.After then C_Timer.After(0.2, function() X.Draw() end) end -- (once the game's own cursor has settled)
     local c = C()
     if fight() or not c then X.Draw() return end
     if bar:IsMouseOver() then

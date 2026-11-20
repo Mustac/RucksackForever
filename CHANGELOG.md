@@ -1,3 +1,10 @@
+# Rucksack 1.9.14
+
+### Fixed
+- **Loot stays stacked** while Haul runs. No more single pieces all over your bag. The ones from before are stacked back by themselves, a second or so each.
+- **Track bars** no longer get stuck acting like you hold an item after you sold or destroyed it.
+- If the game blocks Rucksack from opening clams and pouches by itself, it now remembers that and shows the **Open** button, instead of trying again every login.
+
 # Rucksack 1.9.13
 
 ### New, and already on

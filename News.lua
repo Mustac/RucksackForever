@@ -148,31 +148,14 @@ end)
 -- short what we did and new feature that is on now", then "popup in wow". Shown once per account per
 -- WHATSNEW (RucksackDB.whatsNew), 14 s after login, not in a fight, after the bag-addon message above
 -- when that one shows too. A new install never sees it. For the next release: change WHATSNEW and TEXT.
-local WHATSNEW = "1.9.13"
-local SEEN = "1.9.13.7" -- (what's stored as seen; raised when the text changes, so it shows once more)
+local WHATSNEW = "1.9.14"
+local SEEN = "1.9.14" -- (what's stored as seen; raised when the text changes, so it shows once more)
 local G, W = "|cffffd100", "|r"
 local TEXT = table.concat({
-  G .. "New, and already on:" .. W,
-  "- " .. G .. "Haul" .. W .. " shows what your loot is worth and your gold per hour. Open it with the Haul button under Rucksack's icon in your bag. In Haul:",
-  "     " .. G .. "Sort loot" .. W .. ": loot a vendor pays more for goes on Sell.",
-  "     " .. G .. "Check bag" .. W .. ": marks what's better sold to a vendor.",
-  "     " .. G .. "Reset" .. W .. ": starts the count from zero.",
-  "     Auction prices come from one of these addons: " .. G .. "Auctionator, auxForever, AHledger, GoldScout, CraftProfit or Hammerprice" .. W .. ". Without one of them, Haul and the gold coin don't work.",
-  "- " .. G .. "Gold coin" .. W .. " on items a vendor pays more for than the auction house (after its cut). At a vendor, one button sells them all.",
-  "- " .. G .. "Track bars" .. W .. ": keep items on screen with how many you carry, click to use them, drag one off to take it off. Up to 5, from the tool row.",
-  "- " .. G .. "Armour sets" .. W .. " from the game's equipment manager: their own group, a red border, never sold, deleted or disenchanted.",
-  "- " .. G .. "Quest marks" .. W .. ": ! starts a quest, a gold border means a quest item, !? means a quest of yours needs it.",
-  "- " .. G .. "Tool row" .. W .. " under Rucksack's icon: Haul, Track, Restock, Hidden. " .. G .. "Look" .. W .. " goes Rows, Packed, One bag.",
-  "- The Once box has sell and delete ticks, like Always.",
-  " ",
-  G .. "Better:" .. W,
-  "- Items no longer jump around while auction house addons scan.",
-  "- Drag an item and the others make room; it lands right where you drop it.",
-  "- Food, water and potions are together in Consumables.",
-  "- Restock and Hidden are simpler.",
-  "- Profession tools you don't need can be sold.",
-  "- Your other characters' bags and gold are remembered properly.",
-  "- Learning a recipe isn't blocked any more.",
+  G .. "Fixed:" .. W,
+  "- " .. G .. "Loot stays stacked" .. W .. " while Haul runs. No more single pieces all over your bag. The ones from before are stacked back by themselves, a second or so each.",
+  "- " .. G .. "Track bars" .. W .. " no longer get stuck acting like you hold an item after you sold or destroyed it.",
+  "- If the game blocks Rucksack from opening clams and pouches by itself, it now remembers that and shows the " .. G .. "Open" .. W .. " button, instead of trying again every login.",
 }, "\n")
 
 local wbox

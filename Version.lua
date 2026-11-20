@@ -15,7 +15,7 @@ if type(MINE) ~= "string" then MINE = nil end
 -- now to say to people to notify them on new update, I will tell you specifically which update I want
 -- to notify"). Copies say this instead of their own version, so nobody hears of a release he didn't
 -- pick. To announce a release: set it to that version. 1.8.7 = the first one with this file: no notice.
-local ANNOUNCE = "1.9.13" -- (19 Nov: he asked to announce 1.9.13: "notify of new update ingame")
+local ANNOUNCE = "1.9.14" -- (19 Nov: he asked to announce 1.9.13: "notify of new update ingame")
 local V = {}
 ns.Version = V
 V.mine = MINE
