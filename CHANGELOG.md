@@ -1,3 +1,8 @@
+# Rucksack 1.9.15
+
+### Fixed
+- **Track bars:** hover an item and click the small red x to take it off the bar.
+
 # Rucksack 1.9.14
 
 ### Fixed

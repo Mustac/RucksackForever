@@ -148,14 +148,15 @@ end)
 -- short what we did and new feature that is on now", then "popup in wow". Shown once per account per
 -- WHATSNEW (RucksackDB.whatsNew), 14 s after login, not in a fight, after the bag-addon message above
 -- when that one shows too. A new install never sees it. For the next release: change WHATSNEW and TEXT.
-local WHATSNEW = "1.9.14"
-local SEEN = "1.9.14" -- (what's stored as seen; raised when the text changes, so it shows once more)
+local WHATSNEW = "1.9.15"
+local SEEN = "1.9.15" -- (what's stored as seen; raised when the text changes, so it shows once more)
 local G, W = "|cffffd100", "|r"
 local TEXT = table.concat({
   G .. "Fixed:" .. W,
   "- " .. G .. "Loot stays stacked" .. W .. " while Haul runs. No more single pieces all over your bag. The ones from before are stacked back by themselves, a second or so each.",
   "- " .. G .. "Track bars" .. W .. " no longer get stuck acting like you hold an item after you sold or destroyed it.",
   "- If the game blocks Rucksack from opening clams and pouches by itself, it now remembers that and shows the " .. G .. "Open" .. W .. " button, instead of trying again every login.",
+  "- " .. G .. "Track bars" .. W .. ": hover an item and click the small red x to take it off the bar.",
 }, "\n")
 
 local wbox
