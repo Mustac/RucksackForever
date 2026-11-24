@@ -1,3 +1,10 @@
+# Rucksack 1.9.17
+
+### Changed
+- **Hide the boxes** beside your bag: click the **Boxes** button in the bag's header to hide or show them, right-click it to move them to the next corner. Hidden, they still work: Rucksack sells, deletes and banks the same, you just don't see them. To turn that off, use the ticks and Settings. (This replaces the three small buttons from 1.9.16.)
+
+Thanks to everyone who sent feedback, and to **Cindy** for this one! Please keep your suggestions and criticism coming: **Report a bug** and **Share an idea** in Rucksack, or [rucksackforever.duckdns.org](https://rucksackforever.duckdns.org/).
+
 # Rucksack 1.9.16
 
 ### New

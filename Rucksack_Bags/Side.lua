@@ -101,22 +101,7 @@ function B.QuiverShown()
   return (B.QuiverBag())
 end
 -- the box an item in your bags shows in ("always", "once", "bank", "quiver"), or nil: it stays in the bag
--- (25 Nov) Cindy asked for a way to hide the boxes; he: "buttons on sides where those boxes are, close on the
--- border stacked ... toggle on or off, shown by default". A hidden box's items go back in the bag (Junk at the
--- bottom for the sell / delete ones); Rucksack still sells, deletes and banks them as before.
-function B.BoxShown(key)
-  local d = DB()
-  local s = d and d.sideShow
-  if key == "haul" then key = "always" end
-  return not (s and s[key] == false)
-end
-local sideOfBox
 function B.SideOf(e)
-  local r = sideOfBox(e)
-  if r and r ~= "quiver" and not B.BoxShown(r) then return nil end
-  return r
-end
-function sideOfBox(e)
   local db = DB()
   if not db or not e or not e.id or e.empty then return nil end
   local q = B.QuiverShown()
@@ -631,120 +616,25 @@ function B.HeldBox(id)
   end
   return nil, hb, hs
 end
----------------------------------------------------------------------------
--- (25 Nov) The box buttons: three small buttons stacked on the bag's edge, on the side the boxes are;
--- each shows or hides its box. Gold edge = shown, dim = hidden.
----------------------------------------------------------------------------
-local TABS = 24
-local TABW = TABS + 2
-local tabFrame = CreateFrame("Frame", "RucksackBagsSideTabs", f)
-tabFrame:SetSize(TABS, TABS * 3 + 4)
-local tabs = {}
-local ICON = "Interface\\AddOns\\Rucksack_Bags\\Icons\\"
-local TABDEFS = {
-  { key = "always", icon = ICON .. "delete.tga", name = "Always sell / delete" },
-  { key = "once", icon = ICON .. "delete.tga", name = "Sell / delete once", one = true },
-  { key = "bank", icon = ICON .. "bank.tga", name = "Send to bank" },
-}
-local function boxColor(key)
-  for _, d in ipairs(BOXES) do if d.key == key then return d.color end end
-  return TAN
-end
-local function paintTab(t)
-  local on = B.BoxShown(t.key)
-  local c = boxColor(t.key)
-  t.icon:SetVertexColor(c[1], c[2], c[3])
-  t.icon:SetDesaturated(not on)
-  t.icon:SetAlpha(on and 1 or 0.4)
-  if t.one then t.one:SetAlpha(on and 1 or 0.4) end
-  if t.SetBackdropBorderColor then
-    if on then t:SetBackdropBorderColor(0.85, 0.68, 0.3, 1) else t:SetBackdropBorderColor(0.35, 0.3, 0.25, 1) end
-  end
-end
-local function tabTip(t)
-  local on = B.BoxShown(t.key)
-  GameTooltip:SetOwner(t, B.sideOnRight == false and "ANCHOR_LEFT" or "ANCHOR_RIGHT")
-  GameTooltip:AddLine(t.name)
-  if on then
-    GameTooltip:AddLine("Shown. Click to hide this box.", 1, 1, 1, true)
-    GameTooltip:AddLine("Its items go back in your bag, and Rucksack still " .. (t.key == "bank" and "sends them to the bank." or "sells or deletes them."), 0.7, 0.7, 0.7, true)
-  else
-    GameTooltip:AddLine("Hidden. Click to show this box again.", 1, 1, 1, true)
-  end
-  GameTooltip:Show()
-end
-for i, def in ipairs(TABDEFS) do
-  local t = CreateFrame("Button", "RucksackBagsSideTab_" .. def.key, tabFrame, ns.BACKDROP_TMPL)
-  t:SetSize(TABS, TABS)
-  t:SetPoint("TOP", tabFrame, "TOP", 0, -(i - 1) * (TABS + 2))
-  t.key, t.name = def.key, def.name
-  if t.SetBackdrop then
-    t:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-      tile = true, tileSize = 16, edgeSize = 10, insets = { left = 2, right = 2, top = 2, bottom = 2 } })
-    t:SetBackdropColor(0.04, 0.035, 0.03, 0.95)
-  end
-  t.icon = t:CreateTexture(nil, "ARTWORK")
-  t.icon:SetPoint("TOPLEFT", 4, -4)
-  t.icon:SetPoint("BOTTOMRIGHT", -4, 4)
-  t.icon:SetTexture(def.icon)
-  if def.one then
-    t.one = t:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    t.one:SetPoint("BOTTOMRIGHT", -2, 2)
-    t.one:SetText("1")
-  end
-  local hl = t:CreateTexture(nil, "HIGHLIGHT")
-  hl:SetPoint("TOPLEFT", 3, -3) hl:SetPoint("BOTTOMRIGHT", -3, 3)
-  hl:SetColorTexture(1, 0.85, 0.4, 0.15)
-  t:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-  t:SetScript("OnClick", function(self)
-    local d = DB()
-    if not d then return end
-    d.sideShow = d.sideShow or {}
-    d.sideShow[self.key] = (not B.BoxShown(self.key)) and true or false
-    paintTab(self)
-    tabTip(self)
-    B.Changed()
-  end)
-  t:SetScript("OnEnter", tabTip)
-  t:SetScript("OnLeave", function() GameTooltip:Hide() end)
-  tabs[def.key] = t
-  t.def = def
-end
-tabFrame:Hide()
-B.sideTabs = tabs
--- shows the buttons that apply (the sell / delete ones need Clean-up) and stacks them from the top
-local function layTabs(clean, onRight, top)
-  local shownN = 0
-  for _, def in ipairs(TABDEFS) do
-    local t = tabs[def.key]
-    local on = def.key == "bank" or clean
-    t:SetShown(on)
-    if on then
-      t:ClearAllPoints()
-      if top then
-        t:SetPoint("TOP", tabFrame, "TOP", 0, -shownN * (TABS + 2))
-      else
-        t:SetPoint("BOTTOM", tabFrame, "BOTTOM", 0, shownN * (TABS + 2))
-      end
-      paintTab(t)
-      shownN = shownN + 1
-    end
-  end
-  tabFrame:SetHeight(math.max(TABS, shownN * (TABS + 2) - 2))
-  tabFrame:ClearAllPoints()
-  local v = top and "TOP" or "BOTTOM"
-  local dy = top and -6 or 6
-  if onRight then tabFrame:SetPoint(v .. "LEFT", f, v .. "RIGHT", 1, dy) else tabFrame:SetPoint(v .. "RIGHT", f, v .. "LEFT", -1, dy) end
-  tabFrame:Show()
-end
-
 function B.DrawSide(st, text)
   if B.SideChecks then B.SideChecks() end
   oldBankList()
   local side = st and st.side
+  -- (25 Nov) the Boxes button hides them: they still work (sell, delete, bank), they're just not shown
+  if side and DB() and DB().sideHidden then
+    sf:Hide()
+    B.sideHeld = nil
+    B.sideRightW, B.sideLeftW = 0, 0
+    local hf = RucksackBagsHidden
+    if hf and hf.ClearAllPoints then
+      hf:ClearAllPoints()
+      hf:SetPoint("TOPLEFT", f, "TOPRIGHT", 3, 0)
+    end
+    if B.PlaceRestock then B.PlaceRestock() end
+    return
+  end
   if not side then
     sf:Hide()
-    tabFrame:Hide()
     B.sideRightW, B.sideLeftW = 0, 0
     if B.PlaceRestock then B.PlaceRestock() end
     return
@@ -760,7 +650,7 @@ function B.DrawSide(st, text)
   if B.QuiverShown() then qbag, qkind = B.QuiverBag() end
   for _, def in ipairs(BOXES) do
     local box = boxes[def.key]
-    if (def.clean and not clean) or (def.quiver and not qbag) or (def.haul and #(side.haul or {}) == 0) or not B.BoxShown(def.key) then
+    if (def.clean and not clean) or (def.quiver and not qbag) or (def.haul and #(side.haul or {}) == 0) then
       box:Hide()
       box.win:Hide()
       box.slot:Hide()
@@ -847,17 +737,15 @@ function B.DrawSide(st, text)
   local pos = DB().sidePos or "tr"
   local top = pos:sub(1, 1) ~= "b"
   local onRight = pos:sub(2, 2) ~= "l"
-  local any = y > 0 -- (a box is shown)
-  local sw = (any and (W + PAD * 2 + 3) or 0) + TABW -- (25 Nov: the box buttons sit between the bag and the boxes)
+  local sw = W + PAD * 2
   local fl, fr, fs, sr = f:GetLeft(), f:GetRight(), f:GetEffectiveScale(), screenRight()
-  if onRight and fr and fs and sr and (fr + sw) * fs > sr + 1 then onRight = false
-  elseif not onRight and fl and fs and (fl - sw) * fs < -1 then onRight = true end
-  layTabs(clean, onRight, top)
+  if onRight and fr and fs and sr and (fr + 3 + sw) * fs > sr + 1 then onRight = false
+  elseif not onRight and fl and fs and (fl - 3 - sw) * fs < -1 then onRight = true end
   sf:ClearAllPoints()
   local v = top and "TOP" or "BOTTOM"
-  if onRight then sf:SetPoint(v .. "LEFT", f, v .. "RIGHT", 1 + TABW, 0) else sf:SetPoint(v .. "RIGHT", f, v .. "LEFT", -1 - TABW, 0) end
+  if onRight then sf:SetPoint(v .. "LEFT", f, v .. "RIGHT", 3, 0) else sf:SetPoint(v .. "RIGHT", f, v .. "LEFT", -3, 0) end
   B.sideOnRight = onRight
-  B.sideLeftW = (not onRight) and sw or 0 -- (the bank window, opened on the bag's left, moves past them)
+  B.sideLeftW = (not onRight) and (sw + 3) or 0 -- (the bank window, opened on the bag's left, moves past them)
   -- Hidden and Restock sit on the bag's right. (18 Nov) he: "if there are no bags top right then hidden
   -- and restock should hug the bag": they move past the windows only when those are at the top right,
   -- or at the bottom right and too tall to leave room above them.
@@ -865,11 +753,11 @@ function B.DrawSide(st, text)
   local shift = 0
   if onRight then
     if top then
-      shift = sw
+      shift = sw + 3
     else
       local need = ((hf and hf:IsShown()) and ((hf:GetHeight() or 0) + 3) or 0) + ((rw and rw:IsShown()) and ((rw:GetHeight() or 0) + 3) or 0)
-      local room = (f:GetHeight() or 0) - math.max(any and (sf:GetHeight() or 0) or 0, tabFrame:GetHeight() or 0) - 3
-      if need > room then shift = sw end
+      local room = (f:GetHeight() or 0) - (sf:GetHeight() or 0) - 3
+      if need > room then shift = sw + 3 end
     end
   end
   B.sideRightW = shift -- (Restock.lua: past the windows only when they'd be in the way)
@@ -877,7 +765,7 @@ function B.DrawSide(st, text)
     hf:ClearAllPoints()
     hf:SetPoint("TOPLEFT", f, "TOPRIGHT", 3 + shift, 0)
   end
-  sf:SetShown(any)
+  sf:Show()
   if B.PlaceRestock then B.PlaceRestock() end
 end
 

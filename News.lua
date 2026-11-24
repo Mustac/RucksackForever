@@ -148,17 +148,15 @@ end)
 -- short what we did and new feature that is on now", then "popup in wow". Shown once per account per
 -- WHATSNEW (RucksackDB.whatsNew), 14 s after login, not in a fight, after the bag-addon message above
 -- when that one shows too. A new install never sees it. For the next release: change WHATSNEW and TEXT.
-local WHATSNEW = "1.9.16"
-local SEEN = "1.9.16" -- (what's stored as seen; raised when the text changes, so it shows once more)
+local WHATSNEW = "1.9.17"
+local SEEN = "1.9.17" -- (what's stored as seen; raised when the text changes, so it shows once more)
 local G, W = "|cffffd100", "|r"
 local TEXT = table.concat({
   G .. "New:" .. W,
-  "- " .. G .. "Show or hide the boxes" .. W .. " beside your bag: three small buttons on the bag's edge (Always sell / delete, Sell / delete once, Send to bank). Click one to hide its box or show it again. The items go back in your bag, and Rucksack still sells, deletes and banks them. Thanks to " .. G .. "Cindy" .. W .. " for the idea!",
-  "- " .. G .. "Each character its own:" .. W .. " Restock, Hidden and the Always sell / delete list now belong to the character you play. Each one starts with the lists you had.",
+  "- " .. G .. "Hide the boxes" .. W .. " beside your bag: click the " .. G .. "Boxes" .. W .. " button in the bag's header to hide or show them, right-click it to move them to the next corner. Hidden, they still work: Rucksack sells, deletes and banks the same, you just don't see them. To turn that off, use the ticks and Settings.",
+  "- " .. G .. "Each character its own:" .. W .. " Restock, Hidden and the Always sell / delete list belong to the character you play. Each one started with the lists you had.",
   "",
-  G .. "Fixed lately:" .. W,
-  "- Loot stays stacked while Haul runs, and the single pieces from before are stacked back.",
-  "- Track bars: hover an item and click the small red x to take it off.",
+  "Thanks to everyone who sent feedback, and to " .. G .. "Cindy" .. W .. " for this one! Please keep your suggestions and criticism coming: " .. G .. "Report a bug" .. W .. " and " .. G .. "Share an idea" .. W .. " in Rucksack, or rucksackforever.duckdns.org.",
 }, "\n")
 
 local wbox

@@ -809,18 +809,22 @@ local SIDE_ORDER = { tr = "br", br = "bl", bl = "tl", tl = "tr" }
 local SIDE_NAME = { tr = "top right", br = "bottom right", bl = "bottom left", tl = "top left" }
 B.sideBtn = iconButton(barIn, 30, "side_tr", "Boxes", function()
   local v = DB and DB.sidePos or "tr"
-  return "The Always sell / delete, Sell / delete once and Send to bank windows sit " .. SIDE_NAME[v] .. " of the bag.\n\nClick: " ..
-    SIDE_NAME[SIDE_ORDER[v]] .. ". Right-click: the other way."
+  -- (25 Nov) he: "make left click hide or show boxes, right click to move them around. if they are hidden
+  -- then they still work just its not displayed on the screen"
+  local hid = DB and DB.sideHidden
+  return "The Always sell / delete, Sell / delete once and Send to bank windows" ..
+    (hid and " are hidden. They still work: Rucksack sells, deletes and banks as before (turn that off in Settings)." or (" sit " .. SIDE_NAME[v] .. " of the bag.")) ..
+    "\n\nClick: " .. (hid and "show them." or "hide them.") .. "\nRight-click: move them to the " .. SIDE_NAME[SIDE_ORDER[v]] .. "."
 end, function(self, button)
   if not DB then return end
-  local v = DB.sidePos or "tr"
   if button == "RightButton" then
-    for k, nx in pairs(SIDE_ORDER) do if nx == v then v = k break end end
+    local v = SIDE_ORDER[DB.sidePos or "tr"] or "tr"
+    DB.sidePos = v
+    DB.sideHidden = nil -- (moving them shows them)
+    setIcon(self, "side_" .. v)
   else
-    v = SIDE_ORDER[v] or "tr"
+    DB.sideHidden = (not DB.sideHidden) or nil
   end
-  DB.sidePos = v
-  setIcon(self, "side_" .. v)
   B.Draw()
   if ns.Changed then ns.Changed() end
   if GameTooltip:IsOwned(self) and self:GetScript("OnEnter") then self:GetScript("OnEnter")(self) end
@@ -2507,6 +2511,7 @@ local function drawTop(st)
   setIcon(B.pinBtn, DB.pinned and "pinned" or "unpinned")
   lightUp(B.pinBtn, DB.pinned)
   setIcon(B.sideBtn, "side_" .. (DB.sidePos or "tr"))
+  B.sideBtn:SetAlpha(DB.sideHidden and 0.45 or 1) -- (25 Nov: dim while the boxes are hidden)
   lightUp(lockBtn, DB.locked)
   lightUp(B.autoBtn, DB.autoSort ~= false) -- (19 Nov: gold while automatic sorting is on)
   local off = DB.locked or oneBag
