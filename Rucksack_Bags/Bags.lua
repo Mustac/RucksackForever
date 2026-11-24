@@ -3977,6 +3977,11 @@ ns.Module("bags", (...), function()
   RucksackBagsDB = RucksackBagsDB or {}
   DB = RucksackBagsDB
   B.db = DB
+  -- (24 Nov) Restock and Hidden are each character's own (see ns.PerChar in Core.lua)
+  if ns.PerChar then
+    ns.PerChar(DB, "restock", "bags")
+    ns.PerChar(DB, "hidden", "bags")
+  end
   if DB.style == nil then DB.style = "groups" end
   -- (19 Nov) groups side by side to start (he: "side by side categories and out of bounds new row");
   -- once for everyone who had Rows. Rows is still on the Bags page.

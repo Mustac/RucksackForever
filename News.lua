@@ -148,15 +148,17 @@ end)
 -- short what we did and new feature that is on now", then "popup in wow". Shown once per account per
 -- WHATSNEW (RucksackDB.whatsNew), 14 s after login, not in a fight, after the bag-addon message above
 -- when that one shows too. A new install never sees it. For the next release: change WHATSNEW and TEXT.
-local WHATSNEW = "1.9.15"
-local SEEN = "1.9.15" -- (what's stored as seen; raised when the text changes, so it shows once more)
+local WHATSNEW = "1.9.16"
+local SEEN = "1.9.16" -- (what's stored as seen; raised when the text changes, so it shows once more)
 local G, W = "|cffffd100", "|r"
 local TEXT = table.concat({
-  G .. "Fixed:" .. W,
-  "- " .. G .. "Loot stays stacked" .. W .. " while Haul runs. No more single pieces all over your bag. The ones from before are stacked back by themselves, a second or so each.",
-  "- " .. G .. "Track bars" .. W .. " no longer get stuck acting like you hold an item after you sold or destroyed it.",
-  "- If the game blocks Rucksack from opening clams and pouches by itself, it now remembers that and shows the " .. G .. "Open" .. W .. " button, instead of trying again every login.",
-  "- " .. G .. "Track bars" .. W .. ": hover an item and click the small red x to take it off the bar.",
+  G .. "New:" .. W,
+  "- " .. G .. "Show or hide the boxes" .. W .. " beside your bag: three small buttons on the bag's edge (Always sell / delete, Sell / delete once, Send to bank). Click one to hide its box or show it again. The items go back in your bag, and Rucksack still sells, deletes and banks them. Thanks to " .. G .. "Cindy" .. W .. " for the idea!",
+  "- " .. G .. "Each character its own:" .. W .. " Restock, Hidden and the Always sell / delete list now belong to the character you play. Each one starts with the lists you had.",
+  "",
+  G .. "Fixed lately:" .. W,
+  "- Loot stays stacked while Haul runs, and the single pieces from before are stacked back.",
+  "- Track bars: hover an item and click the small red x to take it off.",
 }, "\n")
 
 local wbox

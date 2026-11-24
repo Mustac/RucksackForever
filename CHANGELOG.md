@@ -1,3 +1,9 @@
+# Rucksack 1.9.16
+
+### New
+- **Show or hide the boxes** beside your bag: three small buttons on the bag's edge (Always sell / delete, Sell / delete once, Send to bank). Click one to hide its box or show it again. The items go back in your bag, and Rucksack still sells, deletes and banks them. Thanks to **Cindy** for the idea!
+- **Each character its own:** Restock, Hidden and the Always sell / delete list now belong to the character you play. Each one starts with the lists you had.
+
 # Rucksack 1.9.15
 
 ### Fixed

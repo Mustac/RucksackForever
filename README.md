@@ -50,7 +50,9 @@ What goes by itself: **grey items**, **white weapons and armour** your class can
 
 B, the bag buttons, vendors, mail and trades open Rucksack's bag. Items work as always: click, drag, split, use. It draws above other windows on your screen.
 
-**The windows beside the bag:** **Always sell / delete** (every one of an item; two ticks next to its name choose whether they're sold, deleted or both), **Sell / delete once** (just that stack) and **Send to bank** (those stacks go into your bank when you open it). Drop an item on a window to put it there; **Alt + left-click** sends a stack to the bank, **Alt + right-click** takes an item out of any window. A button in the bags row moves them to any corner of the bag.
+**The windows beside the bag:** **Always sell / delete** (every one of an item; two ticks next to its name choose whether they're sold, deleted or both), **Sell / delete once** (just that stack) and **Send to bank** (those stacks go into your bank when you open it). Drop an item on a window to put it there; **Alt + left-click** sends a stack to the bank, **Alt + right-click** takes an item out of any window. A button in the bags row moves them to any corner of the bag. Three small buttons on the bag's edge show or hide each window (all shown to start); a hidden window's items go back in the bag and are still sold, deleted or banked.
+
+**Each character its own:** Restock, Hidden and the Always sell / delete and Keep lists belong to the character you play (each started with the lists you had).
 
 **Quiver:** while you wear a quiver or ammo pouch, a fourth window shows it slot by slot with how many arrows you have.
 

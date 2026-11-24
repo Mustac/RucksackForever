@@ -1349,6 +1349,12 @@ Del.Refresh = function() Refresh() end
 
 table.insert(ns.onLoad, function()
   DB = ns.del
+  -- (24 Nov) the Always sell / delete list, Sell list and Keep list are each character's own (ns.PerChar)
+  if ns.PerChar then
+    ns.PerChar(DB, "items", "del")
+    ns.PerChar(DB, "sell", "del")
+    ns.PerChar(DB, "keep", "del")
+  end
   DB.items = DB.items or {}
   DB.now = DB.now or {}
   DB.keep = DB.keep or {}

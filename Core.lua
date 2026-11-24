@@ -54,6 +54,32 @@ end
 -- (1.9, 17 Nov) Rucksack is a bag addon now: Bags and Clean-up are one choice, "Bags" (he: "Make
 -- the addon exclusivly bag addon, so from now on just make one setting, bag with this filters
 -- together"). Clean-up's folder still loads on its own, but always together with Bags.
+-- (24 Nov) he: "restock, hide, and always delete is separate for each character". A list kept in a
+-- module's account-wide file is swapped for this character's own copy: ns.PerChar(db, "restock", "bags")
+-- makes db.restock this character's list (kept in RucksackCharDB.lists["bags.restock"]). The list as it
+-- was shared before is frozen once in db.shared[key], and every character starts with a copy of it, so
+-- nobody loses what they had. (The account file still holds whichever character logged out last: unused.)
+local function deepCopy(t)
+  if type(t) ~= "table" then return t end
+  local c = {}
+  for k, v in pairs(t) do c[k] = deepCopy(v) end
+  return c
+end
+ns.DeepCopy = deepCopy
+function ns.PerChar(db, key, mod)
+  local c = ns.char
+  if not (c and db) then return end
+  c.lists = c.lists or {}
+  local tag = (mod or "") .. "." .. key
+  db.shared = db.shared or {}
+  if db.shared[key] == nil then
+    db.shared[key] = deepCopy(type(db[key]) == "table" and db[key] or {}) -- (once: the list everyone had)
+  end
+  if type(c.lists[tag]) ~= "table" then c.lists[tag] = deepCopy(db.shared[key]) end
+  db[key] = c.lists[tag]
+  return db[key]
+end
+
 function ns.ModuleWanted(key)
   if key == "del" then key = "bags" end
   local mods = ns.char and ns.char.modules
